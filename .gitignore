@@ -1,0 +1,60 @@
+# hidden files
+.*
+!.gitignore
+# vim files
+*~
+*.swp
+# PyCharm and Vim stuff
+.idea
+# emacs temp files
+*~
+\#*\#
+# Mac stuff
+.DS_Store
+# outputs
+*.csv
+*.p
+*.ods
+*.pdf
+*.png
+*.svg
+*.xlsx
+*.html
+# python
+venv/
+__pycache__
+*.egg-info/
+.installed.cfg
+*.egg
+# tag files
+tags
+# ignore tex and [R|r]nw file
+# all latex files
+*.aux
+*.bbl
+*.bib
+*.fdb_latexmk
+*.fls
+*.log
+*.run.xml
+*.toc
+*.blg
+*.out
+*.xdv
+!.tex
+!.[R|r]nw
+# potentially large files
+*.tar
+*.gz
+*.p
+*.Rdata
+# directories
+cache/
+admin/
+results/
+old/
+# Jupyter Notebook
+.ipynb_checkpoints
+# IPython
+profile_default/
+ipython_config.py
