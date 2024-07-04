@@ -9,9 +9,7 @@ pydicom.
 import numpy as np
 import pathlib
 import warnings
-from pydicom import (
-    dcmread,
-)
+from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
 from pydicom.waveforms import multiplex_array
 from datetime import datetime
@@ -27,12 +25,9 @@ from ecgprocess.constants import (
     DICOMTags,
 )
 
-path = '/home/amand/google_drive/Research/ECGProcess/ecgprocess/example_data/example_datasets/example-DICOM.dcm'
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-# NOTE check the following:
-# the unit object not being returned
+# NOTE check the following: the unit object not being returned
 class ECGDICOMReader(object):
     """
     Takes an ECG DICOM file and extracts metadata, median beats (if available)
