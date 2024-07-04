@@ -2,9 +2,10 @@
 Constants used by ECGProcess
 '''
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-from os import PRIO_PGRP
+import numpy as np
 
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 class ProcessDicomNames(object):
     '''
@@ -19,12 +20,25 @@ class ProcessDicomNames(object):
     WAVE_FORM_SEQ         = 'WaveformSequence'
     CHANNEL_DEF_SEQ       = 'ChannelDefinitionSequence'
     CHANNEL_NUMBER        = 'ChannelNumber'
+    CHANNEL_SOURCE_SEQ    = 'ChannelSourceSequence'
+    CHANNEL_CODE_MEANING  = 'CodeMeaning'
+    CHANNEL_SENS          = 'ChannelSensitivity'
     STUDY_DATE            = 'StudyDate'
     STUDY_TIME            = 'StudyTime'
     ACQUISITION_DATE      = 'AcquisitionDateTime'
     RESULTS_DICT          = 'general_info'
     SAMPLING_FREQ         = 'samplingfrequency'
     SF_ORIGINAL           = 'sf_original'
+    SF                    = 'sf'
+    UNIT                  = 'Unit free'
+    LEAD                  = 'Lead'
+    LEAD_III              = 'III'
+    LEAD_II               = 'II'
+    LEAD_I                = 'I'
+    LEAD_aVR              = 'aVR'
+    LEAD_aVL              = 'aVL'
+    LEAD_aVF              = 'aVF'
+    OVERSAMPLED           = 'oversampled'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class DICOMTags(object):
@@ -40,9 +54,9 @@ class DICOMTags(object):
         A dictionary describing the metadata one wants to extract from a
         DICOM.
     WAVE_FORMS
-        A dictionary describing the wavefrom data one wants to extract.
+        A dictionary describing the waveform data one wants to extract.
     WAVE_FORMS_LIST
-        A dictionary describing the wavefrom data one wants to extract.
+        A dictionary describing the waveform data one wants to extract.
         The dictionary value contains a list with an object name (str) and
         element to extract.
     MEADIAN_BEATS_LIST
@@ -91,7 +105,7 @@ class DICOMTags(object):
                 'FilterLowFrequency'             : 'FilterLowFrequency',
                 'FilterHighFrequency'            : 'FilterHighFrequency',
                 'NotchFilterFrequency'           : 'NotchFilterFrequency',
-                'sf'                             : 'SamplingFrequency',
+                ProcessDicomNames.SF             : 'SamplingFrequency',
                 ProcessDicomNames.SF_ORIGINAL    : 'SamplingFrequency',
         }
         # objects which cannot be extracted in a loop
@@ -131,10 +145,6 @@ class DICOMTags(object):
             "ManufacturerModelName"    : "ManufacturerModelName",
             "SoftwareVersions"         : "SoftwareVersions",
             "DataExportedBy"           : "DataExportedBy",
-            "Waveforms"                : ProcessDicomNames.LEAD_VOLTAGES,
-            "MedianWaveforms"          : ProcessDicomNames.LEAD_VOLTAGES2,
+            # "Waveforms"                : ProcessDicomNames.LEAD_VOLTAGES,
+            # "MedianWaveforms"          : ProcessDicomNames.LEAD_VOLTAGES2,
         }
-
-            # "StudyTime"                : "StudyTime",
-        # read_dict["AcquisitionDateTime"]      = datetime.strptime(self.AcquisitionDateTime[:14], "%Y%m%d%H%M%S").strftime('%Y-%m-%d %H:%M:%S')
-            # read_dict["StudyDate"]                = datetime.strptime(self.StudyDate, "%Y%m%d").strftime('%Y-%m-%d') #if your date is different format adapt

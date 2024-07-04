@@ -9,11 +9,14 @@ pydicom.
 import numpy as np
 import pathlib
 import warnings
-from pydicom import dcmread
+from pydicom import (
+    dcmread,
+)
+from pydicom.dataset import FileDataset as DCM_Class
 from pydicom.waveforms import multiplex_array
 from datetime import datetime
 from scipy import signal
-from typing import Any, List, Type, Union, Tuple, Callable, Self
+from typing import Any, List, Type, Union, Tuple, Self, Dict
 from ecgprocess.errors import (
     is_type,
     MissingDICOMTagError,
@@ -28,6 +31,8 @@ path = '/home/amand/google_drive/Research/ECGProcess/ecgprocess/example_data/exa
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+# NOTE check the following:
+# the unit object not being returned
 class ECGDICOMReader(object):
     """
     Takes an ECG DICOM file and extracts metadata, median beats (if available)
@@ -132,7 +137,7 @@ class ECGDICOMReader(object):
         is_type(skip_empty, bool, 'skip_empty')
         is_type(verbose, bool, 'verbose')
         # #### Read DICOM
-        # with closes automatically if an error is raised
+        # NOTE `with` closes automatically if an error is raised
         with open(path, 'rb') as dicom:
             # reads standard dicom content
             ECG=dcmread(dicom)
@@ -144,7 +149,7 @@ class ECGDICOMReader(object):
                     setattr(self, t, ECG.__getattr__(s))
                 elif skip_empty == False:
                     # Should an Error be returned
-                    MissingDICOMTagError(s)
+                    raise MissingDICOMTagError(s)
                 else:
                     # assign NA and append missing metadata
                     setattr(self, t, np.nan)
@@ -168,32 +173,26 @@ class ECGDICOMReader(object):
                     setattr(self, t, SETTINGS.__getattr__(s))
                 elif skip_empty == False:
                     # Should an Error be returned
-                    MissingDICOMTagError(s)
+                    raise MissingDICOMTagError(s)
                 else:
                     # assign NA and append missing metadata
                     setattr(self, t, np.nan)
                     empty_wave_forms.append(t)
                 # Check number of channels in ECG waveform
             if self.__getattribute__(PDNames.CHANNEL_NUMBER) >= 8:
-                # TODO apply functions `get_lead_info`, `make_leadvoltages`.
-                pass
-                # TODO include the error if skip_empty == False
-                # else:
-                #     # raise errorr
-                #     MissingDICOMTagError(','.join(
-                #         [PDNames.LEAD_INFO, PDNames.LEAD_VOLTAGES]
-                #     ))
-                setattr(self, PDNames.LEAD_INFO, np.nan)
-                setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
-                # NOTE replace this by the resampling_500hz output
+                lead_info_waveform=self.get_lead_info(ECG, median_beats=False)
+                setattr(self, PDNames.LEAD_VOLTAGES,
+                        self.make_leadvoltages(
+                            lead_info=lead_info_waveform,
+                            waveform_array=self.__getattribute__(
+                                PDNames.WAVE_ARRAY
+                            ))
+                        )
                 setattr(self, PDNames.SAMPLING_FREQ,
                         self.__getattribute__(PDNames.SF_ORIGINAL))
-                # self.samplingfrequency     = self.resampling_500hz()
             else:
                 # set to NA
-                setattr(self, PDNames.LEAD_INFO, np.nan)
                 setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
-                empty_wave_forms.append(PDNames.LEAD_INFO)
                 empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
                 setattr(self, PDNames.SAMLING_FREQ,
                         self.__getattribute__(PDNames.SF_ORIGINAL))
@@ -201,21 +200,35 @@ class ECGDICOMReader(object):
             nam, el = self.MEDIAN_BEATS_LIST[PDNames.MEDIAN_ARRAY]
             if hasattr(ECG, nam):
                     # Assign if present
+                    lead_info_median=self.get_lead_info(ECG, median_beats=True)
                     setattr(self, PDNames.MEDIAN_ARRAY,
                             ECG.__getattr__(nam)(el).T)
                     setattr(self, PDNames.MEDIAN_PRESENT, True)
-                    # NOTE apply `get_lead_info`, `make_leadvoltages` functions
-                    # NOTE DETETE
-                    setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
-                    setattr(self, PDNames.LEAD_INFO, np.nan)
+                    setattr(self, PDNames.LEAD_VOLTAGES2,
+                            self.make_leadvoltages(
+                                lead_info=lead_info_median,
+                                waveform_array=self.__getattribute__(
+                                    PDNames.MEDIAN_ARRAY,
+                                ))
+                            )
             elif skip_empty == False:
                 raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
             else:
                 # set to missing
                 setattr(self, PDNames.MEDIAN_ARRAY, np.nan)
                 setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
-                setattr(self, PDNames.LEAD_INFO, np.nan)
                 setattr(self, PDNames.MEDIAN_PRESENT, False)
+            # do we need to resample the freq
+            if self.resample_500 == True:
+                # the function will internally adjust
+                # LEAD_VOLTAGES, and LEAD_VOLTAGES2
+                # Nothing is returned
+                self.resampling_500hz()
+                setattr(self, PDNames.OVERSAMPLED, True)
+                setattr(self, PDNames.SF, 500)
+                setattr(self, PDNames.SAMPLING_FREQ, 500)
+            else:
+                setattr(self, PDNames.OVERSAMPLED, False)
         # #### end of `dicom` part, optionally printing tags which were missing
         if verbose == True:
             if len(empty_metadata) + len(empty_wave_forms) > 0:
@@ -223,25 +236,130 @@ class ECGDICOMReader(object):
                     'The following DICOM tags could not be found:{}'.format(
                         empty_metadata + empty_wave_forms))
         # #### The results dictionary
+        results_dict = {}
         for t, s in self.RESULTS_DICTIONARY.items():
             # if present in WAVE or SETTINGS assign
-            results_dict = {}
             if hasattr(self, s):
                 results_dict[t] = self.__getattribute__(s)
             else:
                 raise ValueError('`{0}` is not available.'.format(s))
-            # add time variables
-            results_dict[PDNames.STUDY_TIME] =\
-                self.__getattribute__(PDNames.STUDY_TIME)
-            raw_AD = self.__getattribute__(PDNames.ACQUISITION_DATE)
-            raw_SD = self.__getattribute__(PDNames.STUDY_DATE)
-            results_dict[PDNames.ACQUISITION_DATE] = \
-                datetime.strptime(raw_AD, self.ACQUISITION_DATE_SOURCE).\
-                strftime(self.ACQUISITION_DATE_TARGET)
-            results_dict[PDNames.STUDY_DATE] = \
-                datetime.strptime(raw_SD, self.STUDY_DATE_SOURCE).\
-                strftime(self.STUDY_DATE_TARGET)
-            setattr(self, PDNames.RESULTS_DICT, results_dict)
+        # add time variables
+        results_dict[PDNames.STUDY_TIME] =\
+            self.__getattribute__(PDNames.STUDY_TIME)
+        raw_AD = self.__getattribute__(PDNames.ACQUISITION_DATE)
+        raw_SD = self.__getattribute__(PDNames.STUDY_DATE)
+        results_dict[PDNames.ACQUISITION_DATE] = \
+            datetime.strptime(raw_AD, self.ACQUISITION_DATE_SOURCE).\
+            strftime(self.ACQUISITION_DATE_TARGET)
+        results_dict[PDNames.STUDY_DATE] = \
+            datetime.strptime(raw_SD, self.STUDY_DATE_SOURCE).\
+            strftime(self.STUDY_DATE_TARGET)
+        setattr(self, PDNames.RESULTS_DICT, results_dict)
         # #### return stuff
         return self
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def get_lead_info(self, dcm_instance: DCM_Class, median_beats:bool,
+                  ) -> Dict[int, str]:
+        """
+        Extracts the lead names from a `dcmread` instance.
+        
+        Parameters
+        ----------
+        dcm_instance: DCM_Class
+            An `dcmread` instance.
+        median_beats: bool
+            Whether element zero (`False`) or element one should be used (`True`).
+        
+        Returns
+        -------
+        leadnames: dict
+            A dictionary with numerical (interval) keys and the lead names as
+            values.
+        """
+        
+        # #### check input and set constants
+        is_type(median_beats, bool, 'median_beats')
+        nr = 0
+        if median_beats == True:
+            nr = 1
+        # channel_seq
+        channel_seq = dcm_instance.__getattr__(PDNames.WAVE_FORM_SEQ)[nr].\
+            __getattr__(PDNames.CHANNEL_DEF_SEQ)
+        # #### extracting the lead names
+        leadnames = {}
+        for k, channel in enumerate(channel_seq):
+            # extracting lead names
+            source = channel.__getattr__(PDNames.CHANNEL_SOURCE_SEQ)[0].\
+                __getattr__(PDNames.CHANNEL_CODE_MEANING)
+            units = PDNames.UNIT
+            # NOTE unit is currently not returned,
+            # Looks like CHANNEL_SENS should be assigned to unit and returned?
+            # Need to discuss this.
+            if hasattr(channel, PDNames.CHANNEL_SENS):
+                units = channel.__getattr__(PDNames.CHANNEL_SENS)
+            # assign lead names to numericals
+            leadnames[k] = source.replace(PDNames.LEAD, '').strip()
+        # return stuff
+        return leadnames
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def make_leadvoltages(self, waveform_array: np.ndarray,
+                          lead_info:Dict[int, str],
+                          ) -> Dict[str, np.ndarray]:
+        """
+        Extracts the voltages out of the DICOM files. Will automatically
+        extract the limb leads if missing, please see:
+        `url <https://ecgwaves.com/topic/ekg-ecg-leads-electrodes-systems-limb-chest-precordial/>`_.
+        Parameters
+        ----------
+        waveform_array: np.ndarray
+            An array with the waveforms.
+        lead_info: dict
+            A dictionary where the keys match the `waveform_array` rows and
+            the dictionary values contain the lead name strings.
+        
+        Returns
+        -------
+        leads: dict
+            A dictionary with the lead name string as keys and leads as
+            np.ndarray values.
+        """
+        
+        # #### check input and set constants
+        is_type(waveform_array, np.ndarray, 'waveform_array')
+        is_type(lead_info, dict, 'lead_info')
+        leads = {}
+        # #### the main function
+        for k, lead in enumerate(waveform_array):
+            leads[lead_info[k]] = lead
+        if (k+1) == 8 and self.augment_leads == True:
+            # Calculate limb leads
+            leads[PDNames.LEAD_III] = np.subtract(leads[PDNames.LEAD_II],
+                                                  leads[PDNames.LEAD_I])
+            leads[PDNames.LEAD_aVR] = np.add(leads[PDNames.LEAD_I],
+                                  leads[PDNames.LEAD_II]) * (-0.5)
+            leads[PDNames.LEAD_aVL] = np.subtract(leads[PDNames.LEAD_I],
+                                       0.5 * leads[PDNames.LEAD_II])
+            leads[PDNames.LEAD_aVF] = np.subtract(leads[PDNames.LEAD_II],
+                                       0.5 * leads[PDNames.LEAD_I])
+        # return
+        return leads
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def resampling_500hz(self):
+        """
+        Re-sampling the sampling frequency from 250 to 500 hz.
+        """
+        if int(self.__getattribute__(PDNames.SF)) != 500:
+            lead_volt_temp = self.__getattribute__(PDNames.LEAD_VOLTAGES)
+            for i in lead_volt_temp:
+                lead_volt_temp[f"{i}"] =\
+                    signal.resample(lead_volt_temp[f"{i}"], 5000)
+            # assign to self again
+            setattr(self, PDNames.LEAD_VOLTAGES, lead_volt_temp)
+            if self.__getattribute__(PDNames.MEDIAN_PRESENT) == True:
+                lead_volt_temp2 = self.__getattribute__(PDNames.LEAD_VOLTAGES2)
+                for i in lead_volt_temp2:
+                    lead_volt_temp2[f"{i}"] = \
+                        signal.resample(lead_volt_temp2[f"{i}"], 600)
+                # assign to self again
+                setattr(self, PDNames.LEAD_VOLTAGES2, lead_volt_temp2)
 
