@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from ecgprocess.constants import ProcessDicomNames as PDNames
+from ecgprocess.errors import MissingDICOMTagError
 from ecgprocess.process_dicoms import (
     ECGDICOMReader,
 )
@@ -61,6 +62,6 @@ class TestECGDICOMReader(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_errors(self):
         ECG_DCM = ECGDICOMReader()
-        with pytest.raises(TypeError):
+        with pytest.raises(MissingDICOMTagError):
             ECG_DCM(path=dicom_file_path, skip_empty=False)
 
