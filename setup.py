@@ -17,7 +17,7 @@ DESCRIPTION = 'A python module to process ECG data'
 URL = ''
 EMAIL = 'amand.schmidt@ucl.ac.uk'
 AUTHOR = 'A Floriaan Schmidt'
-REQUIRES_PYTHON = '>=3.8.0'
+REQUIRES_PYTHON = '>=3.11.0'
 VERSION = '0.0.0'
 
 # What packages are required for this module to be executed?

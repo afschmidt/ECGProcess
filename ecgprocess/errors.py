@@ -226,9 +226,7 @@ class Error_MSG(object):
     '''
     A collection of error messages.
     '''
-    MISSING_DF = '`{}` contains missing values.'
-    INVALID_STRING = '`{}` should be limited to `{}`.'
-    INVALID_EXACT_LENGTH = '`{}` needs to contain exactly {} elements, not {}.'
+    MISSING_DICOM = '`{}` not found in DICOM file.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class MissingDICOMTagError(Exception):
