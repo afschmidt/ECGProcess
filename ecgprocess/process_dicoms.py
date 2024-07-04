@@ -180,7 +180,10 @@ class ECGDICOMReader(object):
                     empty_wave_forms.append(t)
                 # Check number of channels in ECG waveform
             if self.__getattribute__(PDNames.CHANNEL_NUMBER) >= 8:
-                lead_info_waveform=self.get_lead_info(ECG, median_beats=False)
+                channel_seq = ECG.\
+                    __getattr__(PDNames.WAVE_FORM_SEQ)[0].\
+                    __getattr__(PDNames.CHANNEL_DEF_SEQ)
+                lead_info_waveform=self.get_lead_info(channel_seq)
                 setattr(self, PDNames.LEAD_VOLTAGES,
                         self.make_leadvoltages(
                             lead_info=lead_info_waveform,
@@ -200,7 +203,10 @@ class ECGDICOMReader(object):
             nam, el = self.MEDIAN_BEATS_LIST[PDNames.MEDIAN_ARRAY]
             if hasattr(ECG, nam):
                     # Assign if present
-                    lead_info_median=self.get_lead_info(ECG, median_beats=True)
+                    channel_seq_median = ECG.\
+                        __getattr__(PDNames.WAVE_FORM_SEQ)[1].\
+                        __getattr__(PDNames.CHANNEL_DEF_SEQ)
+                    lead_info_median=self.get_lead_info(channel_seq_median)
                     setattr(self, PDNames.MEDIAN_ARRAY,
                             ECG.__getattr__(nam)(el).T)
                     setattr(self, PDNames.MEDIAN_PRESENT, True)
@@ -258,17 +264,15 @@ class ECGDICOMReader(object):
         # #### return stuff
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_lead_info(self, dcm_instance: DCM_Class, median_beats:bool,
+    def get_lead_info(self, channel_seq: DCM_Class
                   ) -> Dict[int, str]:
         """
         Extracts the lead names from a `dcmread` instance.
         
         Parameters
         ----------
-        dcm_instance: DCM_Class
-            An `dcmread` instance.
-        median_beats: bool
-            Whether element zero (`False`) or element one should be used (`True`).
+        channel_seq: DCM_Class
+            An `pydicom.sequence.Sequence` instance.
         
         Returns
         -------
@@ -276,15 +280,6 @@ class ECGDICOMReader(object):
             A dictionary with numerical (interval) keys and the lead names as
             values.
         """
-        
-        # #### check input and set constants
-        is_type(median_beats, bool, 'median_beats')
-        nr = 0
-        if median_beats == True:
-            nr = 1
-        # channel_seq
-        channel_seq = dcm_instance.__getattr__(PDNames.WAVE_FORM_SEQ)[nr].\
-            __getattr__(PDNames.CHANNEL_DEF_SEQ)
         # #### extracting the lead names
         leadnames = {}
         for k, channel in enumerate(channel_seq):
