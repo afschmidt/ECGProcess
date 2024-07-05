@@ -3,7 +3,6 @@ channels:
   - anaconda
   - conda-forge
   - bioconda
-  - cfin
 dependencies:
   - python>=3.11
   - pandas>=2.1.1

@@ -1,0 +1,9 @@
+sphinx_rtd_theme
+sphinx-bootstrap-theme
+furo
+myst-parser
+notebook
+nbsphinx
+nbsphinx-link
+sphinx-argparse
+numpydoc
