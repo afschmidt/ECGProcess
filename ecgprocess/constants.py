@@ -109,8 +109,6 @@ class DICOMTags(object):
         }
         # objects which cannot be extracted in a loop
         self.WAVE_FORMS_LIST = {
-            # ProcessDicomNames.LEAD_INFO     : ['lead_info', 0],
-            # ProcessDicomNames.LEAD_VOLTAGES : ['make_leadvoltages', 0],
             ProcessDicomNames.WAVE_ARRAY    : ['waveform_array', 0],
         }
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -144,6 +142,4 @@ class DICOMTags(object):
              "ManufacturerModelName",
              "SoftwareVersions",
              "DataExportedBy",
-             # ProcessDicomNames.LEAD_VOLTAGES,
-             # ProcessDicomNames.LEAD_VOLTAGES2,
         ]

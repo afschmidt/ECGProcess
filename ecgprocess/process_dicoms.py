@@ -43,13 +43,9 @@ class ECGDICOMReader(object):
         A dictionary describing the metadata one wants to extract from a
         DICOM. The dictionary keys represents the `target` (new) name and the
         dictionary values the `source` (old) names.
-    WAVE_FORMS: dict
-        A dictionary describing the waveform data one wants to extract. This
-        is identically organised as `METADATA`.
-    MEDIAN_BEATS_LIST: dict
-        A dictionary describing the median beats data one wants to extract.
-        The dictionary value contains a list with an object name (str) and
-        element to extract.
+    RESULTS_LIST: list
+        A list of attribute one wants to extract, should map predominantly to
+        the keys in  `METADATA` and `WAVE_FROMS`.
     STUDY_DATE_SOURCE: str
         The study date format of the source DICOM.  This will be used in
         `datetime.strptime` as format argument.
