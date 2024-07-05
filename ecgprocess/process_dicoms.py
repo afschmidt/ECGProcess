@@ -24,7 +24,6 @@ from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
     DICOMTags,
 )
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # NOTE check the following: the unit object not being returned
@@ -82,11 +81,11 @@ class ECGDICOMReader(object):
         self.resample_500 = resample_500
         # default tags to extract
         DEFAULT_DICTS = DICOMTags()
-        self.METATDATA = DEFAULT_DICTS.METATDATA
+        self.METADATA = DEFAULT_DICTS.METADATA
         self.WAVE_FORMS = DEFAULT_DICTS.WAVE_FORMS
         self.WAVE_FORMS_LIST = DEFAULT_DICTS.WAVE_FORMS_LIST
         self.MEDIAN_BEATS_LIST = DEFAULT_DICTS.MEDIAN_BEATS_LIST
-        self.RESULTS_DICTIONARY = DEFAULT_DICTS.RESULTS_DICTIONARY
+        self.RESULTS_LIST = DEFAULT_DICTS.RESULTS_LIST
         # default dates to extract and format
         self.STUDY_DATE_SOURCE = "%Y%m%d"
         self.STUDY_DATE_TARGET = "%Y-%m-%d"
@@ -110,7 +109,7 @@ class ECGDICOMReader(object):
         Read a `.dcm` DICOM file and extracts metadata, raw waveforms, and
         median beats.
         
-        see `constants.DICOMTags` for the `METATDATA`, `WAVE_FORMS`, and
+        see `constants.DICOMTags` for the `METADATA`, `WAVE_FORMS`, and
         `MEADIAN_BEATS` tags looked for.
         
         Parameters
@@ -138,7 +137,7 @@ class ECGDICOMReader(object):
             ECG=dcmread(dicom)
             # #### extract metadata
             empty_metadata = []
-            for t, s in self.METATDATA.items():
+            for t, s in self.METADATA.items():
                 if hasattr(ECG, s):
                     # Assign if present
                     setattr(self, t, ECG.__getattr__(s))
@@ -238,10 +237,10 @@ class ECGDICOMReader(object):
                         empty_metadata + empty_wave_forms))
         # #### The results dictionary
         results_dict = {}
-        for t, s in self.RESULTS_DICTIONARY.items():
+        for t in self.RESULTS_LIST:
             # if present in WAVE or SETTINGS assign
-            if hasattr(self, s):
-                results_dict[t] = self.__getattribute__(s)
+            if hasattr(self, t):
+                results_dict[t] = self.__getattribute__(t)
             else:
                 raise ValueError('`{0}` is not available.'.format(s))
         # add time variables
@@ -256,6 +255,8 @@ class ECGDICOMReader(object):
             datetime.strptime(raw_SD, self.STUDY_DATE_SOURCE).\
             strftime(self.STUDY_DATE_TARGET)
         setattr(self, PDNames.RESULTS_DICT, results_dict)
+        # add the original dcmread instance
+        setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
         # #### return stuff
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\

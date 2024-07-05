@@ -23,6 +23,12 @@ dicoms and map these to numpy arrays used in ML/AI algorithms.
    api
 
 .. toctree::
+   :maxdepth: 3
+   :caption: Examples
+   
+   examples
+
+.. toctree::
    :maxdepth: 2
    :caption: Project admin
 

@@ -39,6 +39,7 @@ class ProcessDicomNames(object):
     LEAD_aVL              = 'aVL'
     LEAD_aVF              = 'aVF'
     OVERSAMPLED           = 'oversampled'
+    ORIG_DCMREAD_INST     = 'dmcread_instance'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class DICOMTags(object):
@@ -50,7 +51,7 @@ class DICOMTags(object):
     
     Attributes
     ----------
-    METATDATA
+    METADATA
         A dictionary describing the metadata one wants to extract from a
         DICOM.
     WAVE_FORMS
@@ -63,11 +64,9 @@ class DICOMTags(object):
         A dictionary describing the median beats data one wants to extract.
         The dictionary value contains a list with an object name (str) and
         element to extract.
-    RESULTS_DICTIONARY
-        A dicionary describing the non-array results extracted from `METADATA`
-        and `WAVE_FROMS`. Here the values should match the keys in METATDATA
-        and WAVE_FORMS, with the `RESULTS_DICTIONARY` keys matching the
-        updated names.
+    RESULTS_LIST
+        A list of instance attribute one wants to extract, should map
+        predominantly to the keys in  `METADATA` and `WAVE_FROMS`.
         
     '''
     # /////////////////////////////////////////////////////////////////////////
@@ -76,7 +75,7 @@ class DICOMTags(object):
         Initialises the DICOMTags class.
         '''
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        self.METATDATA = {
+        self.METADATA = {
             'SOPinstanceUID'        : 'SOPInstanceUID',
             'SERIESinstanceUID'     : 'SeriesInstanceUID',
             'STUDYinstanceUID'      : 'StudyInstanceUID',
@@ -121,30 +120,30 @@ class DICOMTags(object):
             ProcessDicomNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
         }
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        self.RESULTS_DICTIONARY = {
-            "SOPinstanceUID"           : "SOPinstanceUID",
-            "SERIESinstanceUID"        : "SERIESinstanceUID",
-            "STUDYinstanceUID"         : "STUDYinstanceUID",
-            "PatientID"                : "PatientID",
-            "PatientBirthDate"         : "PatientBirthDate",
-            "PatientName"              : "PatientName",
-            "PatientSex"               : "PatientSex",
-            "StudyDescription"         : "StudyDescription",
-            "AcquisitionTimeZone"      : "AcquisitionTimeZone",
-            "AccessionNumber"          : "AccessionNumber",
-            "SamplingFrequency"        : ProcessDicomNames.SAMPLING_FREQ,
-            "OriginalSamplingFrequency": ProcessDicomNames.SF_ORIGINAL,
-            "ChannelNumber"            : "ChannelNumber",
-            "ChannelSensitivity"       : "ChannelSensitivity",
-            "ChannelBaseline"          : "ChannelBaseline",
-            "ChannelSampleSkew"        : "ChannelSampleSkew",
-            "FilterLowFrequency"       : "FilterLowFrequency",
-            "FilterHighFrequency"      : "FilterHighFrequency",
-            "NotchFilterFrequency"     : "NotchFilterFrequency",
-            "Manufacturer"             : "Manufacturer",
-            "ManufacturerModelName"    : "ManufacturerModelName",
-            "SoftwareVersions"         : "SoftwareVersions",
-            "DataExportedBy"           : "DataExportedBy",
-            # "Waveforms"                : ProcessDicomNames.LEAD_VOLTAGES,
-            # "MedianWaveforms"          : ProcessDicomNames.LEAD_VOLTAGES2,
-        }
+        self.RESULTS_LIST = [
+             "SOPinstanceUID",
+             "SERIESinstanceUID",
+             "STUDYinstanceUID",
+             "PatientID",
+             "PatientBirthDate",
+             "PatientName",
+             "PatientSex",
+             "StudyDescription",
+             "AcquisitionTimeZone",
+             "AccessionNumber",
+             ProcessDicomNames.SAMPLING_FREQ,
+             ProcessDicomNames.SF_ORIGINAL,
+             "ChannelNumber",
+             "ChannelSensitivity",
+             "ChannelBaseline",
+             "ChannelSampleSkew",
+             "FilterLowFrequency",
+             "FilterHighFrequency",
+             "NotchFilterFrequency",
+             "Manufacturer",
+             "ManufacturerModelName",
+             "SoftwareVersions",
+             "DataExportedBy",
+             # ProcessDicomNames.LEAD_VOLTAGES,
+             # ProcessDicomNames.LEAD_VOLTAGES2,
+        ]
