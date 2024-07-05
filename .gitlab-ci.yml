@@ -6,7 +6,7 @@
 # Official language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/library/python/tags/
 image:
-    name: floriaan1/ecgprogress:master 
+    name: floriaan1/ecgprocess:master 
     entrypoint: ["/bin/sh", "-c"]
     # entrypoint: [ '/bin/bash', '-c', 'ln -snf /bin/bash /bin/sh && /bin/bash -c $0' ]
 # Change pip's cache directory to be inside the project directory since we can
