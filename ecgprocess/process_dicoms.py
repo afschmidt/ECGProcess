@@ -140,7 +140,7 @@ class ECGDICOMReader(object):
             for t, s in self.METADATA.items():
                 if hasattr(ECG, s):
                     # Assign if present
-                    setattr(self, t, ECG.__getattr__(s))
+                    setattr(self, t, getattr(ECG, s))
                 elif skip_empty == False:
                     # Should an Error be returned
                     raise MissingDICOMTagError(s)
@@ -152,19 +152,19 @@ class ECGDICOMReader(object):
             try:
                 nam, el = self.WAVE_FORMS_LIST[PDNames.WAVE_ARRAY]
                 setattr(self, PDNames.WAVE_ARRAY,
-                        ECG.__getattr__(nam)(el).T)
+                        getattr(ECG, nam)(el).T)
             except:
                 raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
-            WAVE = ECG.__getattr__(PDNames.WAVE_FORM_SEQ)[0]
-            SETTINGS = WAVE.__getattr__(PDNames.CHANNEL_DEF_SEQ)[0]
+            WAVE = getattr(ECG, PDNames.WAVE_FORM_SEQ)[0]
+            SETTINGS = getattr(WAVE, PDNames.CHANNEL_DEF_SEQ)[0]
             # loop over the remaining wave form data
             empty_wave_forms = []
             for t, s in self.WAVE_FORMS.items():
                 # if present in WAVE or SETTINGS assign
                 if hasattr(WAVE, s):
-                    setattr(self, t, WAVE.__getattr__(s))
+                    setattr(self, t, getattr(WAVE, s))
                 elif hasattr(SETTINGS, s):
-                    setattr(self, t, SETTINGS.__getattr__(s))
+                    setattr(self, t, getattr(SETTINGS, s))
                 elif skip_empty == False:
                     # Should an Error be returned
                     raise MissingDICOMTagError(s)
@@ -173,44 +173,40 @@ class ECGDICOMReader(object):
                     setattr(self, t, np.nan)
                     empty_wave_forms.append(t)
                 # Check number of channels in ECG waveform
-            if self.__getattribute__(PDNames.CHANNEL_NUMBER) >= 8:
-                channel_seq = ECG.\
-                    __getattr__(PDNames.WAVE_FORM_SEQ)[0].\
-                    __getattr__(PDNames.CHANNEL_DEF_SEQ)
-                lead_info_waveform=self.get_lead_info(channel_seq)
+            if getattr(self, PDNames.CHANNEL_NUMBER) >= 8:
+                channel_seq = getattr(getattr(ECG, PDNames.WAVE_FORM_SEQ)[0],
+                                      PDNames.CHANNEL_DEF_SEQ)
+                lead_info_waveform=self._get_lead_info(channel_seq)
                 setattr(self, PDNames.LEAD_VOLTAGES,
                         self.make_leadvoltages(
                             lead_info=lead_info_waveform,
-                            waveform_array=self.__getattribute__(
-                                PDNames.WAVE_ARRAY
+                            waveform_array=getattr(self, PDNames.WAVE_ARRAY)
                             ))
-                        )
                 setattr(self, PDNames.SAMPLING_FREQ,
-                        self.__getattribute__(PDNames.SF_ORIGINAL))
+                        getattr(self, PDNames.SF_ORIGINAL))
             else:
                 # set to NA
                 setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
                 empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
                 setattr(self, PDNames.SAMLING_FREQ,
-                        self.__getattribute__(PDNames.SF_ORIGINAL))
+                        getattr(self, PDNames.SF_ORIGINAL))
             # #### Extract Median beats
             nam, el = self.MEDIAN_BEATS_LIST[PDNames.MEDIAN_ARRAY]
             if hasattr(ECG, nam):
                     # Assign if present
-                    channel_seq_median = ECG.\
-                        __getattr__(PDNames.WAVE_FORM_SEQ)[1].\
-                        __getattr__(PDNames.CHANNEL_DEF_SEQ)
-                    lead_info_median=self.get_lead_info(channel_seq_median)
+                    channel_seq_median = getattr(
+                        getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
+                        PDNames.CHANNEL_DEF_SEQ)
+                    lead_info_median=self._get_lead_info(channel_seq_median)
                     setattr(self, PDNames.MEDIAN_ARRAY,
-                            ECG.__getattr__(nam)(el).T)
+                            getattr(ECG, nam)(el).T)
                     setattr(self, PDNames.MEDIAN_PRESENT, True)
                     setattr(self, PDNames.LEAD_VOLTAGES2,
                             self.make_leadvoltages(
                                 lead_info=lead_info_median,
-                                waveform_array=self.__getattribute__(
-                                    PDNames.MEDIAN_ARRAY,
+                                waveform_array=\
+                                getattr(self, PDNames.MEDIAN_ARRAY)
                                 ))
-                            )
             elif skip_empty == False:
                 raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
             else:
@@ -223,7 +219,7 @@ class ECGDICOMReader(object):
                 # the function will internally adjust
                 # LEAD_VOLTAGES, and LEAD_VOLTAGES2
                 # Nothing is returned
-                self.resampling_500hz()
+                self._resampling_500hz()
                 setattr(self, PDNames.OVERSAMPLED, True)
                 setattr(self, PDNames.SF, 500)
                 setattr(self, PDNames.SAMPLING_FREQ, 500)
@@ -240,14 +236,13 @@ class ECGDICOMReader(object):
         for t in self.RESULTS_LIST:
             # if present in WAVE or SETTINGS assign
             if hasattr(self, t):
-                results_dict[t] = self.__getattribute__(t)
+                results_dict[t] = getattr(self, t)
             else:
                 raise ValueError('`{0}` is not available.'.format(s))
         # add time variables
-        results_dict[PDNames.STUDY_TIME] =\
-            self.__getattribute__(PDNames.STUDY_TIME)
-        raw_AD = self.__getattribute__(PDNames.ACQUISITION_DATE)
-        raw_SD = self.__getattribute__(PDNames.STUDY_DATE)
+        results_dict[PDNames.STUDY_TIME] = getattr(self, PDNames.STUDY_TIME)
+        raw_AD = getattr(self, PDNames.ACQUISITION_DATE)
+        raw_SD = getattr(self, PDNames.STUDY_DATE)
         results_dict[PDNames.ACQUISITION_DATE] = \
             datetime.strptime(raw_AD, self.ACQUISITION_DATE_SOURCE).\
             strftime(self.ACQUISITION_DATE_TARGET)
@@ -260,7 +255,7 @@ class ECGDICOMReader(object):
         # #### return stuff
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_lead_info(self, channel_seq: DCM_Class
+    def _get_lead_info(self, channel_seq: DCM_Class
                   ) -> Dict[int, str]:
         """
         Extracts the lead names from a `dcmread` instance.
@@ -280,14 +275,14 @@ class ECGDICOMReader(object):
         leadnames = {}
         for k, channel in enumerate(channel_seq):
             # extracting lead names
-            source = channel.__getattr__(PDNames.CHANNEL_SOURCE_SEQ)[0].\
-                __getattr__(PDNames.CHANNEL_CODE_MEANING)
+            source = getattr(getattr(channel,PDNames.CHANNEL_SOURCE_SEQ)[0],
+                             PDNames.CHANNEL_CODE_MEANING)
             units = PDNames.UNIT
             # NOTE unit is currently not returned,
             # Looks like CHANNEL_SENS should be assigned to unit and returned?
             # Need to discuss this.
             if hasattr(channel, PDNames.CHANNEL_SENS):
-                units = channel.__getattr__(PDNames.CHANNEL_SENS)
+                units = getattr(channel, PDNames.CHANNEL_SENS)
             # assign lead names to numericals
             leadnames[k] = source.replace(PDNames.LEAD, '').strip()
         # return stuff
@@ -335,19 +330,19 @@ class ECGDICOMReader(object):
         # return
         return leads
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def resampling_500hz(self):
+    def _resampling_500hz(self):
         """
         Re-sampling the sampling frequency from 250 to 500 hz.
         """
-        if int(self.__getattribute__(PDNames.SF)) != 500:
-            lead_volt_temp = self.__getattribute__(PDNames.LEAD_VOLTAGES)
+        if int(getattr(self, PDNames.SF)) != 500:
+            lead_volt_temp = getattr(self, PDNames.LEAD_VOLTAGES)
             for i in lead_volt_temp:
                 lead_volt_temp[f"{i}"] =\
                     signal.resample(lead_volt_temp[f"{i}"], 5000)
             # assign to self again
             setattr(self, PDNames.LEAD_VOLTAGES, lead_volt_temp)
-            if self.__getattribute__(PDNames.MEDIAN_PRESENT) == True:
-                lead_volt_temp2 = self.__getattribute__(PDNames.LEAD_VOLTAGES2)
+            if getattr(self, PDNames.MEDIAN_PRESENT) == True:
+                lead_volt_temp2 = getattr(self, PDNames.LEAD_VOLTAGES2)
                 for i in lead_volt_temp2:
                     lead_volt_temp2[f"{i}"] = \
                         signal.resample(lead_volt_temp2[f"{i}"], 600)
