@@ -51,13 +51,17 @@ class ECGDICOMReader(object):
         The dictionary value contains a list with an object name (str) and
         element to extract.
     STUDY_DATE_SOURCE: str
-        The study date format of the source DICOM.
+        The study date format of the source DICOM.  This will be used in
+        `datetime.strptime` as format argument.
     STUDY_DATE_TARGET: str
-        The target formatting of the study date.
+        The target formatting of the study date.  This will be used in
+        `datetime.strptime` as format argument.
     ACQUISITION_DATE_SOURCE: str
-        The acquisition date and time format of the source DICOM.
+        The acquisition date and time format of the source DICOM.  This will be
+        used in `datetime.strptime` as format argument.
     ACQUISITION_DATE_TARGET: str
-        The target formatting of the acquisition date and time.
+        The target formatting of the acquisition date and time.  This will be
+        used in `datetime.strptime` as format argument.
     """
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
