@@ -38,7 +38,7 @@ extensions = [
     # 'sphinx_chang
 ]
 
-autodoc_typehints = 'description'
+# autodoc_typehints = 'description'
 templates_path = ['_templates']
 exclude_patterns = []
 
