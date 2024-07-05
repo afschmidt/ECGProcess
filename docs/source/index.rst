@@ -20,7 +20,13 @@ dicoms and map these to numpy arrays used in ML/AI algorithms.
    :maxdepth: 2
    :caption: Contents:
 
+   api
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Project admin
+
+   contributing
 
 Indices and tables
 ==================
