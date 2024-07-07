@@ -13,8 +13,8 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = 'ECGProcess'
-DESCRIPTION = 'A python module to process ECG data'
-URL = ''
+DESCRIPTION = 'A python module to process and standardise ECG data'
+URL = 'https://gitlab.com/SchmidtAF/ECGProcess'
 EMAIL = 'amand.schmidt@ucl.ac.uk'
 AUTHOR = 'A Floriaan Schmidt'
 REQUIRES_PYTHON = '>=3.11.0'

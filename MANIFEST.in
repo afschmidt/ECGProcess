@@ -1,0 +1,9 @@
+exclude MANIFEST.in
+exclude .*
+recursive-exclude .* 
+recursive-exclude tests *
+
+include README.md
+include LICENSE.txt
+include ecgprocess/example_data/example_datasets/*
+
