@@ -6,7 +6,6 @@ pydicom.
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
-from dataclasses import dataclass
 import numpy as np
 import pathlib
 import warnings
@@ -15,6 +14,7 @@ from pydicom.dataset import FileDataset as DCM_Class
 from pydicom.waveforms import multiplex_array
 from datetime import datetime
 from scipy import signal
+from dataclasses import dataclass
 from typing import Any, List, Type, Union, Tuple, Self, Dict
 from ecgprocess.errors import (
     is_type,
@@ -132,7 +132,7 @@ class ECGDICOMReader(object):
                 else:
                     # assign NA and append missing metadata
                     setattr(self, t, np.nan)
-                    empty_metadata.append(t)
+                    empty_metadata.append(s)
             # #### Extract waveforms
             try:
                 nam, el = self.WAVE_FORMS_LIST[PDNames.WAVE_ARRAY]
@@ -156,7 +156,7 @@ class ECGDICOMReader(object):
                 else:
                     # assign NA and append missing metadata
                     setattr(self, t, np.nan)
-                    empty_wave_forms.append(t)
+                    empty_wave_forms.append(s)
                 # Check number of channels in ECG waveform
             if getattr(self, PDNames.CHANNEL_NUMBER) >= 8:
                 channel_seq = getattr(getattr(ECG, PDNames.WAVE_FORM_SEQ)[0],
@@ -283,6 +283,7 @@ class ECGDICOMReader(object):
         Extracts the voltages out of the DICOM files. Will automatically
         extract the limb leads if missing, please see:
         `url <https://ecgwaves.com/topic/ekg-ecg-leads-electrodes-systems-limb-chest-precordial/>`_.
+        
         Parameters
         ----------
         waveform_array: np.ndarray
@@ -290,9 +291,9 @@ class ECGDICOMReader(object):
         lead_info: dict
             A dictionary where the keys match the `waveform_array` rows and
             the dictionary values contain the lead name strings.
-            augment_leads: bool
-        Whether to calculate the additional augmented leads. Will only work
-        if there are exactly 8 leads available.
+        augment_leads: bool
+            Whether to calculate the additional augmented leads. Will only work
+            if there are exactly 8 leads available.
         
         Returns
         -------
