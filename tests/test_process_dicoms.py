@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 from ecgprocess.constants import ProcessDicomNames as PDNames
 from ecgprocess.errors import MissingDICOMTagError
 from ecgprocess.process_dicoms import (

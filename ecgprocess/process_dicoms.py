@@ -6,6 +6,7 @@ pydicom.
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
+from dataclasses import dataclass
 import numpy as np
 import pathlib
 import warnings
@@ -27,10 +28,19 @@ from ecgprocess.constants import (
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # NOTE check the following: the unit object not being returned
+@dataclass
 class ECGDICOMReader(object):
     """
     Takes an ECG DICOM file and extracts metadata, median beats (if available)
     and raw waveforms.
+    
+    Parameters
+    ----------
+    augment_leads: bool, default `False`
+        Whether the augmented leads are available in the DICOM, if not
+        these are calculated.
+    resample: bool, default `True`
+        Whether to resample the ECG to a frequency of 500 Hertz.
     
     Attributes
     ----------
@@ -59,49 +69,24 @@ class ECGDICOMReader(object):
         The target formatting of the acquisition date and time.  This will be
         used in `datetime.strptime` as format argument.
     """
-    
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __init__(self, augment_leads:bool=False, resample_500:bool=True):
-        """
-        Initialises a new instance of `ECGDICOMReader`.
-        
-        Parameters
-        ----------
-        augment_leads: bool, default `False`
-            Whether the augmented leads are available in the DICOM, if not
-            these are calculated.
-        resample: bool, default `True`
-            Whether to resample the ECG to a frequency of 500 Hertz.
-        """
-        # test input
-        is_type(augment_leads, bool, 'augment_leads')
-        is_type(resample_500, bool, 'resample_500')
-        # assign
-        self.augment_leads = augment_leads
-        self.resample_500 = resample_500
-        # default tags to extract
-        DEFAULT_DICTS = DICOMTags()
-        self.METADATA = DEFAULT_DICTS.METADATA
-        self.WAVE_FORMS = DEFAULT_DICTS.WAVE_FORMS
-        self.WAVE_FORMS_LIST = DEFAULT_DICTS.WAVE_FORMS_LIST
-        self.MEDIAN_BEATS_LIST = DEFAULT_DICTS.MEDIAN_BEATS_LIST
-        self.RESULTS_LIST = DEFAULT_DICTS.RESULTS_LIST
-        # default dates to extract and format
-        self.STUDY_DATE_SOURCE = "%Y%m%d"
-        self.STUDY_DATE_TARGET = "%Y-%m-%d"
-        self.ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
-        self.ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __str__(self):
-        return (f"ECGDICOMReader instance with "
-                f"augment_leads={self.augment_leads}, "
-                f"resample_500={self.resample_500}."
-                )
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __repr__(self):
-        return (f"ECGDICOMReader(augment_leads={self.augment_leads}, "
-                f"resample_500={self.resample_500})"
-                )
+    # #### parameters, with defaults
+    augment_leads: bool=False
+    resample_500:bool= True
+    # #### check input
+    is_type(augment_leads, bool, 'augment_leads')
+    is_type(resample_500, bool, 'resample_500')
+    # #### default tags
+    DEFAULT_DICTS = DICOMTags
+    METADATA = DEFAULT_DICTS.METADATA
+    WAVE_FORMS = DEFAULT_DICTS.WAVE_FORMS
+    WAVE_FORMS_LIST = DEFAULT_DICTS.WAVE_FORMS_LIST
+    MEDIAN_BEATS_LIST = DEFAULT_DICTS.MEDIAN_BEATS_LIST
+    RESULTS_LIST = DEFAULT_DICTS.RESULTS_LIST
+    # #### default dates to extract and format
+    STUDY_DATE_SOURCE = "%Y%m%d"
+    STUDY_DATE_TARGET = "%Y-%m-%d"
+    ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
+    ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, path:str, skip_empty:bool=True, verbose:bool=False,
                  ) -> Self:
@@ -180,7 +165,8 @@ class ECGDICOMReader(object):
                 setattr(self, PDNames.LEAD_VOLTAGES,
                         self.make_leadvoltages(
                             lead_info=lead_info_waveform,
-                            waveform_array=getattr(self, PDNames.WAVE_ARRAY)
+                            waveform_array=getattr(self, PDNames.WAVE_ARRAY),
+                            augment_leads=self.augment_leads,
                             ))
                 setattr(self, PDNames.SAMPLING_FREQ,
                         getattr(self, PDNames.SF_ORIGINAL))
@@ -205,7 +191,8 @@ class ECGDICOMReader(object):
                             self.make_leadvoltages(
                                 lead_info=lead_info_median,
                                 waveform_array=\
-                                getattr(self, PDNames.MEDIAN_ARRAY)
+                                getattr(self, PDNames.MEDIAN_ARRAY),
+                                augment_leads=self.augment_leads,
                                 ))
             elif skip_empty == False:
                 raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
@@ -290,6 +277,7 @@ class ECGDICOMReader(object):
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def make_leadvoltages(self, waveform_array: np.ndarray,
                           lead_info:Dict[int, str],
+                          augment_leads:bool,
                           ) -> Dict[str, np.ndarray]:
         """
         Extracts the voltages out of the DICOM files. Will automatically
@@ -302,6 +290,9 @@ class ECGDICOMReader(object):
         lead_info: dict
             A dictionary where the keys match the `waveform_array` rows and
             the dictionary values contain the lead name strings.
+            augment_leads: bool
+        Whether to calculate the additional augmented leads. Will only work
+        if there are exactly 8 leads available.
         
         Returns
         -------
@@ -317,7 +308,7 @@ class ECGDICOMReader(object):
         # #### the main function
         for k, lead in enumerate(waveform_array):
             leads[lead_info[k]] = lead
-        if (k+1) == 8 and self.augment_leads == True:
+        if (k+1) == 8 and augment_leads == True:
             # Calculate limb leads
             leads[PDNames.LEAD_III] = np.subtract(leads[PDNames.LEAD_II],
                                                   leads[PDNames.LEAD_I])

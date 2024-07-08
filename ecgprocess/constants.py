@@ -2,9 +2,6 @@
 Constants used by ECGProcess
 '''
 
-import numpy as np
-
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 class ProcessDicomNames(object):
@@ -70,76 +67,72 @@ class DICOMTags(object):
         
     '''
     # /////////////////////////////////////////////////////////////////////////
-    def __init__(self):
-        '''
-        Initialises the DICOMTags class.
-        '''
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        self.METADATA = {
-            'SOPinstanceUID'        : 'SOPInstanceUID',
-            'SERIESinstanceUID'     : 'SeriesInstanceUID',
-            'STUDYinstanceUID'      : 'StudyInstanceUID',
-            'PatientID'             : 'PatientID',
-            'StudyDate'             : 'StudyDate',
-            'StudyTime'             : 'StudyTime',
-            'AccessionNumber'       : 'AccessionNumber',
-            'PatientBirthDate'      : 'PatientBirthDate',
-            'PatientName'           : 'PatientName',
-            'PatientSex'            : 'PatientSex',
-            'StudyDescription'      : 'StudyDescription',
-            'AcquisitionDateTime'   : 'AcquisitionDateTime',
-            'AcquisitionTimeZone'   : 'TimezoneOffsetFromUTC',
-            'Manufacturer'          : 'Manufacturer',
-            'ManufacturerModelName' : 'ManufacturerModelName',
-            'SoftwareVersions'      : 'SoftwareVersions',
-            'DataExportedBy'        : 'IssuerOfPatientID',
-        }
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        self.WAVE_FORMS = {
-                'TimeOffset'                     : 'MultiplexGroupTimeOffset',
-                ProcessDicomNames.CHANNEL_NUMBER : 'NumberOfWaveformChannels',
-                'ChannelSensitivity'             : 'ChannelSensitivity',
-                'ChannelBaseline'                : 'ChannelBaseline',
-                'ChannelSampleSkew'              : 'ChannelSampleSkew',
-                'FilterLowFrequency'             : 'FilterLowFrequency',
-                'FilterHighFrequency'            : 'FilterHighFrequency',
-                'NotchFilterFrequency'           : 'NotchFilterFrequency',
-                ProcessDicomNames.SF             : 'SamplingFrequency',
-                ProcessDicomNames.SF_ORIGINAL    : 'SamplingFrequency',
-        }
-        # objects which cannot be extracted in a loop
-        self.WAVE_FORMS_LIST = {
-            ProcessDicomNames.WAVE_ARRAY    : ['waveform_array', 0],
-        }
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        self.MEDIAN_BEATS_LIST = {
-            ProcessDicomNames.MEDIAN_ARRAY   : ['waveform_array', 1],
-            ProcessDicomNames.LEAD_INFO      : ['lead_info', 1],
-            ProcessDicomNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
-        }
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        self.RESULTS_LIST = [
-             "SOPinstanceUID",
-             "SERIESinstanceUID",
-             "STUDYinstanceUID",
-             "PatientID",
-             "PatientBirthDate",
-             "PatientName",
-             "PatientSex",
-             "StudyDescription",
-             "AcquisitionTimeZone",
-             "AccessionNumber",
-             ProcessDicomNames.SAMPLING_FREQ,
-             ProcessDicomNames.SF_ORIGINAL,
-             "ChannelNumber",
-             "ChannelSensitivity",
-             "ChannelBaseline",
-             "ChannelSampleSkew",
-             "FilterLowFrequency",
-             "FilterHighFrequency",
-             "NotchFilterFrequency",
-             "Manufacturer",
-             "ManufacturerModelName",
-             "SoftwareVersions",
-             "DataExportedBy",
-        ]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    METADATA = {
+        'SOPinstanceUID'        : 'SOPInstanceUID',
+        'SERIESinstanceUID'     : 'SeriesInstanceUID',
+        'STUDYinstanceUID'      : 'StudyInstanceUID',
+        'PatientID'             : 'PatientID',
+        'StudyDate'             : 'StudyDate',
+        'StudyTime'             : 'StudyTime',
+        'AccessionNumber'       : 'AccessionNumber',
+        'PatientBirthDate'      : 'PatientBirthDate',
+        'PatientName'           : 'PatientName',
+        'PatientSex'            : 'PatientSex',
+        'StudyDescription'      : 'StudyDescription',
+        'AcquisitionDateTime'   : 'AcquisitionDateTime',
+        'AcquisitionTimeZone'   : 'TimezoneOffsetFromUTC',
+        'Manufacturer'          : 'Manufacturer',
+        'ManufacturerModelName' : 'ManufacturerModelName',
+        'SoftwareVersions'      : 'SoftwareVersions',
+        'DataExportedBy'        : 'IssuerOfPatientID',
+    }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    WAVE_FORMS = {
+            'TimeOffset'                     : 'MultiplexGroupTimeOffset',
+            ProcessDicomNames.CHANNEL_NUMBER : 'NumberOfWaveformChannels',
+            'ChannelSensitivity'             : 'ChannelSensitivity',
+            'ChannelBaseline'                : 'ChannelBaseline',
+            'ChannelSampleSkew'              : 'ChannelSampleSkew',
+            'FilterLowFrequency'             : 'FilterLowFrequency',
+            'FilterHighFrequency'            : 'FilterHighFrequency',
+            'NotchFilterFrequency'           : 'NotchFilterFrequency',
+            ProcessDicomNames.SF             : 'SamplingFrequency',
+            ProcessDicomNames.SF_ORIGINAL    : 'SamplingFrequency',
+    }
+    # objects which cannot be extracted in a loop
+    WAVE_FORMS_LIST = {
+        ProcessDicomNames.WAVE_ARRAY    : ['waveform_array', 0],
+    }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    MEDIAN_BEATS_LIST = {
+        ProcessDicomNames.MEDIAN_ARRAY   : ['waveform_array', 1],
+        ProcessDicomNames.LEAD_INFO      : ['lead_info', 1],
+        ProcessDicomNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
+    }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    RESULTS_LIST = [
+         "SOPinstanceUID",
+         "SERIESinstanceUID",
+         "STUDYinstanceUID",
+         "PatientID",
+         "PatientBirthDate",
+         "PatientName",
+         "PatientSex",
+         "StudyDescription",
+         "AcquisitionTimeZone",
+         "AccessionNumber",
+         ProcessDicomNames.SAMPLING_FREQ,
+         ProcessDicomNames.SF_ORIGINAL,
+         "ChannelNumber",
+         "ChannelSensitivity",
+         "ChannelBaseline",
+         "ChannelSampleSkew",
+         "FilterLowFrequency",
+         "FilterHighFrequency",
+         "NotchFilterFrequency",
+         "Manufacturer",
+         "ManufacturerModelName",
+         "SoftwareVersions",
+         "DataExportedBy",
+    ]
