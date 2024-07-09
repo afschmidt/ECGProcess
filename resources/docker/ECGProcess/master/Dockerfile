@@ -29,7 +29,6 @@ RUN apk upgrade --update && \
     apk add --no-cache --virtual .build-deps $BUILD_DEPS && \
     pip install --upgrade pip && \
     pip install --upgrade pip setuptools && \
-    # installing outside of requirements to install statsmodels
     pip install "setuptools_scm[toml]" && \
     pip install "pandas>=2.1.1" && \
     pip install "numpy>=1.26" && \
@@ -41,7 +40,6 @@ RUN apk upgrade --update && \
 FROM python:3.12.4-alpine3.19 AS final
 ENV PERSISTENT_DEPS="libdeflate \
     openblas \
-    # llvm11 \
     curl \
     git \
     sed"

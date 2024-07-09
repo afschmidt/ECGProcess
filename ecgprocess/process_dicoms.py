@@ -20,6 +20,7 @@ from ecgprocess.errors import (
     is_type,
     MissingDICOMTagError,
     Error_MSG,
+    _check_readable,
 )
 from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
@@ -115,6 +116,8 @@ class ECGDICOMReader(object):
         is_type(path, (pathlib.PosixPath, str), 'path')
         is_type(skip_empty, bool, 'skip_empty')
         is_type(verbose, bool, 'verbose')
+        # confirm file is readable
+        _check_readable(path)
         # #### Read DICOM
         # NOTE `with` closes automatically if an error is raised
         with open(path, 'rb') as dicom:
@@ -250,7 +253,7 @@ class ECGDICOMReader(object):
         Parameters
         ----------
         channel_seq: DCM_Class
-            An `pydicom.sequence.Sequence` instance.
+            A `pydicom.sequence.Sequence` instance.
         
         Returns
         -------
@@ -264,12 +267,12 @@ class ECGDICOMReader(object):
             # extracting lead names
             source = getattr(getattr(channel,PDNames.CHANNEL_SOURCE_SEQ)[0],
                              PDNames.CHANNEL_CODE_MEANING)
-            units = PDNames.UNIT
-            # NOTE unit is currently not returned,
-            # Looks like CHANNEL_SENS should be assigned to unit and returned?
-            # Need to discuss this.
-            if hasattr(channel, PDNames.CHANNEL_SENS):
-                units = getattr(channel, PDNames.CHANNEL_SENS)
+            # units = PDNames.UNIT
+            # # NOTE unit is currently not returned,
+            # # Looks like CHANNEL_SENS should be assigned to unit and returned?
+            # # Need to discuss this.
+            # if hasattr(channel, PDNames.CHANNEL_SENS):
+            #     units = getattr(channel, PDNames.CHANNEL_SENS)
             # assign lead names to numericals
             leadnames[k] = source.replace(PDNames.LEAD, '').strip()
         # return stuff
@@ -324,20 +327,21 @@ class ECGDICOMReader(object):
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _resampling_500hz(self):
         """
-        Re-sampling the sampling frequency from 250 to 500 hz.
+        Re-sample the frequency to 500 hz.
         """
         if int(getattr(self, PDNames.SF)) != 500:
+            # #### wave forms
             lead_volt_temp = getattr(self, PDNames.LEAD_VOLTAGES)
             for i in lead_volt_temp:
                 lead_volt_temp[f"{i}"] =\
                     signal.resample(lead_volt_temp[f"{i}"], 5000)
-            # assign to self again
             setattr(self, PDNames.LEAD_VOLTAGES, lead_volt_temp)
+            # #### median beats
             if getattr(self, PDNames.MEDIAN_PRESENT) == True:
                 lead_volt_temp2 = getattr(self, PDNames.LEAD_VOLTAGES2)
                 for i in lead_volt_temp2:
                     lead_volt_temp2[f"{i}"] = \
                         signal.resample(lead_volt_temp2[f"{i}"], 600)
-                # assign to self again
                 setattr(self, PDNames.LEAD_VOLTAGES2, lead_volt_temp2)
+
 

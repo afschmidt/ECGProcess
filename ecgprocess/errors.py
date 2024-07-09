@@ -1,6 +1,7 @@
 '''
 Error handeling for ECGProcess.
 '''
+import os
 import pandas as pd
 # import numpy as np
 from packaging import version
@@ -219,6 +220,20 @@ def _assign_empty_default(arguments:List[Any], empty_object:Callable[[],Any],
     new_args = [empty_object() if arg is None else arg for arg in arguments]
     # return
     return new_args
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _check_readable(path):
+    """
+    Do we have read access. Note this should work on a directory or file.
+
+    Parameters
+    ----------
+    path: str
+        A path to a directory or file.
+    """
+    if os.access(path, os.R_OK) == False:
+        raise PermissionError('You do not have read-access to: `{}`'.\
+                              format(path))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

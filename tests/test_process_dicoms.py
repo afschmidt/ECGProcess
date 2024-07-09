@@ -63,4 +63,9 @@ class TestECGDICOMReader(object):
         ECG_DCM = ECGDICOMReader()
         with pytest.raises(MissingDICOMTagError):
             ECG_DCM(path=dicom_file_path, skip_empty=False)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_wrong_path(self):
+        ECG_DCM = ECGDICOMReader()
+        with pytest.raises(PermissionError):
+            ECG_DCM(path='wrong', skip_empty=False)
 
