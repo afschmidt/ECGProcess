@@ -23,9 +23,9 @@ class ProcessDicomNames(object):
     STUDY_DATE            = 'StudyDate'
     STUDY_TIME            = 'StudyTime'
     ACQUISITION_DATE      = 'AcquisitionDateTime'
-    RESULTS_DICT          = 'general_info'
-    SAMPLING_FREQ         = 'samplingfrequency'
-    SF_ORIGINAL           = 'sf_original'
+    RESULTS_DICT          = 'GeneralInfo'
+    SAMPLING_FREQ         = 'SamplingFrequency'
+    SF_ORIGINAL           = 'SamplingFrequencyOriginal'
     SF                    = 'sf'
     UNIT                  = 'Unit free'
     LEAD                  = 'Lead'
@@ -36,7 +36,15 @@ class ProcessDicomNames(object):
     LEAD_aVL              = 'aVL'
     LEAD_aVF              = 'aVF'
     OVERSAMPLED           = 'oversampled'
-    ORIG_DCMREAD_INST     = 'dmcread_instance'
+    ORIG_DCMREAD_INST     = 'DMCReadInstance'
+    SOP_UID               = 'SOPinstanceUID'
+    FAILED_PATHS_L        = 'FailedPathsList'
+    INFO_L                = 'GeneralInfoList'
+    WAVE_L                = 'WaveformsList'
+    MEDIAN_L              = 'MedianWaveformsList'
+    KEY_L                 = 'IndexList'
+    INFO_T                = 'GeneralInfoTable'
+    WAVE_T                = 'WaveformsTable'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class DICOMTags(object):
@@ -69,23 +77,23 @@ class DICOMTags(object):
     # /////////////////////////////////////////////////////////////////////////
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     METADATA = {
-        'SOPinstanceUID'        : 'SOPInstanceUID',
-        'SERIESinstanceUID'     : 'SeriesInstanceUID',
-        'STUDYinstanceUID'      : 'StudyInstanceUID',
-        'PatientID'             : 'PatientID',
-        'StudyDate'             : 'StudyDate',
-        'StudyTime'             : 'StudyTime',
-        'AccessionNumber'       : 'AccessionNumber',
-        'PatientBirthDate'      : 'PatientBirthDate',
-        'PatientName'           : 'PatientName',
-        'PatientSex'            : 'PatientSex',
-        'StudyDescription'      : 'StudyDescription',
-        'AcquisitionDateTime'   : 'AcquisitionDateTime',
-        'AcquisitionTimeZone'   : 'TimezoneOffsetFromUTC',
-        'Manufacturer'          : 'Manufacturer',
-        'ManufacturerModelName' : 'ManufacturerModelName',
-        'SoftwareVersions'      : 'SoftwareVersions',
-        'DataExportedBy'        : 'IssuerOfPatientID',
+        ProcessDicomNames.SOP_UID : 'SOPInstanceUID',
+        'SERIESinstanceUID'       : 'SeriesInstanceUID',
+        'STUDYinstanceUID'        : 'StudyInstanceUID',
+        'PatientID'               : 'PatientID',
+        'StudyDate'               : 'StudyDate',
+        'StudyTime'               : 'StudyTime',
+        'AccessionNumber'         : 'AccessionNumber',
+        'PatientBirthDate'        : 'PatientBirthDate',
+        'PatientName'             : 'PatientName',
+        'PatientSex'              : 'PatientSex',
+        'StudyDescription'        : 'StudyDescription',
+        'AcquisitionDateTime'     : 'AcquisitionDateTime',
+        'AcquisitionTimeZone'     : 'TimezoneOffsetFromUTC',
+        'Manufacturer'            : 'Manufacturer',
+        'ManufacturerModelName'   : 'ManufacturerModelName',
+        'SoftwareVersions'        : 'SoftwareVersions',
+        'DataExportedBy'          : 'IssuerOfPatientID',
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     WAVE_FORMS = {
@@ -112,7 +120,7 @@ class DICOMTags(object):
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RESULTS_LIST = [
-         "SOPinstanceUID",
+         ProcessDicomNames.SOP_UID,
          "SERIESinstanceUID",
          "STUDYinstanceUID",
          "PatientID",
@@ -136,3 +144,5 @@ class DICOMTags(object):
          "SoftwareVersions",
          "DataExportedBy",
     ]
+
+

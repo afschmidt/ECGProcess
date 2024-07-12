@@ -225,7 +225,7 @@ def _assign_empty_default(arguments:List[Any], empty_object:Callable[[],Any],
 def _check_readable(path):
     """
     Do we have read access. Note this should work on a directory or file.
-
+    
     Parameters
     ----------
     path: str
@@ -251,3 +251,10 @@ class MissingDICOMTagError(Exception):
     def __init__(self, tag_name):
         self.tag_name = tag_name
         super().__init__(f"DICOM tag '{tag_name}' is missing.")
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class NotCalledError(Exception):
+    """Exception raised when a required __call__ method has not been used."""
+    def __init__(self, message="__call__ method has not been invoked."):
+        self.message = message
+        super().__init__(self.message)

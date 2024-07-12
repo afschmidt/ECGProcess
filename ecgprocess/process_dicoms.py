@@ -7,16 +7,17 @@ pydicom.
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import numpy as np
+import pandas as pd
 import pathlib
 import warnings
 from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
-from pydicom.waveforms import multiplex_array
 from datetime import datetime
 from scipy import signal
 from dataclasses import dataclass
-from typing import Any, List, Type, Union, Tuple, Self, Dict
+from typing import List, Type, Union, Tuple, Self, Dict
 from ecgprocess.errors import (
+    NotCalledError,
     is_type,
     MissingDICOMTagError,
     Error_MSG,
@@ -28,7 +29,7 @@ from ecgprocess.constants import (
 )
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-# NOTE check the following: the unit object not being returned
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
 class ECGDICOMReader(object):
     """
@@ -106,6 +107,17 @@ class ECGDICOMReader(object):
             Whether empty tags should be skipped or throw an error.
         verbose: bool, default `False`
             Prints missing tags if skip_empty is set to `True`.
+        
+        Attributes
+        ----------
+        GeneralInfo: list
+            A list of dcmread extracted attributes.
+        Waveforms: dict of arrays
+            The lead specific ECG waveforms.
+        MedianWaveforms: dict of arrays
+            The lead specific ECG median beats.
+        DMCReadInstance: DCM class instance
+            The original dcmread instance.
         
         Returns
         -------
@@ -219,7 +231,7 @@ class ECGDICOMReader(object):
         if verbose == True:
             if len(empty_metadata) + len(empty_wave_forms) > 0:
                 warnings.warn(
-                    'The following DICOM tags could not be found:{}'.format(
+                    'The following DICOM tags could not be found: {}.'.format(
                         empty_metadata + empty_wave_forms))
         # #### The results dictionary
         results_dict = {}
@@ -345,3 +357,188 @@ class ECGDICOMReader(object):
                 setattr(self, PDNames.LEAD_VOLTAGES2, lead_volt_temp2)
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+path = '/home/amand/google_drive/Research/ECGProcess/ecgprocess/example_data/example_datasets/example-DICOM.dcm'
+ecgdicomreader = ECGDICOMReader()
+path_list = [path]
+
+class ECGDICOMTable(object):
+    '''
+    Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
+    and maps these to numpy or pandas tables which can be saved to disk.
+    
+    Attributes
+    ----------
+    path_list: list of strings
+        A list of dcm file paths.
+    '''
+    
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __init__(self, ecgdicomreader:ECGDICOMReader, path_list:List[str],
+                 ) -> None:
+        """
+        Initialises a new instance of `ECGDICOMTable`.
+        
+        Parameters
+        ----------
+        ecgdicomreader: ECGDICOMReader
+            An instance of the ECGDICOMReader data class.
+        path_list: list of strings
+            A list of paths to one or more .dcm files.
+        """
+        # #### check input
+        is_type(ecgdicomreader, ECGDICOMReader, 'ecgdicomreader')
+        is_type(path_list, list, 'path_list')
+        self.ecgdicomreader = ecgdicomreader
+        self.path_list = path_list
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __str__(self):
+        return (f"ECGDICOMTable instance with "
+                f"augment_leads={self.ecgdicomreader}, "
+                f"resample_500={self.path_list}."
+                )
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __repr__(self):
+        return (f"ECGDICOMTable(augment_leads={self.ecgdicomreader}, "
+                f"resample_500={self.path_list})"
+                )
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __call__(self, skip_missing:bool=True, verbose:bool=False,
+                 **kwargs:Optional[Any],
+                 ) -> Self:
+        """
+        Will take a ECGDICOMReader and loops over a list of dcm file paths and
+        maps these to metadata, waveforms, median beats tables.
+        
+        Parameters
+        ----------
+        skip_missing: bool, default `True`
+            Whether missing files or files without read permsissions should
+            be skipped.
+        verbose: bool, default `False`
+            Prints missing files if skip_missing is set to `True`.
+        **kwargs: optional
+            Keyword arguments used in teh call method of the `ECGDICOMReader`
+            instance
+        
+        Attributes
+        ----------
+        FailedPathsList: list of string
+            File paths which were either absent or without read permission.
+        IndexList: list
+            A list of unique identifiers.
+        GeneralInfoList: list
+            A list of metadata with the same order as `INdexList`.
+        WaveformsList: list of dicts
+            A list of dictionaries with the individual leads as keys and
+            the waveforms as numpy arrays assigned to the values.
+        MedianWaveformsList: list of dicts
+            A list of dictionaries with the individual leads as keys and
+            the MedianWaveforms as numpy arrays assigned to the values.
+        
+        Returns
+        -------
+        self: `ECGDICOMTable` instance
+            Returns the class instance with updated attributes.
+        """
+        is_type(skip_missing, bool, 'skip_missing')
+        is_type(verbose, bool, 'verbose')
+        self.skip_missing = skip_missing
+        self.verbose = verbose
+        self.kwargs = kwargs
+        # #### loop over path
+        key_list, info_list, wave_list, median_list, empty_list =\
+            [[] for _ in range(5)]
+        # loop over individual dcm files
+        for p in self.path_list:
+            try:
+                ecg_inst = ecgdicomreader(p, **self.kwargs)
+            except PermissionError:
+                empty_list.append(p)
+                # try next
+                pass
+            # extract unique identifier and check if it has been used before
+            key = str(getattr(ecg_inst, PDNames.SOP_UID))
+            if key in key_list:
+                raise IndexError('{0}:{1} was already extracted before. Please '
+                                 'ensure the supplied files are unique.'.\
+                                 format(PDNames.SOP_UID, key))
+            else:
+                key_list.append(key)
+            # extract the remaining
+            info_list.append(getattr(ecg_inst, PDNames.RESULTS_DICT))
+            wave_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES))
+            median_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES2))
+        # #### set to self
+        setattr(self, PDNames.FAILED_PATHS_L, empty_list)
+        setattr(self, PDNames.INFO_L, info_list)
+        setattr(self, PDNames.WAVE_L, wave_list)
+        setattr(self, PDNames.MEDIAN_L, median_list)
+        setattr(self, PDNames.KEY_L, key_list)
+        # #### verbose
+        if self.verbose == True:
+            if len(getattr(self, PDNames.FAILED_PATHS_L))>0:
+                warnings.warn(
+                    'The following files could not be accessed or found: {}.'.\
+                    format(getattr(self, PDNames.FAILED_PATHS_L))
+                )
+        # #### return
+        return self
+    # /////////////////////////////////////////////////////////////////////////
+    def table(self) -> Self:
+        """
+        Will map extracted dicom data to tables.
+        
+        Attributes
+        ----------
+        
+        Returns
+        -------
+        self: `ECGDICOMTable` instance
+            Returns the class instance with updated attributes.
+        """
+        # #### check if __call__ has been run
+        if not hasattr(self, PDNames.KEY_L):
+            raise NotCalledError()
+        # #### make tables
+        setattr(self, PDNames.INFO_T, pd.DataFrame(
+            getattr(self, PDNames.INFO_L), index=getattr(self, PDNames.KEY_L)
+        ))
+# make this into a _private method with waveform column to differentiate between
+# rhythm and median beats
+wave_tab = pd.DataFrame()
+for w, k in zip(wave_list, key_list):
+    temp_df = pd.DataFrame(w)
+    temp_df['key'] = k
+    wave_tab = pd.concat([wave_tab, temp_df], ignore_index=True)
+
+wave_tab['sample_id'] = wave_tab.groupby('key').cumcount()
+df_long = pd.melt(wave_tab, id_vars=['key', 'sample_id'],
+                  value_vars=\
+                  ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'],
+                  var_name='lead', value_name='voltage'
+                  )
+df_long['waveform'] = 'rhythm'
+
+wave_tab = pd.wide_to_long(wave_tab, stubnames ='lead_', i="id", j="lead",suffix = '\w+').sort_index(level=0)
+        WaveformsTable = pd.DataFrame(wave_list, index=key_list)
+            
+
+                getattr(ecg_inst, 'SOPinstanceUID')
+            w = pd.DataFrame(ecg_inst.Waveforms)
+
+        w = w.add_prefix('lead_')
+        w["id"] = w.index
+        w = pd.wide_to_long(w, stubnames ='lead_', i="id", j="lead",suffix = '\w+').sort_index(level=0)
+        w["SOPinstanceUID"] = ecg_inst.SOPinstanceUID
+        w["waveform"] = "rhythm"
+        w = w.reset_index()
+        w = w[["SOPinstanceUID", "waveform","lead", "id","lead_"]]
+        w = w.rename(columns = {'lead_':'voltage', 'id':'sample_id', 'SOPinstanceUID':'record_id_ecg'})
+
+        
+
+
+
+# ecginst(path)
+# ecginst.general_info
