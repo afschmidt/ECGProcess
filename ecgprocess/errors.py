@@ -244,6 +244,14 @@ class Error_MSG(object):
     MISSING_DICOM = '`{}` not found in DICOM file.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# error messages
+class STDOUT_MSG(object):
+    '''
+    A collection of stdout messages.
+    '''
+    PROCESSING_PATH = 'Processing path: {}.'
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class MissingDICOMTagError(Exception):
     '''
     Raises an error identifying the missing DICOM tag.
@@ -254,7 +262,9 @@ class MissingDICOMTagError(Exception):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class NotCalledError(Exception):
-    """Exception raised when a required __call__ method has not been used."""
+    """
+    Exception raised when a required __call__ method has not been used.
+    """
     def __init__(self, message="__call__ method has not been invoked."):
         self.message = message
         super().__init__(self.message)

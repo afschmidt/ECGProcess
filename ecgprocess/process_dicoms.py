@@ -6,21 +6,23 @@ pydicom.
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
-import numpy as np
-import pandas as pd
+import sys
 import pathlib
 import warnings
+import numpy as np
+import pandas as pd
 from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
 from datetime import datetime
 from scipy import signal
 from dataclasses import dataclass
-from typing import List, Type, Union, Tuple, Self, Dict
+from typing import List, Type, Union, Tuple, Self, Dict, Optional, Any
 from ecgprocess.errors import (
     NotCalledError,
     is_type,
     MissingDICOMTagError,
     Error_MSG,
+    STDOUT_MSG,
     _check_readable,
 )
 from ecgprocess.constants import (
@@ -383,14 +385,14 @@ class ECGDICOMTable(object):
         ----------
         ecgdicomreader: ECGDICOMReader
             An instance of the ECGDICOMReader data class.
-        path_list: list of strings
+        RawPathList: list of strings
             A list of paths to one or more .dcm files.
         """
         # #### check input
         is_type(ecgdicomreader, ECGDICOMReader, 'ecgdicomreader')
         is_type(path_list, list, 'path_list')
         self.ecgdicomreader = ecgdicomreader
-        self.path_list = path_list
+        setattr(self, PDNames.RPATH_L, path_list)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
         return (f"ECGDICOMTable instance with "
@@ -404,11 +406,10 @@ class ECGDICOMTable(object):
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, skip_missing:bool=True, verbose:bool=False,
-                 **kwargs:Optional[Any],
                  ) -> Self:
         """
         Will take a ECGDICOMReader and loops over a list of dcm file paths and
-        maps these to metadata, waveforms, median beats tables.
+        and confirm the files exist and have approprite read permission
         
         Parameters
         ----------
@@ -417,24 +418,13 @@ class ECGDICOMTable(object):
             be skipped.
         verbose: bool, default `False`
             Prints missing files if skip_missing is set to `True`.
-        **kwargs: optional
-            Keyword arguments used in teh call method of the `ECGDICOMReader`
-            instance
         
         Attributes
         ----------
-        FailedPathsList: list of string
+        FailedPathList: list of strings
             File paths which were either absent or without read permission.
-        IndexList: list
-            A list of unique identifiers.
-        GeneralInfoList: list
-            A list of metadata with the same order as `INdexList`.
-        WaveformsList: list of dicts
-            A list of dictionaries with the individual leads as keys and
-            the waveforms as numpy arrays assigned to the values.
-        MedianWaveformsList: list of dicts
-            A list of dictionaries with the individual leads as keys and
-            the MedianWaveforms as numpy arrays assigned to the values.
+        CuratedPathList: list of strings
+            File paths which are readable.
         
         Returns
         -------
@@ -445,18 +435,74 @@ class ECGDICOMTable(object):
         is_type(verbose, bool, 'verbose')
         self.skip_missing = skip_missing
         self.verbose = verbose
-        self.kwargs = kwargs
         # #### loop over path
-        key_list, info_list, wave_list, median_list, empty_list =\
-            [[] for _ in range(5)]
-        # loop over individual dcm files
-        for p in self.path_list:
+        empty_list = []
+        curated_list = []
+        # #### loop over individual dcm files and assign to self
+        for p in getattr(self, PDNames.RPATH_L):
             try:
-                ecg_inst = ecgdicomreader(p, **self.kwargs)
-            except PermissionError:
+                _check_readable(p)
+            except PermissionError as PE:
                 empty_list.append(p)
                 # try next
-                pass
+                if skip_missing == True:
+                    pass
+                else:
+                    raise PE
+            curated_list.append(p)
+        setattr(self, PDNames.FPATH_L, empty_list)
+        setattr(self, PDNames.CPATH_L, curated_list)
+        # #### do we want to print empty_list
+        if self.verbose == True:
+            if len(getattr(self, PDNames.FPATH_L))>0:
+                warnings.warn(
+                    'The following files could not be accessed or found: {}.'.\
+                    format(getattr(self, PDNames.FPATH_L))
+                )
+        # #### Return
+        return self
+    # /////////////////////////////////////////////////////////////////////////
+    # NOTE Integrate the code below, including a verbose print statement
+    # to return the processed path.
+    # use a `to_long` function.
+    def table(self, **kwargs:Optional[Any]) -> Self:
+        """
+        Will extracted dicom data to tables.
+        
+        Parameters
+        ----------
+        **kwargs: optional
+            Keyword arguments used in teh call method of the `ECGDICOMReader`
+            instance
+        
+        Attributes
+        ----------
+        IndexList: list
+            A list of unique identifiers.
+        GeneralInfoTable: pandas.DataFrame
+            A table of the dicom metadata.
+        WaveFormsTable: pandas.DataFrame
+            A  long-format table with waveforms.
+        MedianWaveTable: pandas.DataFrame
+            A long-format table with the median beat waveforms.
+        
+        Returns
+        -------
+        self: `ECGDICOMTable` instance
+            Returns the class instance with updated attributes.
+        """
+        self.kwargs = kwargs
+        # #### check if __call__ has been run
+        if not hasattr(self, PDNames.CPATH_L):
+            raise NotCalledError()
+        # #### extract dicom data
+        key_list, info_list, wave_list, median_list = [[] for _ in range(4)]
+        # loop over individual dcm files
+        for p in getattr(self, PDNames.CPATH_L):
+            if self.verbose == True:
+                print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
+            # get instance
+            ecg_inst = ecgdicomreader(p, **self.kwargs)
             # extract unique identifier and check if it has been used before
             key = str(getattr(ecg_inst, PDNames.SOP_UID))
             if key in key_list:
@@ -469,76 +515,114 @@ class ECGDICOMTable(object):
             info_list.append(getattr(ecg_inst, PDNames.RESULTS_DICT))
             wave_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES))
             median_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES2))
-        # #### set to self
-        setattr(self, PDNames.FAILED_PATHS_L, empty_list)
-        setattr(self, PDNames.INFO_L, info_list)
-        setattr(self, PDNames.WAVE_L, wave_list)
-        setattr(self, PDNames.MEDIAN_L, median_list)
+        # #### make tables
         setattr(self, PDNames.KEY_L, key_list)
-        # #### verbose
-        if self.verbose == True:
-            if len(getattr(self, PDNames.FAILED_PATHS_L))>0:
-                warnings.warn(
-                    'The following files could not be accessed or found: {}.'.\
-                    format(getattr(self, PDNames.FAILED_PATHS_L))
-                )
-        # #### return
+        # general info
+        setattr(self, PDNames.INFO_T, pd.DataFrame(
+            info_list, index=getattr(self, PDNames.KEY_L)
+        ))
+        # wave forms, and median beta
+        setattr(self, PDNames.WAVE_T, self._get_long_table(
+            wave_list, wave_type=PDNames.WAVETYPE_RHYTHM))
+        setattr(self, PDNames.MEDIAN_T, self._get_long_table(
+            median_list, wave_type=PDNames.WAVETYPE_MEDIAN))
+        # #### Return
         return self
     # /////////////////////////////////////////////////////////////////////////
-    def table(self) -> Self:
-        """
-        Will map extracted dicom data to tables.
+    def _get_long_table(self, lead_list:List[Dict[str, np.ndarray]],
+                        wave_type:str, **kwargs) -> pd.DataFrame:
+        '''
+        Mapping lists of dictionaries containing lead specific numpy arrays
+        to a long-formatted pandas table.
+        
+        Parameters
+        ----------
+        lead_list: list of dicts
+            A list of dictionaries with the lead mapped to the keys and the
+            voltage mapped to the values.
+        wave_type: str,
+            Adds a column `Waveform type` containing this string as a constant.
+        **kwargs: optional
+            keyword arguments passed to pd.DataFrame.
         
         Attributes
+        ----------
+        kwargs_pdd: optional
+            The keyword arguments supplied to pd.DataFrame.
+        
+        Returns
+        -------
+        self: pd.DataFrame
+            A long-formatted table with lead, voltage, sampling indcator
+            columns grouped by file (including an unique file indicator column)
+        '''
+        # #### check input and set constants
+        is_type(lead_list, list, 'lead_list')
+        is_type(wave_type, str, 'wave_type')
+        self.kwargs_pdd = kwargs
+        # ### confirm table was called
+        if not hasattr(self, PDNames.KEY_L):
+            raise NotCalledError('The `table` method should be called first.'
+                                 'Note this intended as a private method.')
+        # #### initiate table and map lists
+        table = pd.DataFrame()
+        previous = None
+        for w, k in zip(lead_list, getattr(self, PDNames.KEY_L)):
+            # confirm the dictionary keys are identical
+            current_keys = list(w.keys())
+            if previous is not None:
+                if current_keys != previous:
+                    raise KeyError('The dictionaries contain distinct keys. '
+                                   'The last set of valid keys was {}, '
+                                   'compared to {}.'.\
+                                   format(previous, current_keys))
+            # if the same map to dataframe
+            temp_df = pd.DataFrame(w, **self.kwargs_pdd)
+            temp_df[PDNames.SOP_UID] = k
+            table = pd.concat([table, temp_df], ignore_index=True)
+            # clean
+            previous=current_keys
+            del current_keys
+        # #### formatting to long
+        table[PDNames.SAMPLING_SEQ] = table.groupby(
+            PDNames.SOP_UID).cumcount()
+        long_table = pd.melt(table, id_vars=\
+                          [PDNames.SOP_UID, PDNames.SAMPLING_SEQ],
+                          value_vars=previous, var_name=PDNames.COL_LEAD,
+                          value_name=PDNames.COL_VOLTAGE
+                          )
+        long_table[PDNames.COL_WAVETYPE] = wave_type
+        # #### return
+        return long_table
+    # /////////////////////////////////////////////////////////////////////////
+    def write(self, common_file_name:str, target_path:str='.', sep:str=r'\t',
+              compression:str='gzip', **kwargs:Optional[Any],
+              ):
+        '''
+        Extracts dicom files, and write these one by one to a set of files.
+        
+        This method writes the following files to disk:
+        - `file1.txt` with the content of `data1`
+        - `file2.txt` with the content of `data2`
+        - `file3.txt` with the content of `data3`
+        
+        Parameters
         ----------
         
         Returns
         -------
-        self: `ECGDICOMTable` instance
-            Returns the class instance with updated attributes.
-        """
-        # #### check if __call__ has been run
-        if not hasattr(self, PDNames.KEY_L):
-            raise NotCalledError()
-        # #### make tables
-        setattr(self, PDNames.INFO_T, pd.DataFrame(
-            getattr(self, PDNames.INFO_L), index=getattr(self, PDNames.KEY_L)
-        ))
-# make this into a _private method with waveform column to differentiate between
-# rhythm and median beats
-wave_tab = pd.DataFrame()
-for w, k in zip(wave_list, key_list):
-    temp_df = pd.DataFrame(w)
-    temp_df['key'] = k
-    wave_tab = pd.concat([wave_tab, temp_df], ignore_index=True)
-
-wave_tab['sample_id'] = wave_tab.groupby('key').cumcount()
-df_long = pd.melt(wave_tab, id_vars=['key', 'sample_id'],
-                  value_vars=\
-                  ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'],
-                  var_name='lead', value_name='voltage'
-                  )
-df_long['waveform'] = 'rhythm'
-
-wave_tab = pd.wide_to_long(wave_tab, stubnames ='lead_', i="id", j="lead",suffix = '\w+').sort_index(level=0)
-        WaveformsTable = pd.DataFrame(wave_list, index=key_list)
-            
-
-                getattr(ecg_inst, 'SOPinstanceUID')
-            w = pd.DataFrame(ecg_inst.Waveforms)
-
-        w = w.add_prefix('lead_')
-        w["id"] = w.index
-        w = pd.wide_to_long(w, stubnames ='lead_', i="id", j="lead",suffix = '\w+').sort_index(level=0)
-        w["SOPinstanceUID"] = ecg_inst.SOPinstanceUID
-        w["waveform"] = "rhythm"
-        w = w.reset_index()
-        w = w[["SOPinstanceUID", "waveform","lead", "id","lead_"]]
-        w = w.rename(columns = {'lead_':'voltage', 'id':'sample_id', 'SOPinstanceUID':'record_id_ecg'})
-
+        None
         
+        Raises
+        ------
+        OSError
+            If the target directory does not exist or is not writable.
+        '''
+        # this function should check if target_dir exists and is writable
+        # next it should write the first file with headers,
+        # all subsequent files should be append
+        # the files should be optionally compressed
+        # and combined into a single tar.gz file.
+        pass
+    
 
-
-
-# ecginst(path)
-# ecginst.general_info
