@@ -236,6 +236,16 @@ def _check_readable(path):
                               format(path))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _check_presence(path):
+    """
+    Check if the path exists.
+    """
+    if not os.path.isdir(path):
+        raise NotADirectoryError(
+            'The path `{}` does not exist or does not lead to a directory.'.\
+            format(path))
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages
 class Error_MSG(object):
     '''

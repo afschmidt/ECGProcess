@@ -6,7 +6,9 @@ pydicom.
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
+import os
 import sys
+import uuid
 import pathlib
 import warnings
 import numpy as np
@@ -24,10 +26,14 @@ from ecgprocess.errors import (
     Error_MSG,
     STDOUT_MSG,
     _check_readable,
+    _check_presence,
 )
 from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
     DICOMTags,
+)
+from ecgprocess.utils.general import (
+    replace_with_tar
 )
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -72,6 +78,12 @@ class ECGDICOMReader(object):
     ACQUISITION_DATE_TARGET: str
         The target formatting of the acquisition date and time.  This will be
         used in `datetime.strptime` as format argument.
+    
+    Methods
+    -------
+    make_leadvoltages(waveform_array, lead_info, augment_leads)
+        Extracts the voltages from a DICOM file. Will automatically extract the
+        limb leads if missing.
     """
     # #### parameters, with defaults
     augment_leads: bool=False
@@ -121,10 +133,11 @@ class ECGDICOMReader(object):
         DMCReadInstance: DCM class instance
             The original dcmread instance.
         
+        
         Returns
         -------
         self: `ECGDICOMReader` instance
-            Returns the class instance with updated attributes exracted
+            Returns the class instance with updated attributes extracted
             from `dcmread`.
         """
         is_type(path, (pathlib.PosixPath, str), 'path')
@@ -297,8 +310,8 @@ class ECGDICOMReader(object):
                           augment_leads:bool,
                           ) -> Dict[str, np.ndarray]:
         """
-        Extracts the voltages out of the DICOM files. Will automatically
-        extract the limb leads if missing, please see:
+        Extracts the voltages from a DICOM file. Will automatically extract the
+        limb leads if missing, please see:
         `url <https://ecgwaves.com/topic/ekg-ecg-leads-electrodes-systems-limb-chest-precordial/>`_.
         
         Parameters
@@ -360,9 +373,9 @@ class ECGDICOMReader(object):
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-path = '/home/amand/google_drive/Research/ECGProcess/ecgprocess/example_data/example_datasets/example-DICOM.dcm'
-ecgdicomreader = ECGDICOMReader()
-path_list = [path]
+# path = '/home/amand/google_drive/Research/ECGProcess/ecgprocess/example_data/example_datasets/example-DICOM.dcm'
+# ecgdicomreader = ECGDICOMReader()
+# path_list = [path]
 
 class ECGDICOMTable(object):
     '''
@@ -373,6 +386,17 @@ class ECGDICOMTable(object):
     ----------
     path_list: list of strings
         A list of dcm file paths.
+    
+    Methods
+    -------
+    get_table(**kwargs)
+        extracts data from multiple dicom files and maps these to
+        pandas.DataFrames.
+    write_ecg(target_dir, target_path, sep, mode, compression, **kwargs)
+        writes each dicom file to a single sets of files (metadata,
+        waveforms, median beats). This is done by appending the extracted
+        data from each file the target file set, minimising the memory
+        footprint.
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -409,12 +433,12 @@ class ECGDICOMTable(object):
                  ) -> Self:
         """
         Will take a ECGDICOMReader and loops over a list of dcm file paths and
-        and confirm the files exist and have approprite read permission
+        and confirm the files exist and have appropriate read permission
         
         Parameters
         ----------
         skip_missing: bool, default `True`
-            Whether missing files or files without read permsissions should
+            Whether missing files or files without read permissions should
             be skipped.
         verbose: bool, default `False`
             Prints missing files if skip_missing is set to `True`.
@@ -462,17 +486,14 @@ class ECGDICOMTable(object):
         # #### Return
         return self
     # /////////////////////////////////////////////////////////////////////////
-    # NOTE Integrate the code below, including a verbose print statement
-    # to return the processed path.
-    # use a `to_long` function.
-    def table(self, **kwargs:Optional[Any]) -> Self:
+    def get_table(self, **kwargs:Optional[Any]) -> Self:
         """
         Will extracted dicom data to tables.
         
         Parameters
         ----------
         **kwargs: optional
-            Keyword arguments used in teh call method of the `ECGDICOMReader`
+            Keyword arguments used in the call method of a `ECGDICOMReader`
             instance
         
         Attributes
@@ -553,7 +574,7 @@ class ECGDICOMTable(object):
         Returns
         -------
         self: pd.DataFrame
-            A long-formatted table with lead, voltage, sampling indcator
+            A long-formatted table with lead, voltage, sampling indicator
             columns grouped by file (including an unique file indicator column)
         '''
         # #### check input and set constants
@@ -595,19 +616,45 @@ class ECGDICOMTable(object):
         # #### return
         return long_table
     # /////////////////////////////////////////////////////////////////////////
-    def write(self, common_file_name:str, target_path:str='.', sep:str=r'\t',
-              compression:str='gzip', **kwargs:Optional[Any],
-              ):
+    def write_ecg(self, target_dir:Union[None,str], target_path:str='.',
+                  sep:str=r'\t', mode:str='w:gz', compression:str='gzip',
+                  **kwargs:Optional[Any],
+                  ):
         '''
-        Extracts dicom files, and write these one by one to a set of files.
+        Extracts dicom files, and write these one by one to a set of target
+        files. By appending each dicom individually to the target files the
+        memory footprint of this function will be minimal.
         
         This method writes the following files to disk:
-        - `file1.txt` with the content of `data1`
-        - `file2.txt` with the content of `data2`
-        - `file3.txt` with the content of `data3`
+        - `GeneralInfoTable.tsv`
+        - `WaveFormsTable.tsv`
+        - `MedianWaveTable.tsv`
+        - `FailedFiles.txt`
         
         Parameters
         ----------
+        target_dir: str
+            The `name` of the new target directory containing the
+            aforementioned files. The target_dir will be concatenated to
+            `target_path` and depending on `mode` this directory will be
+            tar.gz compressed. Set `target_dir` to `NoneType` to simply add
+            the files directly to `target_path`. Note this will overwrite
+            any potential directory or files of with the identical names.
+        target_path: str, default '.'
+            The full path where the files should be written to. if provided
+            `target_dir` will be created underneath this path, otherwise the
+            files will be directly written to the `target_path` terminal
+            directory (assuming this is writable).
+        sep: str, default r'\t'`
+            The file separator, which will be passed to
+            pandas.DataFrame.to_csv.
+        mode: str, default `w:gz`
+            The tarfile.open mode.
+        compression: str, default `gzip`
+            The file compression passed to pandas.DataFrame.write_csv.
+        **kwargs:Optional[Any],
+            Keyword arguments used in the call method of a `ECGDICOMReader`
+            instance.
         
         Returns
         -------
@@ -615,14 +662,100 @@ class ECGDICOMTable(object):
         
         Raises
         ------
-        OSError
+        NotADirectoryError or PermissionError
             If the target directory does not exist or is not writable.
         '''
-        # this function should check if target_dir exists and is writable
-        # next it should write the first file with headers,
-        # all subsequent files should be append
-        # the files should be optionally compressed
-        # and combined into a single tar.gz file.
-        pass
-    
+        self.kwargs = kwargs
+        # #### check input and set constants
+        is_type(target_dir, (type(None), str), 'target_dir')
+        is_type(target_path, str, 'target_path')
+        is_type(sep, str, 'sep')
+        is_type(mode, str, 'mode')
+        is_type(compression, str, 'compression')
+        # check readability
+        _check_presence(target_path)
+        _check_readable(target_path)
+        # #### create target path
+        # get the current wd if requested
+        if target_path == '.':
+            target_path = os.getcwd()
+        # create a temp directory under target_path or otherwise simply use
+        # target_path
+        if target_dir is not None:
+            # adding a temp dir
+            target = os.path.join(target_path, str(uuid.uuid4()))
+            # make the new child dir
+            # NOTE if target_dir has extensions such as `tar.gz` this will be
+            # included but the directly is not really compressed (will be done
+            # below).
+            os.makedirs(target, exist_ok=True)
+        else:
+            target = target_path
+        # #### check if __call__ has been run
+        if not hasattr(self, PDNames.CPATH_L):
+            raise NotCalledError()
+        # #### write empty files, note not compressing these
+        with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
+            for p in getattr(self, PDNames.FPATH_L):
+                file.write(p + '\n')
+        # #### extract dicom data
+        first=True
+        key_list = []
+        # loop over individual dcm files
+        for p in getattr(self, PDNames.CPATH_L):
+            if self.verbose == True:
+                print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
+            # get instance
+            ecg_inst = ecgdicomreader(p, **self.kwargs)
+            # extract unique identifier and check if it has been used before
+            key = str(getattr(ecg_inst, PDNames.SOP_UID))
+            if key in key_list:
+                raise IndexError('{0}:{1} was already extracted before. Please '
+                                 'ensure the supplied files are unique.'.\
+                                 format(PDNames.SOP_UID, key))
+            else:
+                key_list.append(key)
+            # extract the remaining
+            info=getattr(ecg_inst, PDNames.RESULTS_DICT)
+            wave=getattr(ecg_inst, PDNames.LEAD_VOLTAGES)
+            median=getattr(ecg_inst, PDNames.LEAD_VOLTAGES2)
+            # write to disk
+            if first==True:
+                first = False
+                # metadata
+                pd.DataFrame(info, index=key).to_csv(
+                    os.path.join(target, PDNames.INFO_FILE), sep=sep,
+                    header=True, compression=compression)
+                # waveforms
+                self._get_long_table(
+                    wave, wave_type=PDNames.WAVETYPE_RHYTHM).to_csv(
+                        os.path.join(target, PDNames.WAVE_FILE), sep=sep,
+                        header=True, compression=compression)
+                # median beats
+                self._get_long_table(
+                    median, wave_type=PDNames.WAVETYPE_MEDIAN).to_csv(
+                        os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
+                        header=True, compression=compression)
+            else:
+                # appending using mode = 'a'
+                # metadata
+                pd.DataFrame(info, index=key).to_csv(
+                    os.path.join(target, PDNames.INFO_FILE), sep=sep,
+                    header=False, mode='a', compression=compression)
+                # waveforms
+                self._get_long_table(
+                    wave, wave_type=PDNames.WAVETYPE_RHYTHM).to_csv(
+                        os.path.join(target, PDNames.WAVE_FILE), sep=sep,
+                        header=False, mode='a', compression=compression)
+                # median beats
+                self._get_long_table(
+                    median, wave_type=PDNames.WAVETYPE_MEDIAN).to_csv(
+                        os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
+                        header=False, mode='a', compression=compression)
+        # #### if needed replace directory by tar.gz version
+        if target_dir is not None:
+            # create the final target path
+            target_final = os.path.join(target_path, target_dir)
+            replace_with_tar(target, target_final, mode=mode)
+
 
