@@ -392,7 +392,7 @@ class ECGDICOMTable(object):
     get_table(**kwargs)
         extracts data from multiple dicom files and maps these to
         pandas.DataFrames.
-    write_ecg(target_dir, target_path, sep, mode, compression, **kwargs)
+    write_ecg(target_tar, target_path, sep, mode, compression, **kwargs)
         writes each dicom file to a single sets of files (metadata,
         waveforms, median beats). This is done by appending the extracted
         data from each file the target file set, minimising the memory
@@ -616,7 +616,7 @@ class ECGDICOMTable(object):
         # #### return
         return long_table
     # /////////////////////////////////////////////////////////////////////////
-    def write_ecg(self, target_dir:Union[None,str], target_path:str='.',
+    def write_ecg(self, target_tar:Union[None,str], target_path:str='.',
                   sep:str=r'\t', mode:str='w:gz', compression:str='gzip',
                   **kwargs:Optional[Any],
                   ):
@@ -633,16 +633,16 @@ class ECGDICOMTable(object):
         
         Parameters
         ----------
-        target_dir: str
-            The `name` of the new target directory containing the
-            aforementioned files. The target_dir will be concatenated to
+        target_tar: str
+            The `name` of an optional tarfile where the individual files will
+            be written to. The target_tar will be concatenated to
             `target_path` and depending on `mode` this directory will be
-            tar.gz compressed. Set `target_dir` to `NoneType` to simply add
+            tar.gz compressed. Set `target_tar` to `NoneType` to simply add
             the files directly to `target_path`. Note this will overwrite
-            any potential directory or files of with the identical names.
+            any potential directory or files with the identical names.
         target_path: str, default '.'
             The full path where the files should be written to. if provided
-            `target_dir` will be created underneath this path, otherwise the
+            `target_tar` will be created underneath this path, otherwise the
             files will be directly written to the `target_path` terminal
             directory (assuming this is writable).
         sep: str, default r'\t'`
@@ -667,7 +667,7 @@ class ECGDICOMTable(object):
         '''
         self.kwargs = kwargs
         # #### check input and set constants
-        is_type(target_dir, (type(None), str), 'target_dir')
+        is_type(target_tar, (type(None), str), 'target_tar')
         is_type(target_path, str, 'target_path')
         is_type(sep, str, 'sep')
         is_type(mode, str, 'mode')
@@ -681,11 +681,11 @@ class ECGDICOMTable(object):
             target_path = os.getcwd()
         # create a temp directory under target_path or otherwise simply use
         # target_path
-        if target_dir is not None:
+        if target_tar is not None:
             # adding a temp dir
             target = os.path.join(target_path, str(uuid.uuid4()))
             # make the new child dir
-            # NOTE if target_dir has extensions such as `tar.gz` this will be
+            # NOTE if target_tar has extensions such as `tar.gz` this will be
             # included but the directly is not really compressed (will be done
             # below).
             os.makedirs(target, exist_ok=True)
@@ -753,9 +753,9 @@ class ECGDICOMTable(object):
                         os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
                         header=False, mode='a', compression=compression)
         # #### if needed replace directory by tar.gz version
-        if target_dir is not None:
+        if target_tar is not None:
             # create the final target path
-            target_final = os.path.join(target_path, target_dir)
+            target_final = os.path.join(target_path, target_tar)
             replace_with_tar(target, target_final, mode=mode)
 
 
