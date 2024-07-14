@@ -252,6 +252,8 @@ class Error_MSG(object):
     A collection of error messages.
     '''
     MISSING_DICOM = '`{}` not found in DICOM file.'
+    MISSING_KEY = 'key `{}` not found in object `{}`.'
+    MISSING_ATTR = 'attribute `{}` not found in object `{}`.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

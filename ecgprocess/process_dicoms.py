@@ -525,6 +525,9 @@ class ECGDICOMTable(object):
             # get instance
             ecg_inst = ecgdicomreader(p, **self.kwargs)
             # extract unique identifier and check if it has been used before
+            if hasattr(ecg_inst, PDNames.SOP_UID) == False:
+                raise AttributeError(Error_MSG.MISSING_ATTR.format(
+                    PDNames.SOP_UID, 'ecg_inst'))
             key = str(getattr(ecg_inst, PDNames.SOP_UID))
             if key in key_list:
                 raise IndexError('{0}:{1} was already extracted before. Please '
@@ -708,6 +711,9 @@ class ECGDICOMTable(object):
             # get instance
             ecg_inst = ecgdicomreader(p, **self.kwargs)
             # extract unique identifier and check if it has been used before
+            if hasattr(ecg_inst, PDNames.SOP_UID) == False:
+                raise AttributeError(Error_MSG.MISSING_ATTR.format(
+                    PDNames.SOP_UID, 'ecg_inst'))
             key = str(getattr(ecg_inst, PDNames.SOP_UID))
             if key in key_list:
                 raise IndexError('{0}:{1} was already extracted before. Please '
