@@ -209,21 +209,21 @@ class ECGDICOMReader(object):
             # #### Extract Median beats
             nam, el = self.MEDIAN_BEATS_LIST[PDNames.MEDIAN_ARRAY]
             if hasattr(ECG, nam):
-                    # Assign if present
-                    channel_seq_median = getattr(
-                        getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
-                        PDNames.CHANNEL_DEF_SEQ)
-                    lead_info_median=self._get_lead_info(channel_seq_median)
-                    setattr(self, PDNames.MEDIAN_ARRAY,
-                            getattr(ECG, nam)(el).T)
-                    setattr(self, PDNames.MEDIAN_PRESENT, True)
-                    setattr(self, PDNames.LEAD_VOLTAGES2,
-                            self.make_leadvoltages(
-                                lead_info=lead_info_median,
-                                waveform_array=\
-                                getattr(self, PDNames.MEDIAN_ARRAY),
-                                augment_leads=self.augment_leads,
-                                ))
+                # Assign if present
+                channel_seq_median = getattr(
+                    getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
+                    PDNames.CHANNEL_DEF_SEQ)
+                lead_info_median=self._get_lead_info(channel_seq_median)
+                setattr(self, PDNames.MEDIAN_ARRAY,
+                        getattr(ECG, nam)(el).T)
+                setattr(self, PDNames.MEDIAN_PRESENT, True)
+                setattr(self, PDNames.LEAD_VOLTAGES2,
+                        self.make_leadvoltages(
+                            lead_info=lead_info_median,
+                            waveform_array=\
+                            getattr(self, PDNames.MEDIAN_ARRAY),
+                            augment_leads=self.augment_leads,
+                            ))
             elif skip_empty == False:
                 raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
             else:
@@ -331,7 +331,6 @@ class ECGDICOMReader(object):
             A dictionary with the lead name string as keys and leads as
             np.ndarray values.
         """
-        
         # #### check input and set constants
         is_type(waveform_array, np.ndarray, 'waveform_array')
         is_type(lead_info, dict, 'lead_info')
@@ -373,10 +372,6 @@ class ECGDICOMReader(object):
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# path = '/home/amand/google_drive/Research/ECGProcess/ecgprocess/example_data/example_datasets/example-DICOM.dcm'
-# ecgdicomreader = ECGDICOMReader()
-# path_list = [path]
-
 class ECGDICOMTable(object):
     '''
     Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
@@ -420,13 +415,13 @@ class ECGDICOMTable(object):
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
         return (f"ECGDICOMTable instance with "
-                f"augment_leads={self.ecgdicomreader}, "
-                f"resample_500={self.path_list}."
+                f"ecgdicomreader={self.ecgdicomreader}, "
+                f"path_list={getattr(self, PDNames.RPATH_L)}."
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __repr__(self):
-        return (f"ECGDICOMTable(augment_leads={self.ecgdicomreader}, "
-                f"resample_500={self.path_list})"
+        return (f"ECGDICOMTable(ecgdicomreader={self.ecgdicomreader}, "
+                f"augment_leads={getattr(self, PDNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, skip_missing:bool=True, verbose:bool=False,
@@ -465,15 +460,17 @@ class ECGDICOMTable(object):
         # #### loop over individual dcm files and assign to self
         for p in getattr(self, PDNames.RPATH_L):
             try:
+                # add p and remove if skipp_missing == True
+                curated_list.append(p)
                 _check_readable(p)
             except PermissionError as PE:
                 empty_list.append(p)
                 # try next
                 if skip_missing == True:
+                    curated_list.pop()
                     pass
                 else:
                     raise PE
-            curated_list.append(p)
         setattr(self, PDNames.FPATH_L, empty_list)
         setattr(self, PDNames.CPATH_L, curated_list)
         # #### do we want to print empty_list
@@ -486,12 +483,16 @@ class ECGDICOMTable(object):
         # #### Return
         return self
     # /////////////////////////////////////////////////////////////////////////
-    def get_table(self, **kwargs:Optional[Any]) -> Self:
+    def get_table(self, update_keys:Optional[Dict[str, str]]=None,
+                  **kwargs:Optional[Any],
+                  ) -> Self:
         """
         Will extracted dicom data to tables.
         
         Parameters
         ----------
+        update_keys: dict [`str`, `str`], default `NoneType`
+            A dictionary to remap lead names: [`old`, `new`]
         **kwargs: optional
             Keyword arguments used in the call method of a `ECGDICOMReader`
             instance
@@ -523,7 +524,7 @@ class ECGDICOMTable(object):
             if self.verbose == True:
                 print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
             # get instance
-            ecg_inst = ecgdicomreader(p, **self.kwargs)
+            ecg_inst = self.ecgdicomreader(p, **self.kwargs)
             # extract unique identifier and check if it has been used before
             if hasattr(ecg_inst, PDNames.SOP_UID) == False:
                 raise AttributeError(Error_MSG.MISSING_ATTR.format(
@@ -547,14 +548,21 @@ class ECGDICOMTable(object):
         ))
         # wave forms, and median beta
         setattr(self, PDNames.WAVE_T, self._get_long_table(
-            wave_list, wave_type=PDNames.WAVETYPE_RHYTHM))
+            wave_list, wave_type=PDNames.WAVETYPE_RHYTHM,
+            update_keys=update_keys,
+        ))
         setattr(self, PDNames.MEDIAN_T, self._get_long_table(
-            median_list, wave_type=PDNames.WAVETYPE_MEDIAN))
+            median_list, wave_type=PDNames.WAVETYPE_MEDIAN,
+            update_keys=update_keys,
+        ))
         # #### Return
         return self
     # /////////////////////////////////////////////////////////////////////////
     def _get_long_table(self, lead_list:List[Dict[str, np.ndarray]],
-                        wave_type:str, **kwargs) -> pd.DataFrame:
+                        wave_type:str,
+                        update_keys:Optional[Dict[str,str]]=None,
+                        **kwargs,
+                        ) -> pd.DataFrame:
         '''
         Mapping lists of dictionaries containing lead specific numpy arrays
         to a long-formatted pandas table.
@@ -566,6 +574,8 @@ class ECGDICOMTable(object):
             voltage mapped to the values.
         wave_type: str,
             Adds a column `Waveform type` containing this string as a constant.
+        update_keys: dict [`str`, `str`], default `NoneType`
+            A dictionary to remap lead names: [`old`, `new`]
         **kwargs: optional
             keyword arguments passed to pd.DataFrame.
         
@@ -592,6 +602,9 @@ class ECGDICOMTable(object):
         table = pd.DataFrame()
         previous = None
         for w, k in zip(lead_list, getattr(self, PDNames.KEY_L)):
+            # do we need to remap key names
+            if update_keys is not None:
+                w = {update_keys.get(k, k): v for k, v in w.items()}
             # confirm the dictionary keys are identical
             current_keys = list(w.keys())
             if previous is not None:

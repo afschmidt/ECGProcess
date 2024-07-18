@@ -274,7 +274,10 @@ def list_data_paths():
     """
     # paths dictionary
     paths_dict = {
-        'example_dicom': os.path.join(_ROOT_DATASETS_DIR, 'example-DICOM.dcm'),
+        'example_dicom_1': os.path.join(
+            _ROOT_DATASETS_DIR, 'example-DICOM1.dcm'),
+        'example_dicom_2': os.path.join(
+            _ROOT_DATASETS_DIR, 'example-DICOM2.dcm'),
     }
     # return
     return paths_dict
