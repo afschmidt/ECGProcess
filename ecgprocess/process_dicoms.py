@@ -59,11 +59,11 @@ class ECGDICOMReader(object):
         these are calculated.
     resample: bool, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz.
-    METADATA: dict
+    METADATA: dict [`str`, `str`]
         A dictionary describing the metadata one wants to extract from a
         DICOM. The dictionary keys represents the `target` (new) name and the
         dictionary values the `source` (old) names.
-    RESULTS_LIST: list
+    RESULTS_LIST: list [`str`, `str`]
         A list of attribute one wants to extract, should map predominantly to
         the keys in  `METADATA` and `WAVE_FROMS`.
     STUDY_DATE_SOURCE: str
@@ -124,7 +124,7 @@ class ECGDICOMReader(object):
         
         Attributes
         ----------
-        GeneralInfo: list
+        GeneralInfo: list [`str`]
             A list of dcmread extracted attributes.
         Waveforms: dict of arrays
             The lead specific ECG waveforms.
@@ -284,7 +284,7 @@ class ECGDICOMReader(object):
         
         Returns
         -------
-        leadnames: dict
+        leadnames: dict [`int`, `str`]
             A dictionary with numerical (interval) keys and the lead names as
             values.
         """
@@ -318,7 +318,7 @@ class ECGDICOMReader(object):
         ----------
         waveform_array: np.ndarray
             An array with the waveforms.
-        lead_info: dict
+        lead_info: dict [`int`, `str`]
             A dictionary where the keys match the `waveform_array` rows and
             the dictionary values contain the lead name strings.
         augment_leads: bool
@@ -327,7 +327,7 @@ class ECGDICOMReader(object):
         
         Returns
         -------
-        leads: dict
+        leads: dict [`str`, `np.ndarray`]
             A dictionary with the lead name string as keys and leads as
             np.ndarray values.
         """
@@ -379,15 +379,16 @@ class ECGDICOMTable(object):
     
     Attributes
     ----------
-    path_list: list of strings
-        A list of dcm file paths.
+    RawPathList : list [`str`]
+        A list of dcm file paths which have not been confirmed to exist.
     
     Methods
     -------
-    get_table(**kwargs)
+    get_table(update_keys,**kwargs)
         extracts data from multiple dicom files and maps these to
         pandas.DataFrames.
-    write_ecg(target_tar, target_path, sep, mode, compression, **kwargs)
+    write_ecg(target_tar, target_path, sep, mode, compression, update_keys,
+    **kwargs)
         writes each dicom file to a single sets of files (metadata,
         waveforms, median beats). This is done by appending the extracted
         data from each file the target file set, minimising the memory
@@ -402,9 +403,9 @@ class ECGDICOMTable(object):
         
         Parameters
         ----------
-        ecgdicomreader: ECGDICOMReader
+        ecgdicomreader : ECGDICOMReader
             An instance of the ECGDICOMReader data class.
-        RawPathList: list of strings
+        path_list : list [`str`]
             A list of paths to one or more .dcm files.
         """
         # #### check input
@@ -432,17 +433,17 @@ class ECGDICOMTable(object):
         
         Parameters
         ----------
-        skip_missing: bool, default `True`
+        skip_missing : bool, default `True`
             Whether missing files or files without read permissions should
             be skipped.
-        verbose: bool, default `False`
+        verbose : bool, default `False`
             Prints missing files if skip_missing is set to `True`.
         
         Attributes
         ----------
-        FailedPathList: list of strings
+        FailedPathList : list [`str`]
             File paths which were either absent or without read permission.
-        CuratedPathList: list of strings
+        CuratedPathList : list [`str`]
             File paths which are readable.
         
         Returns
@@ -499,7 +500,7 @@ class ECGDICOMTable(object):
         
         Attributes
         ----------
-        IndexList: list
+        IndexList: list [`str`]
             A list of unique identifiers.
         GeneralInfoTable: pandas.DataFrame
             A table of the dicom metadata.
@@ -634,18 +635,13 @@ class ECGDICOMTable(object):
     # /////////////////////////////////////////////////////////////////////////
     def write_ecg(self, target_tar:Union[None,str], target_path:str='.',
                   sep:str=r'\t', mode:str='w:gz', compression:str='gzip',
+                  update_keys:Optional[Dict[str,str]]=None,
                   **kwargs:Optional[Any],
                   ):
         '''
         Extracts dicom files, and write these one by one to a set of target
         files. By appending each dicom individually to the target files the
         memory footprint of this function will be minimal.
-        
-        This method writes the following files to disk:
-        - `GeneralInfoTable.tsv`
-        - `WaveFormsTable.tsv`
-        - `MedianWaveTable.tsv`
-        - `FailedFiles.txt`
         
         Parameters
         ----------
@@ -668,6 +664,8 @@ class ECGDICOMTable(object):
             The tarfile.open mode.
         compression: str, default `gzip`
             The file compression passed to pandas.DataFrame.write_csv.
+        update_keys: dict [`str`, `str`], default `NoneType`
+            A dictionary to remap lead names: [`old`, `new`]
         **kwargs:Optional[Any],
             Keyword arguments used in the call method of a `ECGDICOMReader`
             instance.
@@ -675,6 +673,14 @@ class ECGDICOMTable(object):
         Returns
         -------
         None
+        
+        Notes
+        -----
+        This method writes the following files to disk:
+        - `GeneralInfoTable.tsv`
+        - `WaveFormsTable.tsv`
+        - `MedianWaveTable.tsv`
+        - `FailedFiles.txt`
         
         Raises
         ------
