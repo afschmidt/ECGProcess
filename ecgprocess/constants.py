@@ -45,9 +45,9 @@ class ProcessDicomNames(object):
     INFO_T                = 'GeneralInfoTable'
     WAVE_T                = 'WaveFormsTable'
     MEDIAN_T              = 'MedianWaveTable'
-    INFO_FILE             = 'GeneralInfoTable.tsv'
-    WAVE_FILE             = 'WaveFormsTable.tsv'
-    MEDIAN_FILE           = 'MedianWaveTable.tsv'
+    INFO_FILE             = 'GeneralInfoTable.tsv.gz'
+    WAVE_FILE             = 'WaveFormsTable.tsv.gz'
+    MEDIAN_FILE           = 'MedianWaveTable.tsv.gz'
     FAILED_FILE           = 'FailedFiles.txt'
     FPATH_L               = 'FailedPathList'
     RPATH_L               = 'RawPathList'
@@ -58,6 +58,10 @@ class ProcessDicomNames(object):
     COL_WAVETYPE          = 'Waveform type'
     WAVETYPE_RHYTHM       = 'rhythm'
     WAVETYPE_MEDIAN       = 'median'
+    WRITE_ECS_PATH        = 'target_path'
+    PREVIOUS_HEADER       = 'previous_header'
+    TABLE_CALLED          = 'table_called'
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class DICOMTags(object):

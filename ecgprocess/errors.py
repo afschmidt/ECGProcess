@@ -280,3 +280,9 @@ class NotCalledError(Exception):
     def __init__(self, message="__call__ method has not been invoked."):
         self.message = message
         super().__init__(self.message)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class InputValidationError(Exception):
+    pass
+

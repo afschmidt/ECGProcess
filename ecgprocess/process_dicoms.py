@@ -33,7 +33,7 @@ from ecgprocess.constants import (
     DICOMTags,
 )
 from ecgprocess.utils.general import (
-    replace_with_tar
+    replace_with_tar,
 )
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -557,11 +557,13 @@ class ECGDICOMTable(object):
             update_keys=update_keys,
         ))
         # #### Return
+        setattr(self, PDNames.TABLE_CALLED, 'True')
         return self
     # /////////////////////////////////////////////////////////////////////////
     def _get_long_table(self, lead_list:List[Dict[str, np.ndarray]],
                         wave_type:str,
                         update_keys:Optional[Dict[str,str]]=None,
+                        previous_header:Optional[List[str]]=None,
                         **kwargs,
                         ) -> pd.DataFrame:
         '''
@@ -595,13 +597,12 @@ class ECGDICOMTable(object):
         is_type(lead_list, list, 'lead_list')
         is_type(wave_type, str, 'wave_type')
         self.kwargs_pdd = kwargs
-        # ### confirm table was called
-        if not hasattr(self, PDNames.KEY_L):
-            raise NotCalledError('The `table` method should be called first.'
-                                 'Note this intended as a private method.')
         # #### initiate table and map lists
         table = pd.DataFrame()
-        previous = None
+        if previous_header is None:
+            previous = None
+        else:
+            previous = previous_header
         for w, k in zip(lead_list, getattr(self, PDNames.KEY_L)):
             # do we need to remap key names
             if update_keys is not None:
@@ -633,8 +634,8 @@ class ECGDICOMTable(object):
         # #### return
         return long_table
     # /////////////////////////////////////////////////////////////////////////
-    def write_ecg(self, target_tar:Union[None,str], target_path:str='.',
-                  sep:str=r'\t', mode:str='w:gz', compression:str='gzip',
+    def write_ecg(self, target_tar:Union[None,str]=None, target_path:str='.',
+                  sep:str='\t', mode:str='w:gz', compression:str='gzip',
                   update_keys:Optional[Dict[str,str]]=None,
                   **kwargs:Optional[Any],
                   ):
@@ -645,28 +646,28 @@ class ECGDICOMTable(object):
         
         Parameters
         ----------
-        target_tar: str
+        target_tar : str, default `NoneType`
             The `name` of an optional tarfile where the individual files will
             be written to. The target_tar will be concatenated to
             `target_path` and depending on `mode` this directory will be
             tar.gz compressed. Set `target_tar` to `NoneType` to simply add
             the files directly to `target_path`. Note this will overwrite
             any potential directory or files with the identical names.
-        target_path: str, default '.'
+        target_path : str, default '.'
             The full path where the files should be written to. if provided
             `target_tar` will be created underneath this path, otherwise the
             files will be directly written to the `target_path` terminal
             directory (assuming this is writable).
-        sep: str, default r'\t'`
+        sep : str, default '\t'`
             The file separator, which will be passed to
             pandas.DataFrame.to_csv.
-        mode: str, default `w:gz`
+        mode : str, default `w:gz`
             The tarfile.open mode.
-        compression: str, default `gzip`
+        compression : str, default `gzip`
             The file compression passed to pandas.DataFrame.write_csv.
-        update_keys: dict [`str`, `str`], default `NoneType`
+        update_keys : dict [`str`, `str`], default `NoneType`
             A dictionary to remap lead names: [`old`, `new`]
-        **kwargs:Optional[Any],
+        **kwargs : Optional[Any],
             Keyword arguments used in the call method of a `ECGDICOMReader`
             instance.
         
@@ -690,7 +691,7 @@ class ECGDICOMTable(object):
         self.kwargs = kwargs
         # #### check input and set constants
         is_type(target_tar, (type(None), str), 'target_tar')
-        is_type(target_path, str, 'target_path')
+        is_type(target_path, (pathlib.PosixPath, str), 'target_path')
         is_type(sep, str, 'sep')
         is_type(mode, str, 'mode')
         is_type(compression, str, 'compression')
@@ -713,6 +714,7 @@ class ECGDICOMTable(object):
             os.makedirs(target, exist_ok=True)
         else:
             target = target_path
+            setattr(self, PDNames.WRITE_ECS_PATH, target)
         # #### check if __call__ has been run
         if not hasattr(self, PDNames.CPATH_L):
             raise NotCalledError()
@@ -728,7 +730,7 @@ class ECGDICOMTable(object):
             if self.verbose == True:
                 print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
             # get instance
-            ecg_inst = ecgdicomreader(p, **self.kwargs)
+            ecg_inst = self.ecgdicomreader(p, **self.kwargs)
             # extract unique identifier and check if it has been used before
             if hasattr(ecg_inst, PDNames.SOP_UID) == False:
                 raise AttributeError(Error_MSG.MISSING_ATTR.format(
@@ -741,6 +743,7 @@ class ECGDICOMTable(object):
             else:
                 key_list.append(key)
             # extract the remaining
+            setattr(self, PDNames.KEY_L, [key])
             info=getattr(ecg_inst, PDNames.RESULTS_DICT)
             wave=getattr(ecg_inst, PDNames.LEAD_VOLTAGES)
             median=getattr(ecg_inst, PDNames.LEAD_VOLTAGES2)
@@ -748,39 +751,58 @@ class ECGDICOMTable(object):
             if first==True:
                 first = False
                 # metadata
-                pd.DataFrame(info, index=key).to_csv(
+                pd.DataFrame([info], index=[key]).to_csv(
                     os.path.join(target, PDNames.INFO_FILE), sep=sep,
                     header=True, compression=compression)
                 # waveforms
                 self._get_long_table(
-                    wave, wave_type=PDNames.WAVETYPE_RHYTHM).to_csv(
+                    [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
+                    update_keys=update_keys,
+                ).to_csv(
                         os.path.join(target, PDNames.WAVE_FILE), sep=sep,
                         header=True, compression=compression)
+                wave_head = list(wave.keys())
                 # median beats
                 self._get_long_table(
-                    median, wave_type=PDNames.WAVETYPE_MEDIAN).to_csv(
+                    [median], wave_type=PDNames.WAVETYPE_MEDIAN,
+                    update_keys=update_keys,
+                ).to_csv(
                         os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
                         header=True, compression=compression)
+                median_head = list(median.keys())
             else:
                 # appending using mode = 'a'
                 # metadata
-                pd.DataFrame(info, index=key).to_csv(
+                pd.DataFrame([info], index=[key]).to_csv(
                     os.path.join(target, PDNames.INFO_FILE), sep=sep,
                     header=False, mode='a', compression=compression)
                 # waveforms
                 self._get_long_table(
-                    wave, wave_type=PDNames.WAVETYPE_RHYTHM).to_csv(
+                    [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
+                    update_keys=update_keys,
+                    previous_header=wave_head,
+                ).to_csv(
                         os.path.join(target, PDNames.WAVE_FILE), sep=sep,
                         header=False, mode='a', compression=compression)
+                wave_head = list(wave.keys())
                 # median beats
                 self._get_long_table(
-                    median, wave_type=PDNames.WAVETYPE_MEDIAN).to_csv(
+                    [median], wave_type=PDNames.WAVETYPE_MEDIAN,
+                    update_keys=update_keys,
+                    previous_header=median_head,
+                ).to_csv(
                         os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
                         header=False, mode='a', compression=compression)
+                median_head = list(median.keys())
+            # delete key
+            delattr(self, PDNames.KEY_L)
         # #### if needed replace directory by tar.gz version
         if target_tar is not None:
             # create the final target path
             target_final = os.path.join(target_path, target_tar)
             replace_with_tar(target, target_final, mode=mode)
+            setattr(self, PDNames.WRITE_ECS_PATH, target_final)
+        # #### return
+        return self
 
 

@@ -1,4 +1,6 @@
+import os
 import pytest
+import pandas as pd
 from ecgprocess.constants import ProcessDicomNames as PDNames
 from ecgprocess.errors import MissingDICOMTagError
 from ecgprocess.process_dicoms import (
@@ -7,6 +9,9 @@ from ecgprocess.process_dicoms import (
 )
 from ecgprocess.example_data.examples import (
     list_data_paths,
+)
+from ecgprocess.utils.general import (
+    list_tar,
 )
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -17,6 +22,8 @@ dicom_path_list = [
     list_data_paths()['example_dicom_2'],
 ]
 dicom_wrong_list = ['wrong']
+expect_content = set([PDNames.FAILED_FILE, PDNames.INFO_FILE,
+                      PDNames.WAVE_FILE, PDNames.MEDIAN_FILE])
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest
@@ -87,6 +94,7 @@ class TestECGDICOMTable(object):
         res = ecgtable(verbose=False)
         assert getattr(res, PDNames.CPATH_L) == dicom_path_list
         assert len(getattr(res, PDNames.FPATH_L)) == 0
+        assert hasattr(res, PDNames.PREVIOUS_HEADER) == False
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_wrong_path_call(self):
         ecgreader = ECGDICOMReader()
@@ -121,6 +129,46 @@ class TestECGDICOMTable(object):
         ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
         with pytest.raises(KeyError):
             _ = ecgtable().get_table()
-
-
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg(self, tmp_path):
+        # change current directory
+        os.chdir(tmp_path)
+        # run
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
+        res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'})
+        # get content and read in a table
+        content = os.listdir(getattr(res, PDNames.WRITE_ECS_PATH))
+        table = pd.read_csv(os.path.join(getattr(res, PDNames.WRITE_ECS_PATH),
+                                         PDNames.INFO_FILE),
+                            sep='\t')
+        assert set(content) == expect_content
+        assert table.shape[0] == 2
+        assert table.shape[1] > 10
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg_path(self, tmp_path):
+        # run
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
+        res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'},
+                                   target_path=tmp_path)
+        content = os.listdir(getattr(res, PDNames.WRITE_ECS_PATH))
+        assert set(content) == expect_content
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg_tar(self, tmp_path):
+        # run
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
+        res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'},
+                                   target_path=tmp_path,
+                                   target_tar='dir.tar.gz')
+        content = list_tar(getattr(res, PDNames.WRITE_ECS_PATH))
+        assert set(content) == expect_content
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg_error(self, tmp_path):
+        # run
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
+        with pytest.raises(KeyError):
+            _ = ecgtable().write_ecg(target_path=tmp_path)
 
