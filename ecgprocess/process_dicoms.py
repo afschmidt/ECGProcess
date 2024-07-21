@@ -671,6 +671,11 @@ class ECGDICOMTable(object):
             Keyword arguments used in the call method of a `ECGDICOMReader`
             instance.
         
+        Attributes
+        ----------
+        target_path : str
+            The directory or tar file path were the files are written to.
+        
         Returns
         -------
         None
