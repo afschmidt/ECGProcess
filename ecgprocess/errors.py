@@ -2,12 +2,28 @@
 Error handeling for ECGProcess.
 '''
 import os
+import inspect
+import warnings
 import pandas as pd
 # import numpy as np
 from packaging import version
 from typing import Any, List, Type, Union, Tuple, Callable
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class InputValidationError(Exception):
+    pass
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def get_param_name(param:Any) -> str | None:
+    '''
+    Gets the name of `param` or otherwise return a None.
+    '''
+    frame = inspect.currentframe().f_back.f_back
+    param_names =\
+        [name for name, value in frame.f_locals.items() if value is param]
+    return param_names[0] if param_names else None
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def is_type(param: Any, types: Union[Tuple[Type], Type],
@@ -17,10 +33,10 @@ def is_type(param: Any, types: Union[Tuple[Type], Type],
     
     Parameters
     ----------
-    param: object to test
-    types: either a single type, or a tuple of types to test against.
-    param_name: an optional string to return the parameter name in the
-        errormessage
+    param: Any
+        Object to test.
+    types: Type
+        Either a single type, or a tuple of types to test against.
     
     Returns
     -------
@@ -29,14 +45,16 @@ def is_type(param: Any, types: Union[Tuple[Type], Type],
     """
     if not isinstance(param, types):
         if param_name is None:
-            raise InputValidationError(
-                f"Expected any of [{types}], got {type(param)}."
-            )
+            param_name = get_param_name(param)
         else:
-            raise InputValidationError(
-                f"Expected any of [{types}], "
-                f"got {type(param)}; Please see parameter: `{param_name}`."
-            )
+            warnings.warn('`param_name` will be depricated.',
+                          DeprecationWarning,
+                          stacklevel=2,
+                          )
+        raise InputValidationError(
+            f"Expected any of [{types}], "
+            f"got {type(param)}; Please see parameter: `{param_name}`."
+        )
     return True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -282,7 +300,4 @@ class NotCalledError(Exception):
         super().__init__(self.message)
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class InputValidationError(Exception):
-    pass
 
