@@ -38,8 +38,25 @@ from ecgprocess.utils.general import (
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Base class with slots
+class BaseECGDICOMReader:
+    '''
+    An ECGDICOMReader base class implementing the more efficient __slots__ for
+    the waveform arrays, while still retaining __dict__ dynamic attribute
+    creation.
+    '''
+    __slots__ = (PDNames.LEAD_VOLTAGES, PDNames.LEAD_VOLTAGES2)
+    # /////////////////////////////////////////////////////////////////////////
+    def __init__(self, lead_voltages=None, lead_voltages2=None):
+        '''
+        Initialises both slot entries to `None`.
+        '''
+        setattr(self, PDNames.LEAD_VOLTAGES, lead_voltages)
+        setattr(self, PDNames.LEAD_VOLTAGES2, lead_voltages2)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
-class ECGDICOMReader(object):
+class ECGDICOMReader(BaseECGDICOMReader):
     """
     Takes an ECG DICOM file and extracts metadata, median beats (if available)
     and raw waveforms.
@@ -51,6 +68,11 @@ class ECGDICOMReader(object):
         these are calculated.
     resample: bool, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz.
+    retain_raw: bool, default `False`
+        Whether the raw pydicom instance and raw waveforms should be retained.
+        Set to `False` to decrease memory usage. Set to `True` to explore the
+        orignal pydicom instance. For example, use this one a few files to
+        identify none-standard information to extract.
     
     Attributes
     ----------
@@ -84,10 +106,19 @@ class ECGDICOMReader(object):
     make_leadvoltages(waveform_array, lead_info, augment_leads)
         Extracts the voltages from a DICOM file. Will automatically extract the
         limb leads if missing.
+
+    Notes
+    -----
+    The waveforms are stored using `__slots__` to decrease memory usage, which
+    is further improved by setting `retain_raw` to `False` - the default
+    behaviour.
     """
+    # #### set slots
+    # __slots__ = (PDNames.LEAD_VOLTAGES, PDNames.LEAD_VOLTAGES2)
     # #### parameters, with defaults
     augment_leads: bool=False
-    resample_500:bool= True
+    resample_500:bool=True
+    retain_raw:bool=False
     # #### check input
     is_type(augment_leads, bool, 'augment_leads')
     is_type(resample_500, bool, 'resample_500')
@@ -200,6 +231,8 @@ class ECGDICOMReader(object):
                             ))
                 setattr(self, PDNames.SAMPLING_FREQ,
                         getattr(self, PDNames.SF_ORIGINAL))
+                if self.retain_raw == False:
+                    delattr(self, PDNames.WAVE_ARRAY)
             else:
                 # set to NA
                 setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
@@ -231,6 +264,8 @@ class ECGDICOMReader(object):
                 setattr(self, PDNames.MEDIAN_ARRAY, np.nan)
                 setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
                 setattr(self, PDNames.MEDIAN_PRESENT, False)
+            if self.retain_raw == False:
+                delattr(self, PDNames.MEDIAN_ARRAY)
             # do we need to resample the freq
             if self.resample_500 == True:
                 # the function will internally adjust
@@ -268,7 +303,8 @@ class ECGDICOMReader(object):
             strftime(self.STUDY_DATE_TARGET)
         setattr(self, PDNames.RESULTS_DICT, results_dict)
         # add the original dcmread instance
-        setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
+        if self.retain_raw == True:
+            setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
         # #### return stuff
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -415,13 +451,15 @@ class ECGDICOMTable(object):
         setattr(self, PDNames.RPATH_L, path_list)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
-        return (f"ECGDICOMTable instance with "
+        CLASS_NAME = type(self).__name__
+        return (f"{CLASS_NAME} instance with "
                 f"ecgdicomreader={self.ecgdicomreader}, "
                 f"path_list={getattr(self, PDNames.RPATH_L)}."
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __repr__(self):
-        return (f"ECGDICOMTable(ecgdicomreader={self.ecgdicomreader}, "
+        CLASS_NAME = type(self).__name__
+        return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader}, "
                 f"augment_leads={getattr(self, PDNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
