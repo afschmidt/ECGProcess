@@ -1,5 +1,5 @@
 '''
-Collecting established mappings for ECG traits.
+Collecting established tools for ECG derivation or cleaning.
 '''
 
 
