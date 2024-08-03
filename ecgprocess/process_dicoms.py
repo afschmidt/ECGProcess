@@ -123,11 +123,12 @@ class ECGDICOMReader(BaseECGDICOMReader):
     is_type(augment_leads, bool, 'augment_leads')
     is_type(resample_500, bool, 'resample_500')
     # #### default tags
-    DEFAULT_DICTS = DICOMTags
+    DEFAULT_DICTS = DICOMTags()
     METADATA = DEFAULT_DICTS.METADATA
     WAVE_FORMS = DEFAULT_DICTS.WAVE_FORMS
     WAVE_FORMS_LIST = DEFAULT_DICTS.WAVE_FORMS_LIST
     MEDIAN_BEATS_LIST = DEFAULT_DICTS.MEDIAN_BEATS_LIST
+    ECG_TRAIT_LIST = DEFAULT_DICTS.ECG_INTERPERTATION_LIST
     RESULTS_LIST = DEFAULT_DICTS.RESULTS_LIST
     # #### default dates to extract and format
     STUDY_DATE_SOURCE = "%Y%m%d"
@@ -277,12 +278,49 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 setattr(self, PDNames.SAMPLING_FREQ, 500)
             else:
                 setattr(self, PDNames.OVERSAMPLED, False)
+        # #### Extract standard ECG measurments
+        # first set everything to NA
+        for e in self.ECG_TRAIT_LIST:
+            setattr(self, e, np.nan)
+        # next see if we can extract some interpertations.
+        if hasattr(ECG, PDNames.ECG_INTERPERTATION):
+            for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
+                if hasattr(w, PDNames.ECG_CONCEPTNAME):
+                    ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
+                    try:
+                        # if the ECG name is in self.ECG_TRAIT_LIST add to self
+                        ecg_trait = getattr(ecg_int, PDNames.ECG_TRAIT_NAME)
+                        if ecg_trait in self.ECG_TRAIT_LIST:
+                            setattr(self, ecg_trait,
+                                    getattr(w, PDNames.ECG_TRAIT_VALUE),
+                                    )
+                    except AttributeError:
+                        pass
+        # which ECG traits are still nan
+        missing_ecg_traits =\
+            [e for e in self.ECG_TRAIT_LIST if np.isnan(getattr(self, e))]
+        if skip_empty == False and len(missing_ecg_traits) > 0:
+            # Should an Error be returned
+            raise ValueError('The following ECG measurments are '
+                             'unavailable: {}'.format(missing_ecg_traits))
+                             
+        else:
+            # add missing metadata
+            empty_metadata = empty_metadata + missing_ecg_traits
         # #### end of `dicom` part, optionally printing tags which were missing
         if verbose == True:
             if len(empty_metadata) + len(empty_wave_forms) > 0:
                 warnings.warn(
                     'The following DICOM tags could not be found: {}.'.format(
                         empty_metadata + empty_wave_forms))
+        # add duration, NOTE both values are either int/float or NA so no need
+        # for a try except
+        setattr(self, PDNames.DURATION,
+                (
+                    getattr(self, PDNames.SAMPLING_NUMBER)/
+                    getattr(self, PDNames.SAMPLING_FREQ)
+                )
+        )
         # #### The results dictionary
         results_dict = {}
         for t in self.RESULTS_LIST:
@@ -290,7 +328,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
             if hasattr(self, t):
                 results_dict[t] = getattr(self, t)
             else:
-                raise ValueError('`{0}` is not available.'.format(s))
+                raise ValueError('`{0}` is not available.'.format(t))
         # add time variables
         results_dict[PDNames.STUDY_TIME] = getattr(self, PDNames.STUDY_TIME)
         raw_AD = getattr(self, PDNames.ACQUISITION_DATE)

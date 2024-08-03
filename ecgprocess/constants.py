@@ -2,6 +2,7 @@
 Constants used by ECGProcess
 '''
 
+from dataclasses import dataclass
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 class ProcessDicomNames(object):
@@ -25,8 +26,10 @@ class ProcessDicomNames(object):
     ACQUISITION_DATE      = 'AcquisitionDateTime'
     RESULTS_DICT          = 'GeneralInfo'
     SAMPLING_FREQ         = 'SamplingFrequency'
+    SAMPLING_NUMBER       = 'NumberOfWaveformSamples'
     SF_ORIGINAL           = 'SamplingFrequencyOriginal'
     SF                    = 'sf'
+    DURATION              = 'Duration'
     UNIT                  = 'Unit free'
     LEAD                  = 'Lead'
     LEAD_III              = 'III'
@@ -61,9 +64,14 @@ class ProcessDicomNames(object):
     WRITE_ECS_PATH        = 'target_path'
     PREVIOUS_HEADER       = 'previous_header'
     TABLE_CALLED          = 'table_called'
+    ECG_INTERPERTATION    = 'WaveformAnnotationSequence'
+    ECG_CONCEPTNAME       = 'ConceptNameCodeSequence'
+    ECG_TRAIT_NAME        = 'CodeMeaning'
+    ECG_TRAIT_VALUE       = 'NumericValue'
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+@dataclass
 class DICOMTags(object):
     '''
     The DICOM tags ECGDICOMReader will look for.
@@ -114,21 +122,34 @@ class DICOMTags(object):
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     WAVE_FORMS = {
-            'TimeOffset'                     : 'MultiplexGroupTimeOffset',
-            ProcessDicomNames.CHANNEL_NUMBER : 'NumberOfWaveformChannels',
-            'ChannelSensitivity'             : 'ChannelSensitivity',
-            'ChannelBaseline'                : 'ChannelBaseline',
-            'ChannelSampleSkew'              : 'ChannelSampleSkew',
-            'FilterLowFrequency'             : 'FilterLowFrequency',
-            'FilterHighFrequency'            : 'FilterHighFrequency',
-            'NotchFilterFrequency'           : 'NotchFilterFrequency',
-            ProcessDicomNames.SF             : 'SamplingFrequency',
-            ProcessDicomNames.SF_ORIGINAL    : 'SamplingFrequency',
+        'TimeOffset'                      : 'MultiplexGroupTimeOffset',
+        ProcessDicomNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
+        ProcessDicomNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
+        'ChannelSensitivity'              : 'ChannelSensitivity',
+        'ChannelBaseline'                 : 'ChannelBaseline',
+        'ChannelSampleSkew'               : 'ChannelSampleSkew',
+        'FilterLowFrequency'              : 'FilterLowFrequency',
+        'FilterHighFrequency'             : 'FilterHighFrequency',
+        'NotchFilterFrequency'            : 'NotchFilterFrequency',
+        ProcessDicomNames.SF              : 'SamplingFrequency',
+        ProcessDicomNames.SF_ORIGINAL     : 'SamplingFrequency',
     }
     # objects which cannot be extracted in a loop
     WAVE_FORMS_LIST = {
         ProcessDicomNames.WAVE_ARRAY    : ['waveform_array', 0],
     }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ECG_INTERPERTATION_LIST =[
+        'QT Interval',
+        'QTc Interval',
+        'RR Interval',
+        'VRate',
+        'QRS Duration',
+        'QRS Axis',
+        'T Axis',
+        'P Axis',
+        'PR Interval',
+    ]
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MEDIAN_BEATS_LIST = {
         ProcessDicomNames.MEDIAN_ARRAY   : ['waveform_array', 1],
@@ -137,29 +158,32 @@ class DICOMTags(object):
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RESULTS_LIST = [
-         ProcessDicomNames.SOP_UID,
-         "SERIESinstanceUID",
-         "STUDYinstanceUID",
-         "PatientID",
-         "PatientBirthDate",
-         "PatientName",
-         "PatientSex",
-         "StudyDescription",
-         "AcquisitionTimeZone",
-         "AccessionNumber",
-         ProcessDicomNames.SAMPLING_FREQ,
-         ProcessDicomNames.SF_ORIGINAL,
-         "ChannelNumber",
-         "ChannelSensitivity",
-         "ChannelBaseline",
-         "ChannelSampleSkew",
-         "FilterLowFrequency",
-         "FilterHighFrequency",
-         "NotchFilterFrequency",
-         "Manufacturer",
-         "ManufacturerModelName",
-         "SoftwareVersions",
-         "DataExportedBy",
-    ]
+        ProcessDicomNames.SOP_UID,
+        "SERIESinstanceUID",
+        "STUDYinstanceUID",
+        "PatientID",
+        "PatientBirthDate",
+        "PatientName",
+        "PatientSex",
+        "StudyDescription",
+        "AcquisitionTimeZone",
+        "AccessionNumber",
+        ProcessDicomNames.SAMPLING_NUMBER,
+        ProcessDicomNames.SAMPLING_FREQ,
+        ProcessDicomNames.SF_ORIGINAL,
+        ProcessDicomNames.DURATION,
+        "ChannelNumber",
+        "ChannelSensitivity",
+        "ChannelBaseline",
+        "ChannelSampleSkew",
+        "FilterLowFrequency",
+        "FilterHighFrequency",
+        "NotchFilterFrequency",
+        "Manufacturer",
+        "ManufacturerModelName",
+        "SoftwareVersions",
+        "DataExportedBy",
+    ] + ECG_INTERPERTATION_LIST
+     
 
 
