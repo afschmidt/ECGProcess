@@ -4,7 +4,7 @@ The general utils module
 import os
 import shutil
 import tarfile
-from typing import List
+from typing import List, Any
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def replace_with_tar(old_dir:str, new_tar:str, mode:str='w:gz'):
@@ -68,3 +68,18 @@ def list_tar(path:str, mode:str='r:gz') -> List[str]:
     # return
     return files
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def getattr_case_insensitive(obj:object, attr_name:str) -> Any:
+    '''
+    A case insensitive version of getattr. Use this when extracting data from
+    a dataclass instance which may have not been sufficiently standardised.
+    '''
+    # Get all attributes of the object
+    all_attrs = dir(obj)
+    # Find the attribute with a case-insensitive match
+    for attr in all_attrs:
+        if attr.lower() == attr_name.lower():
+            return getattr(obj, attr)
+    
+    # Raise an AttributeError if no match is found
+    raise AttributeError(f"'{type(obj).__name__}' object has no attribute '{attr_name}'")

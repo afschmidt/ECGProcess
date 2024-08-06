@@ -13,11 +13,12 @@ import pathlib
 import warnings
 import numpy as np
 import pandas as pd
+import copy
 from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
 from datetime import datetime
 from scipy import signal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Type, Union, Tuple, Self, Dict, Optional, Any
 from ecgprocess.errors import (
     NotCalledError,
@@ -34,6 +35,7 @@ from ecgprocess.constants import (
 )
 from ecgprocess.utils.general import (
     replace_with_tar,
+    getattr_case_insensitive,
 )
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -122,14 +124,27 @@ class ECGDICOMReader(BaseECGDICOMReader):
     # #### check input
     is_type(augment_leads, bool, 'augment_leads')
     is_type(resample_500, bool, 'resample_500')
-    # #### default tags
-    DEFAULT_DICTS = DICOMTags()
-    METADATA = DEFAULT_DICTS.METADATA
-    WAVE_FORMS = DEFAULT_DICTS.WAVE_FORMS
-    WAVE_FORMS_LIST = DEFAULT_DICTS.WAVE_FORMS_LIST
-    MEDIAN_BEATS_LIST = DEFAULT_DICTS.MEDIAN_BEATS_LIST
-    ECG_TRAIT_LIST = DEFAULT_DICTS.ECG_INTERPERTATION_LIST
-    RESULTS_LIST = DEFAULT_DICTS.RESULTS_LIST
+    # #### default tags - hacking about to make these non-persistance
+    METADATA: Dict[str, str] =\
+        field(default_factory=lambda: copy.deepcopy(DICOMTags().METADATA))
+    WAVE_FORMS: Dict[str, str] =\
+        field(default_factory=lambda: copy.deepcopy(DICOMTags().WAVE_FORMS))
+    WAVE_FORMS_LIST: Dict[str, str] =\
+        field(default_factory=lambda: copy.deepcopy(DICOMTags().WAVE_FORMS_LIST))
+    MEDIAN_BEATS_LIST: Dict[str, str] =\
+        field(default_factory=lambda: copy.deepcopy(DICOMTags().MEDIAN_BEATS_LIST))
+    ECG_TRAIT_LIST: List[str] =\
+        field(default_factory=lambda: copy.deepcopy(DICOMTags().ECG_INTERPERTATION_LIST))
+    RESULTS_LIST: List[str] =\
+        field(default_factory=lambda: copy.deepcopy(DICOMTags().RESULTS_LIST))
+
+#     DEFAULT_DICTS = copy.deepcopy(DICOMTags())
+#     METADATA = DEFAULT_DICTS.METADATA
+#     WAVE_FORMS = DEFAULT_DICTS.WAVE_FORMS
+#     WAVE_FORMS_LIST = DEFAULT_DICTS.WAVE_FORMS_LIST
+#     MEDIAN_BEATS_LIST = DEFAULT_DICTS.MEDIAN_BEATS_LIST
+#     ECG_TRAIT_LIST = copy.deepcopy(DEFAULT_DICTS.ECG_INTERPERTATION_LIST)
+#     RESULTS_LIST = copy.deepcopy(DEFAULT_DICTS.RESULTS_LIST)
     # #### default dates to extract and format
     STUDY_DATE_SOURCE = "%Y%m%d"
     STUDY_DATE_TARGET = "%Y-%m-%d"
@@ -238,7 +253,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 # set to NA
                 setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
                 empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
-                setattr(self, PDNames.SAMLING_FREQ,
+                setattr(self, PDNames.SAMPLING_FREQ,
                         getattr(self, PDNames.SF_ORIGINAL))
             # #### Extract Median beats
             nam, el = self.MEDIAN_BEATS_LIST[PDNames.MEDIAN_ARRAY]
@@ -290,9 +305,19 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     try:
                         # if the ECG name is in self.ECG_TRAIT_LIST add to self
                         ecg_trait = getattr(ecg_int, PDNames.ECG_TRAIT_NAME)
-                        if ecg_trait in self.ECG_TRAIT_LIST:
-                            setattr(self, ecg_trait,
-                                    getattr(w, PDNames.ECG_TRAIT_VALUE),
+                        # set list of matches to lower
+                        ECG_CMPR_LWR = [s.lower() for s in self.ECG_TRAIT_LIST]
+                        # find matching element
+                        match_el = [o for o,t in
+                                    zip(self.ECG_TRAIT_LIST, ECG_CMPR_LWR) if
+                                    ecg_trait.lower() == t][0]
+                        print(match_el)
+                        if match_el:
+                            setattr(self, match_el,
+                                    # set to float
+                                    float(
+                                        getattr(w, PDNames.ECG_TRAIT_VALUE)
+                                    ),
                                     )
                     except AttributeError:
                         pass

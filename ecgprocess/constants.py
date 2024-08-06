@@ -68,7 +68,8 @@ class ProcessDicomNames(object):
     ECG_CONCEPTNAME       = 'ConceptNameCodeSequence'
     ECG_TRAIT_NAME        = 'CodeMeaning'
     ECG_TRAIT_VALUE       = 'NumericValue'
-
+    ECG_TRAIT_QT          = 'QT Interval'
+    ECG_TRAIT_QRS_D       = 'QRS Duration'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
@@ -149,6 +150,7 @@ class DICOMTags(object):
         'T Axis',
         'P Axis',
         'PR Interval',
+        'Ventricular Heart Rate'
     ]
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MEDIAN_BEATS_LIST = {
