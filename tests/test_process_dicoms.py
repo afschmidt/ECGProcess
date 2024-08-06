@@ -72,8 +72,6 @@ class TestECGDICOMReader(object):
         # mess-up the name to check case sensitivity (should not be)
         w_qt_int = 'qt interval'
         ECG_DCM.ECG_TRAIT_LIST[0] = w_qt_int
-        ECG_DCM.RESULTS_LIST = [w_qt_int if s == 'QT Interval' else s for s in
-                                 ECG_DCM.RESULTS_LIST]
         res = ECG_DCM(path=list_data_paths()['example_dicom_2'])
         assert isinstance(getattr(res, PDNames.RESULTS_DICT), dict)
         assert getattr(res, PDNames.RESULTS_DICT)[PDNames.ECG_TRAIT_QRS_D] == 92

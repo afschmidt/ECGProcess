@@ -91,13 +91,13 @@ class DICOMTags(object):
         A dictionary describing the waveform data one wants to extract.
         The dictionary value contains a list with an object name (str) and
         element to extract.
-    MEADIAN_BEATS_LIST
+    MEDIAN_BEATS_LIST
         A dictionary describing the median beats data one wants to extract.
         The dictionary value contains a list with an object name (str) and
         element to extract.
-    RESULTS_LIST
-        A list of instance attribute one wants to extract, should map
-        predominantly to the keys in  `METADATA` and `WAVE_FROMS`.
+    ECG_INTERPERTATION_LIST
+        A list of strings for ECG traits one wants to extract from the
+        `WaveformAnnotationSequence` pydicom attribute.
         
     '''
     # /////////////////////////////////////////////////////////////////////////
@@ -159,33 +159,33 @@ class DICOMTags(object):
         ProcessDicomNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RESULTS_LIST = [
-        ProcessDicomNames.SOP_UID,
-        "SERIESinstanceUID",
-        "STUDYinstanceUID",
-        "PatientID",
-        "PatientBirthDate",
-        "PatientName",
-        "PatientSex",
-        "StudyDescription",
-        "AcquisitionTimeZone",
-        "AccessionNumber",
-        ProcessDicomNames.SAMPLING_NUMBER,
-        ProcessDicomNames.SAMPLING_FREQ,
-        ProcessDicomNames.SF_ORIGINAL,
-        ProcessDicomNames.DURATION,
-        "ChannelNumber",
-        "ChannelSensitivity",
-        "ChannelBaseline",
-        "ChannelSampleSkew",
-        "FilterLowFrequency",
-        "FilterHighFrequency",
-        "NotchFilterFrequency",
-        "Manufacturer",
-        "ManufacturerModelName",
-        "SoftwareVersions",
-        "DataExportedBy",
-    ] + ECG_INTERPERTATION_LIST
+    # RESULTS_LIST = [
+    #     ProcessDicomNames.SOP_UID,
+    #     "SERIESinstanceUID",
+    #     "STUDYinstanceUID",
+    #     "PatientID",
+    #     "PatientBirthDate",
+    #     "PatientName",
+    #     "PatientSex",
+    #     "StudyDescription",
+    #     "AcquisitionTimeZone",
+    #     "AccessionNumber",
+    #     ProcessDicomNames.SAMPLING_NUMBER,
+    #     ProcessDicomNames.SAMPLING_FREQ,
+    #     ProcessDicomNames.SF_ORIGINAL,
+    #     ProcessDicomNames.DURATION,
+    #     "ChannelNumber",
+    #     "ChannelSensitivity",
+    #     "ChannelBaseline",
+    #     "ChannelSampleSkew",
+    #     "FilterLowFrequency",
+    #     "FilterHighFrequency",
+    #     "NotchFilterFrequency",
+    #     "Manufacturer",
+    #     "ManufacturerModelName",
+    #     "SoftwareVersions",
+    #     "DataExportedBy",
+    # ] + ECG_INTERPERTATION_LIST
      
 
 
