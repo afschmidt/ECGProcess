@@ -37,8 +37,10 @@ def calc_ventricular_rate(duration:float, samples:int|float, rr_interval:float,
     
     .. math::
     
+    $$
         \text{vrate} = \frac{60.0}{\text{duration}} \times
                        \frac{\text{samples}}{\text{rr_interval}}
+    $$
     
     The formula is used to determine the ventricular rate (heart rate) from
     the ECG data.

@@ -80,6 +80,6 @@ def getattr_case_insensitive(obj:object, attr_name:str) -> Any:
     for attr in all_attrs:
         if attr.lower() == attr_name.lower():
             return getattr(obj, attr)
-    
     # Raise an AttributeError if no match is found
-    raise AttributeError(f"'{type(obj).__name__}' object has no attribute '{attr_name}'")
+    raise AttributeError(f"'{type(obj).__name__}' object has no attribute "
+                         f"'{attr_name}'")

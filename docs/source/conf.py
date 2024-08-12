@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinxarg.ext',
     'sphinx_rtd_theme',
+    'sphinx.ext.mathjax',
     # 'sphinx_chang
 ]
 
