@@ -44,6 +44,8 @@ class TestECGDICOMReader(object):
         assert isinstance(res.__getattribute__(PDNames.LEAD_VOLTAGES2), dict)
         assert len(res.__getattribute__(PDNames.LEAD_VOLTAGES)) == 12
         assert res.__getattribute__(PDNames.OVERSAMPLED) == True
+        assert getattr(res,PDNames.RESULTS_DICT)[PDNames.LEAD_UNITS2]==\
+                       'microvolt'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_augment_leads(self):
         ECG_DCM = ECGDICOMReader(augment_leads=True)
@@ -71,12 +73,14 @@ class TestECGDICOMReader(object):
         ECG_DCM = ECGDICOMReader()
         # mess-up the name to check case sensitivity (should not be)
         w_qt_int = 'qt interval'
-        c_qt_int = 'QT Interval'
-        ECG_DCM.ECG_TRAIT_DICT[c_qt_int] = [c_qt_int, w_qt_int]
+        ECG_DCM.ECG_TRAIT_DICT[PDNames.ECG_TRAIT_QT] =\
+            [PDNames.ECG_TRAIT_QT, w_qt_int]
         res = ECG_DCM(path=list_data_paths()['example_dicom_2'])
         assert isinstance(getattr(res, PDNames.RESULTS_DICT), dict)
         assert getattr(res, PDNames.RESULTS_DICT)[PDNames.ECG_TRAIT_QRS_D] == 92
-        assert getattr(res, PDNames.RESULTS_DICT)[c_qt_int] == 378
+        assert getattr(res, PDNames.RESULTS_DICT)[PDNames.ECG_TRAIT_QT_U] ==\
+            'millisecond'
+        assert getattr(res, PDNames.RESULTS_DICT)[PDNames.ECG_TRAIT_QT] == 378
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_augment_verbose(self):
         ECG_DCM = ECGDICOMReader()

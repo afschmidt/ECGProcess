@@ -232,13 +232,14 @@ class ECGDICOMReader(BaseECGDICOMReader):
             if results_dict[PDNames.CHANNEL_NUMBER] >= 8:
                 channel_seq = getattr(getattr(ECG, PDNames.WAVE_FORM_SEQ)[0],
                                       PDNames.CHANNEL_DEF_SEQ)
-                lead_info_waveform=self._get_lead_info(channel_seq)
+                lead_info_waveform, lead_units=self._get_lead_info(channel_seq)
                 setattr(self, PDNames.LEAD_VOLTAGES,
                         self.make_leadvoltages(
                             lead_info=lead_info_waveform,
                             waveform_array=getattr(self, PDNames.WAVE_ARRAY),
                             augment_leads=self.augment_leads,
                             ))
+                results_dict[PDNames.LEAD_UNITS] = lead_units
                 results_dict[PDNames.SAMPLING_FREQ] =\
                     results_dict[PDNames.SF_ORIGINAL]
                 if self.retain_raw == False:
@@ -249,6 +250,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
                 results_dict[PDNames.SAMPLING_FREQ] =\
                     results_dict[PDNames.SF_ORIGINAL]
+                results_dict[PDNames.LEAD_UNITS] = np.nan
             # #### Extract Median beats
             nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
             if hasattr(ECG, nam):
@@ -256,11 +258,13 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 channel_seq_median = getattr(
                     getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
                     PDNames.CHANNEL_DEF_SEQ)
-                lead_info_median=self._get_lead_info(channel_seq_median)
+                lead_info_median, lead_units2=\
+                    self._get_lead_info(channel_seq_median)
                 setattr(self, PDNames.MEDIAN_ARRAY,
                         getattr(ECG, nam)(el).T)
                 setattr(self, PDNames.MEDIAN_PRESENT, True)
                 results_dict[PDNames.MEDIAN_PRESENT] = True
+                results_dict[PDNames.LEAD_UNITS2] = lead_units2
                 setattr(self, PDNames.LEAD_VOLTAGES2,
                         self.make_leadvoltages(
                             lead_info=lead_info_median,
@@ -276,6 +280,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
                 setattr(self, PDNames.MEDIAN_PRESENT, False)
                 results_dict[PDNames.MEDIAN_PRESENT] = False
+                results_dict[PDNames.LEAD_UNITS2] = np.nan
             if self.retain_raw == False:
                 delattr(self, PDNames.MEDIAN_ARRAY)
             # do we need to resample the freq
@@ -293,9 +298,11 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 results_dict[PDNames.OVERSAMPLED] = False
             # #### Extract standard ECG measurements
             temp_results_dict = {}
+            temp_unit_dict = {}
             # first set everything to NA
             for e in self.ECG_TRAIT_DICT:
                 results_dict[e] = np.nan
+                results_dict[e+PDNames.ECG_UNIT_STRING] = np.nan
             # next see if we can extract some interpretations.
             if hasattr(ECG, PDNames.ECG_INTERPERTATION):
                 # get the values lower-case strings (which are lists)
@@ -305,13 +312,22 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     if hasattr(w, PDNames.ECG_CONCEPTNAME):
                         ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
                         try:
-                            ecg_trait = getattr(ecg_int, PDNames.ECG_TRAIT_NAME)
+                            ecg_trait = getattr(ecg_int, PDNames.CODE_MEANING)
                             # find matching element - using lower case again
                             if ecg_trait.lower() in ECG_CMPR_LWR:
-                                # set to float
+                                # get the measurement and set to float
                                 temp_results_dict[ecg_trait.lower()] = float(
                                             getattr(w, PDNames.ECG_TRAIT_VALUE)
                                         )
+                                # get the unit
+                                try:
+                                    temp_unit_dict[
+                                        ecg_trait.lower()+\
+                                        PDNames.ECG_UNIT_STRING]=getattr(
+                                            getattr(w, PDNames.ECG_UNIT)[0],
+                                            PDNames.CODE_MEANING)
+                                except (AttributeError, IndexError):
+                                    pass
                         except AttributeError:
                             pass
             # now assign temp_results_dict to results_dict dealing with
@@ -324,14 +340,19 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     # unique elements
                     unique_set = list({temp_results_dict[el.lower()] for el in\
                                        idx if el.lower() in temp_results_dict})
-                    print(unique_set)
                     if len(unique_set) == 1:
                         # if only one unique entry simply assign this to k
                         for e in idx:
                             try:
                                 results_dict[k] =\
                                     temp_results_dict[e.lower()]
+                                results_dict[k+PDNames.ECG_UNIT_STRING] =\
+                                    temp_unit_dict[
+                                        e.lower()+PDNames.ECG_UNIT_STRING]
                             except KeyError:
+                                # NOTE the KeyError is expected behaviour,
+                                # some of the `e`'s will not be in the
+                                # temp_results_dict
                                 pass
                     elif len(unique_set) > 1:
                         # given that the results are not unique
@@ -342,13 +363,14 @@ class ECGDICOMReader(BaseECGDICOMReader):
                             try:
                                 results_dict[e] =\
                                     temp_results_dict[e.lower()]
+                                results_dict[e+PDNames.ECG_UNIT_STRING] =\
+                                    temp_unit_dict[
+                                        e.lower()+PDNames.ECG_UNIT_STRING]
                             except KeyError:
                                 pass
             # which ECG traits are still nan
-            print(results_dict)
             missing_ecg_traits = [k for k in self.ECG_TRAIT_DICT if\
                                   np.isnan(results_dict[k])]
-            print(missing_ecg_traits)
             if skip_empty == False and len(missing_ecg_traits) > 0:
                 # Should an Error be returned
                 raise ValueError('The following ECG measurments are '
@@ -390,7 +412,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _get_lead_info(self, channel_seq: DCM_Class
-                  ) -> Dict[int, str]:
+                       ) -> tuple[dict[int, str], str]:
         """
         Extracts the lead names from a `dcmread` instance.
         
@@ -401,26 +423,38 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Returns
         -------
-        leadnames : dict [`int`, `str`]
-            A dictionary with numerical (interval) keys and the lead names as
-            values.
+        tuple of a dict and a string:
+                
+                - leadnames : dict [`int`, `str`]
+                    A dictionary with numerical (interval) keys and the lead names as
+                    values.
+                - leadunit : str
+                    The measurment unit of the ECG leads.
         """
         # #### extracting the lead names
         leadnames = {}
+        leadunits = {}
         for k, channel in enumerate(channel_seq):
             # extracting lead names
             source = getattr(getattr(channel,PDNames.CHANNEL_SOURCE_SEQ)[0],
                              PDNames.CHANNEL_CODE_MEANING)
-            # units = PDNames.UNIT
-            # # NOTE unit is currently not returned,
-            # # Looks like CHANNEL_SENS should be assigned to unit and returned?
-            # # Need to discuss this.
-            # if hasattr(channel, PDNames.CHANNEL_SENS):
-            #     units = getattr(channel, PDNames.CHANNEL_SENS)
+            # extracting units
+            if hasattr(channel, PDNames.CHANNEL_SENS_UNIT):
+                unit = getattr(
+                    getattr(channel, PDNames.CHANNEL_SENS_UNIT)[0],
+                    PDNames.CODE_MEANING)
+            else:
+                unit = np.nan
             # assign lead names to numericals
             leadnames[k] = source.replace(PDNames.LEAD, '').strip()
+            leadunits[leadnames[k]] = unit
+        # confirm the units are all the same
+        unique_unit = list(set(leadunits.values()))
+        if len(unique_unit) != 1:
+            raise ValueError('The ECG leads were measured using different '
+                             'units: `{}`.'.format(unique_unit))
         # return stuff
-        return leadnames
+        return leadnames, unique_unit[0]
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def make_leadvoltages(self, waveform_array: np.ndarray,
                           lead_info:Dict[int, str],

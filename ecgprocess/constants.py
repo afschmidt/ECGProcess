@@ -11,6 +11,8 @@ class ProcessDicomNames(object):
     '''
     MEDIAN_PRESENT        = 'MedianWaveformPresent'
     WAVE_ARRAY            = 'Raw_Waveforms'
+    LEAD_UNITS            = 'WaveformsUnits'
+    LEAD_UNITS2           = 'MedianWaveformsUnits'
     MEDIAN_ARRAY          = 'Raw_MedianWaveforms'
     LEAD_VOLTAGES         = 'Waveforms'
     LEAD_VOLTAGES2        = 'MedianWaveforms'
@@ -21,6 +23,7 @@ class ProcessDicomNames(object):
     CHANNEL_SOURCE_SEQ    = 'ChannelSourceSequence'
     CHANNEL_CODE_MEANING  = 'CodeMeaning'
     CHANNEL_SENS          = 'ChannelSensitivity'
+    CHANNEL_SENS_UNIT     = 'ChannelSensitivityUnitsSequence'
     STUDY_DATE            = 'StudyDate'
     STUDY_TIME            = 'StudyTime'
     ACQUISITION_DATE      = 'AcquisitionDateTime'
@@ -66,10 +69,13 @@ class ProcessDicomNames(object):
     TABLE_CALLED          = 'table_called'
     ECG_INTERPERTATION    = 'WaveformAnnotationSequence'
     ECG_CONCEPTNAME       = 'ConceptNameCodeSequence'
-    ECG_TRAIT_NAME        = 'CodeMeaning'
+    CODE_MEANING          = 'CodeMeaning'
     ECG_TRAIT_VALUE       = 'NumericValue'
     ECG_TRAIT_QT          = 'QT Interval'
+    ECG_TRAIT_QT_U        = 'QT Interval UNIT'
     ECG_TRAIT_QRS_D       = 'QRS Duration'
+    ECG_UNIT              = 'MeasurementUnitsCodeSequence'
+    ECG_UNIT_STRING       = ' UNIT'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
