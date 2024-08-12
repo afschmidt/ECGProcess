@@ -676,10 +676,12 @@ class ECGDICOMTable(object):
         setattr(self, PDNames.WAVE_T, self._get_long_table(
             wave_list, wave_type=PDNames.WAVETYPE_RHYTHM,
             update_keys=update_keys,
+            purge_header=True,
         ))
         setattr(self, PDNames.MEDIAN_T, self._get_long_table(
             median_list, wave_type=PDNames.WAVETYPE_MEDIAN,
             update_keys=update_keys,
+            purge_header=True,
         ))
         # #### Return
         setattr(self, PDNames.TABLE_CALLED, 'True')
@@ -688,7 +690,7 @@ class ECGDICOMTable(object):
     def _get_long_table(self, lead_list:List[Dict[str, np.ndarray]],
                         wave_type:str,
                         update_keys:Optional[Dict[str,str]]=None,
-                        previous_header:Optional[List[str]]=None,
+                        purge_header:bool=True,
                         **kwargs,
                         ) -> pd.DataFrame:
         '''
@@ -704,6 +706,9 @@ class ECGDICOMTable(object):
             Adds a column `Waveform type` containing this string as a constant.
         update_keys : dict [`str`, `str`], default `NoneType`
             A dictionary to remap lead names: [`old`, `new`]
+        purge_header : bool, default True
+            Set to `False` to make sure the file header persists between calls.
+            This is used to ensure the headers are the same between files.
         **kwargs : optional
             keyword arguments passed to pd.DataFrame.
         
@@ -722,39 +727,44 @@ class ECGDICOMTable(object):
         is_type(lead_list, list, 'lead_list')
         is_type(wave_type, str, 'wave_type')
         self.kwargs_pdd = kwargs
+        PREV = 'previous'
+        # do we need to purge the header information
+        # otherwise this persists throughout calls
+        if purge_header == True:
+            setattr(self, PREV, None)
+        else:
+            if not hasattr(self, PREV):
+                setattr(self, PREV, None)
         # #### initiate table and map lists
         table = pd.DataFrame()
-        if previous_header is None:
-            previous = None
-        else:
-            previous = previous_header
         for w, k in zip(lead_list, getattr(self, PDNames.KEY_L)):
             # do we need to remap key names
             if update_keys is not None:
                 w = {update_keys.get(k, k): v for k, v in w.items()}
             # confirm the dictionary keys are identical
             current_keys = list(w.keys())
-            if previous is not None:
-                if current_keys != previous:
+            if getattr(self, PREV) is not None:
+                if current_keys != getattr(self, PREV):
                     raise KeyError('The dictionaries contain distinct keys. '
                                    'The last set of valid keys was {}, '
                                    'compared to {}.'.\
-                                   format(previous, current_keys))
+                                   format(getattr(self, PREV), current_keys))
             # if the same map to dataframe
             temp_df = pd.DataFrame(w, **self.kwargs_pdd)
             temp_df[PDNames.SOP_UID] = k
             table = pd.concat([table, temp_df], ignore_index=True)
             # clean
-            previous=current_keys
+            setattr(self, PREV, current_keys)
             del current_keys
         # #### formatting to long
         table[PDNames.SAMPLING_SEQ] = table.groupby(
             PDNames.SOP_UID).cumcount()
         long_table = pd.melt(table, id_vars=\
-                          [PDNames.SOP_UID, PDNames.SAMPLING_SEQ],
-                          value_vars=previous, var_name=PDNames.COL_LEAD,
-                          value_name=PDNames.COL_VOLTAGE
-                          )
+                             [PDNames.SOP_UID, PDNames.SAMPLING_SEQ],
+                             value_vars=getattr(self, PREV),
+                             var_name=PDNames.COL_LEAD,
+                             value_name=PDNames.COL_VOLTAGE
+                             )
         long_table[PDNames.COL_WAVETYPE] = wave_type
         # #### return
         return long_table
@@ -888,18 +898,18 @@ class ECGDICOMTable(object):
                 self._get_long_table(
                     [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
                     update_keys=update_keys,
+                    purge_header=True,
                 ).to_csv(
                         os.path.join(target, PDNames.WAVE_FILE), sep=sep,
                         header=True, compression=compression)
-                wave_head = list(wave.keys())
                 # median beats
                 self._get_long_table(
                     [median], wave_type=PDNames.WAVETYPE_MEDIAN,
                     update_keys=update_keys,
+                    purge_header=True,
                 ).to_csv(
                         os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
                         header=True, compression=compression)
-                median_head = list(median.keys())
             else:
                 # appending using mode = 'a'
                 # metadata
@@ -910,20 +920,18 @@ class ECGDICOMTable(object):
                 self._get_long_table(
                     [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
                     update_keys=update_keys,
-                    previous_header=wave_head,
+                    purge_header=False,
                 ).to_csv(
                         os.path.join(target, PDNames.WAVE_FILE), sep=sep,
                         header=False, mode='a', compression=compression)
-                wave_head = list(wave.keys())
                 # median beats
                 self._get_long_table(
                     [median], wave_type=PDNames.WAVETYPE_MEDIAN,
                     update_keys=update_keys,
-                    previous_header=median_head,
+                    purge_header=False,
                 ).to_csv(
                         os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
                         header=False, mode='a', compression=compression)
-                median_head = list(median.keys())
             # delete key
             delattr(self, PDNames.KEY_L)
         # #### if needed replace directory by tar.gz version
