@@ -13,7 +13,7 @@ from ecgprocess.errors import (
 # actually in ms.
 def calc_ventricular_rate(duration:float, samples:int|float, rr_interval:float,
                           ) -> float:
-    '''
+    """
     Calculate the ventricular (i.e. heart) rate from the RR-interval.
     
     Parameters
@@ -28,7 +28,7 @@ def calc_ventricular_rate(duration:float, samples:int|float, rr_interval:float,
     
     Returns
     -------
-    vrate: float
+    float
         The estimated ventricular rate.
     
     Notes
@@ -37,14 +37,12 @@ def calc_ventricular_rate(duration:float, samples:int|float, rr_interval:float,
     
     .. math::
     
-        \begin{aligned}
-        \text{vrate} &= \frac{60.0}{\text{duration}} \times \\
-        &\frac{\text{samples}}{\text{rr_interval}}
-        \end{aligned}
+        \text{vrate} = \frac{60.0}{\text{duration}} \times
+                       \frac{\text{samples}}{\text{rr_interval}}
     
-    The formula is used to determine the ventricular rate (heart rate) from the
-    ECG data.
-    '''
+    The formula is used to determine the ventricular rate (heart rate) from
+    the ECG data.
+    """
     # check input
     is_type(duration, (int, float))
     is_type(samples, (int, float))

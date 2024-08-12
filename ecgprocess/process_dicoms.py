@@ -90,10 +90,15 @@ class ECGDICOMReader(BaseECGDICOMReader):
         A dictionary describing the metadata one wants to extract from a
         DICOM. The dictionary keys represents the `target` (new) name and the
         dictionary values the `source` (old) names.
-    ECG_TRAIT_LIST : list [`str`]
-        A list of ECG traits that will be extracted from
-        `WaveformAnnotationSequence` attribute. Matching is done without case-
-        sensitvity. The ECG traits will be included with the extracted METADATA.
+    ECG_TRAIT_DICT : dict [`str`, `list[str]`]
+        A dictionary with the keys reflecting the desired name of the ECG trait.
+        Each key will have a list of strings as a value. These strings will be
+        compared to the names in `WaveformAnnotationSequence` attribute.
+        Matching is done without case-sensitivity.  If for any key there are
+        multiple matching strings the algorithm will check if the extracted
+        values are all the same, if not multiple entries will be returned for
+        the user to decide what to do next. The extracted ECG traits will be
+        included with the extracted METADATA.
     STUDY_DATE_SOURCE : str
         The study date format of the source DICOM.  This will be used in
         `datetime.strptime` as format argument.
@@ -112,7 +117,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
     make_leadvoltages(waveform_array, lead_info, augment_leads)
         Extracts the voltages from a DICOM file. Will automatically extract the
         limb leads if missing.
-
+    
     Notes
     -----
     The waveforms are stored using `__slots__` to decrease memory usage, which
@@ -129,16 +134,12 @@ class ECGDICOMReader(BaseECGDICOMReader):
     is_type(augment_leads, bool, 'augment_leads')
     is_type(resample_500, bool, 'resample_500')
     # #### default tags - hacking about to make these non-persistance
-    METADATA: Dict[str, str] =\
-        field(default_factory=lambda: copy.deepcopy(DICOMTags().METADATA))
-    WAVE_FORMS: Dict[str, str] =\
-        field(default_factory=lambda: copy.deepcopy(DICOMTags().WAVE_FORMS))
-    WAVE_FORMS_LIST: Dict[str, list] =\
-        field(default_factory=lambda: copy.deepcopy(DICOMTags().WAVE_FORMS_LIST))
-    MEDIAN_BEATS_LIST: Dict[str, list] =\
-        field(default_factory=lambda: copy.deepcopy(DICOMTags().MEDIAN_BEATS_LIST))
-    ECG_TRAIT_LIST: List[str] =\
-        field(default_factory=lambda: copy.deepcopy(DICOMTags().ECG_INTERPERTATION_LIST))
+    # NOTE this is probably related to DICOMTags being a @dataclass
+    METADATA = copy.deepcopy(DICOMTags().METADATA)
+    WAVE_FORMS = copy.deepcopy(DICOMTags().WAVE_FORMS)
+    WAVE_FORMS_DICT = copy.deepcopy(DICOMTags().WAVE_FORMS_DICT)
+    MEDIAN_BEATS_DICT = copy.deepcopy(DICOMTags().MEDIAN_BEATS_DICT)
+    ECG_TRAIT_DICT = copy.deepcopy(DICOMTags().ECG_INTERPERTATION_DICT)
     # #### default dates to extract and format
     STUDY_DATE_SOURCE = "%Y%m%d"
     STUDY_DATE_TARGET = "%Y-%m-%d"
@@ -205,7 +206,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     empty_metadata.append(s)
             # #### Extract waveforms
             try:
-                nam, el = self.WAVE_FORMS_LIST[PDNames.WAVE_ARRAY]
+                nam, el = self.WAVE_FORMS_DICT[PDNames.WAVE_ARRAY]
                 setattr(self, PDNames.WAVE_ARRAY,
                         getattr(ECG, nam)(el).T)
             except:
@@ -249,7 +250,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 results_dict[PDNames.SAMPLING_FREQ] =\
                     results_dict[PDNames.SF_ORIGINAL]
             # #### Extract Median beats
-            nam, el = self.MEDIAN_BEATS_LIST[PDNames.MEDIAN_ARRAY]
+            nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
             if hasattr(ECG, nam):
                 # Assign if present
                 channel_seq_median = getattr(
@@ -290,34 +291,64 @@ class ECGDICOMReader(BaseECGDICOMReader):
             else:
                 setattr(self, PDNames.OVERSAMPLED, False)
                 results_dict[PDNames.OVERSAMPLED] = False
-            # #### Extract standard ECG measurments
+            # #### Extract standard ECG measurements
+            temp_results_dict = {}
             # first set everything to NA
-            for e in self.ECG_TRAIT_LIST:
+            for e in self.ECG_TRAIT_DICT:
                 results_dict[e] = np.nan
-            # next see if we can extract some interpertations.
+            # next see if we can extract some interpretations.
             if hasattr(ECG, PDNames.ECG_INTERPERTATION):
+                # get the values lower-case strings (which are lists)
+                ECG_CMPR_LWR = [it.lower() for sl\
+                                in self.ECG_TRAIT_DICT.values() for it in sl]
                 for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
                     if hasattr(w, PDNames.ECG_CONCEPTNAME):
                         ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
                         try:
-                            # if the ECG name is in self.ECG_TRAIT_LIST add to self
                             ecg_trait = getattr(ecg_int, PDNames.ECG_TRAIT_NAME)
-                            # set list of matches to lower
-                            ECG_CMPR_LWR = [s.lower() for s in self.ECG_TRAIT_LIST]
-                            # find matching element
-                            match_el = [o for o,t in
-                                        zip(self.ECG_TRAIT_LIST, ECG_CMPR_LWR) if
-                                        ecg_trait.lower() == t][0]
-                            if match_el:
+                            # find matching element - using lower case again
+                            if ecg_trait.lower() in ECG_CMPR_LWR:
                                 # set to float
-                                results_dict[match_el] = float(
+                                temp_results_dict[ecg_trait.lower()] = float(
                                             getattr(w, PDNames.ECG_TRAIT_VALUE)
                                         )
                         except AttributeError:
                             pass
+            # now assign temp_results_dict to results_dict dealing with
+            # keys with more than one matching string.
+            if len(temp_results_dict) > 0:
+                for k, idx in self.ECG_TRAIT_DICT.items():
+                    # Check if idx has more than one entry
+                    # extract all entries and make sure they are the
+                    # same  - NOTE using set comprehension to get the
+                    # unique elements
+                    unique_set = list({temp_results_dict[el.lower()] for el in\
+                                       idx if el.lower() in temp_results_dict})
+                    print(unique_set)
+                    if len(unique_set) == 1:
+                        # if only one unique entry simply assign this to k
+                        for e in idx:
+                            try:
+                                results_dict[k] =\
+                                    temp_results_dict[e.lower()]
+                            except KeyError:
+                                pass
+                    elif len(unique_set) > 1:
+                        # given that the results are not unique
+                        # we will return all using the individual `idx` elements
+                        # instead of `k` - NOTE the index without call to lower
+                        # is intended.
+                        for e in idx:
+                            try:
+                                results_dict[e] =\
+                                    temp_results_dict[e.lower()]
+                            except KeyError:
+                                pass
             # which ECG traits are still nan
-            missing_ecg_traits =\
-                [e for e in self.ECG_TRAIT_LIST if np.isnan(results_dict[e])]
+            print(results_dict)
+            missing_ecg_traits = [k for k in self.ECG_TRAIT_DICT if\
+                                  np.isnan(results_dict[k])]
+            print(missing_ecg_traits)
             if skip_empty == False and len(missing_ecg_traits) > 0:
                 # Should an Error be returned
                 raise ValueError('The following ECG measurments are '
@@ -326,7 +357,8 @@ class ECGDICOMReader(BaseECGDICOMReader):
             else:
                 # add missing metadata
                 empty_metadata = empty_metadata + missing_ecg_traits
-        # add duration, NOTE both values are either int/float or NA so no need
+        # #### add duration,
+        # NOTE both values are either int/float or NA so no need
         # for a try except
         results_dict[PDNames.DURATION] = (
             results_dict[PDNames.SAMPLING_NUMBER] /
@@ -461,7 +493,6 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     lead_volt_temp2[f"{i}"] = \
                         signal.resample(lead_volt_temp2[f"{i}"], 600)
                 setattr(self, PDNames.LEAD_VOLTAGES2, lead_volt_temp2)
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class ECGDICOMTable(object):

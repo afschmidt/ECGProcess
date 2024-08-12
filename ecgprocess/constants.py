@@ -87,17 +87,20 @@ class DICOMTags(object):
         DICOM.
     WAVE_FORMS
         A dictionary describing the waveform data one wants to extract.
-    WAVE_FORMS_LIST
+    WAVE_FORMS_DICT
         A dictionary describing the waveform data one wants to extract.
         The dictionary value contains a list with an object name (str) and
         element to extract.
-    MEDIAN_BEATS_LIST
+    MEDIAN_BEATS_DICT
         A dictionary describing the median beats data one wants to extract.
         The dictionary value contains a list with an object name (str) and
         element to extract.
-    ECG_INTERPERTATION_LIST
-        A list of strings for ECG traits one wants to extract from the
-        `WaveformAnnotationSequence` pydicom attribute.
+    ECG_INTERPERTATION_DICT
+    A dictionary describing the ECG traits one wants to extract from the
+        `WaveformAnnotationSequence` pydicom attribute. The keys will be used
+        as the target attribute against which values are assigned. The values
+        are expected to be lists and can contain multiple strings (synonyms)
+        against which case-insensitive matching is performed.
         
     '''
     # /////////////////////////////////////////////////////////////////////////
@@ -136,24 +139,23 @@ class DICOMTags(object):
         ProcessDicomNames.SF_ORIGINAL     : 'SamplingFrequency',
     }
     # objects which cannot be extracted in a loop
-    WAVE_FORMS_LIST = {
+    WAVE_FORMS_DICT = {
         ProcessDicomNames.WAVE_ARRAY    : ['waveform_array', 0],
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ECG_INTERPERTATION_LIST =[
-        'QT Interval',
-        'QTc Interval',
-        'RR Interval',
-        'VRate',
-        'QRS Duration',
-        'QRS Axis',
-        'T Axis',
-        'P Axis',
-        'PR Interval',
-        'Ventricular Heart Rate'
-    ]
+    ECG_INTERPERTATION_DICT ={
+        'QT Interval' : ['QT Interval'],
+        'QTc Interval': ['QTc Interval'],
+        'RR Interval': ['RR Interval'],
+        'VRate': ['VRate', 'Ventricular Heart Rate'],
+        'QRS Duration': ['QRS Duration'],
+        'QRS Axis': ['QRS Axis'],
+        'T Axis': ['T Axis'],
+        'P Axis': ['P Axis'],
+        'PR Interval': ['PR Interval'],
+    }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    MEDIAN_BEATS_LIST = {
+    MEDIAN_BEATS_DICT = {
         ProcessDicomNames.MEDIAN_ARRAY   : ['waveform_array', 1],
         ProcessDicomNames.LEAD_INFO      : ['lead_info', 1],
         ProcessDicomNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
