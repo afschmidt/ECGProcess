@@ -13,11 +13,12 @@ import pathlib
 import warnings
 import numpy as np
 import pandas as pd
+import copy
 from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
 from datetime import datetime
 from scipy import signal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Type, Union, Tuple, Self, Dict, Optional, Any
 from ecgprocess.errors import (
     NotCalledError,
@@ -38,44 +39,76 @@ from ecgprocess.utils.general import (
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Base class with slots
+class BaseECGDICOMReader:
+    '''
+    An ECGDICOMReader base class implementing the more efficient __slots__ for
+    the waveform arrays, while still retaining __dict__ dynamic attribute
+    creation.
+    '''
+    __slots__ = (PDNames.LEAD_VOLTAGES, PDNames.LEAD_VOLTAGES2,
+                 PDNames.RESULTS_DICT)
+    # /////////////////////////////////////////////////////////////////////////
+    def __init__(self, lead_voltages=None, lead_voltages2=None,
+                 results_dict=None):
+        '''
+        Initialises slots entries to `None`.
+        '''
+        setattr(self, PDNames.LEAD_VOLTAGES, lead_voltages)
+        setattr(self, PDNames.LEAD_VOLTAGES2, lead_voltages2)
+        setattr(self, PDNames.RESULTS_DICT, results_dict)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
-class ECGDICOMReader(object):
+class ECGDICOMReader(BaseECGDICOMReader):
     """
     Takes an ECG DICOM file and extracts metadata, median beats (if available)
     and raw waveforms.
     
     Parameters
     ----------
-    augment_leads: bool, default `False`
+    augment_leads : bool, default `False`
         Whether the augmented leads are available in the DICOM, if not
         these are calculated.
-    resample: bool, default `True`
+    resample : bool, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz.
+    retain_raw : bool, default `False`
+        Whether the raw pydicom instance and raw waveforms should be retained.
+        Set to `False` to decrease memory usage. Set to `True` to explore the
+        orignal pydicom instance. For example, use this one a few files to
+        identify none-standard information to extract.
     
     Attributes
     ----------
-    augment_leads: bool, default `False`
-        Whether the augmented leads are available in the DICOM, if not
-        these are calculated.
-    resample: bool, default `True`
-        Whether to resample the ECG to a frequency of 500 Hertz.
-    METADATA: dict [`str`, `str`]
+    augment_leads : bool
+        Whether the augmented leads were calculated if these were unavailable.
+    resample : bool
+        Whether the ECG was resampled to a 500 Hertz frequency.
+    retain_raw : bool
+        Whether the raw pydicom data was retained.
+    METADATA : dict [`str`, `str`]
         A dictionary describing the metadata one wants to extract from a
         DICOM. The dictionary keys represents the `target` (new) name and the
         dictionary values the `source` (old) names.
-    RESULTS_LIST: list [`str`, `str`]
-        A list of attribute one wants to extract, should map predominantly to
-        the keys in  `METADATA` and `WAVE_FROMS`.
-    STUDY_DATE_SOURCE: str
+    ECG_TRAIT_DICT : dict [`str`, `list[str]`]
+        A dictionary with the keys reflecting the desired name of the ECG trait.
+        Each key will have a list of strings as a value. These strings will be
+        compared to the names in `WaveformAnnotationSequence` attribute.
+        Matching is done without case-sensitivity.  If for any key there are
+        multiple matching strings the algorithm will check if the extracted
+        values are all the same, if not multiple entries will be returned for
+        the user to decide what to do next. The extracted ECG traits will be
+        included with the extracted METADATA.
+    STUDY_DATE_SOURCE : str
         The study date format of the source DICOM.  This will be used in
         `datetime.strptime` as format argument.
-    STUDY_DATE_TARGET: str
+    STUDY_DATE_TARGET : str
         The target formatting of the study date.  This will be used in
         `datetime.strptime` as format argument.
-    ACQUISITION_DATE_SOURCE: str
+    ACQUISITION_DATE_SOURCE : str
         The acquisition date and time format of the source DICOM.  This will be
         used in `datetime.strptime` as format argument.
-    ACQUISITION_DATE_TARGET: str
+    ACQUISITION_DATE_TARGET : str
         The target formatting of the acquisition date and time.  This will be
         used in `datetime.strptime` as format argument.
     
@@ -84,20 +117,29 @@ class ECGDICOMReader(object):
     make_leadvoltages(waveform_array, lead_info, augment_leads)
         Extracts the voltages from a DICOM file. Will automatically extract the
         limb leads if missing.
+    
+    Notes
+    -----
+    The waveforms are stored using `__slots__` to decrease memory usage, which
+    is further improved by setting `retain_raw` to `False` - the default
+    behaviour.
     """
+    # #### set slots
+    # __slots__ = (PDNames.LEAD_VOLTAGES, PDNames.LEAD_VOLTAGES2)
     # #### parameters, with defaults
     augment_leads: bool=False
-    resample_500:bool= True
+    resample_500:bool=True
+    retain_raw:bool=False
     # #### check input
     is_type(augment_leads, bool, 'augment_leads')
     is_type(resample_500, bool, 'resample_500')
-    # #### default tags
-    DEFAULT_DICTS = DICOMTags
-    METADATA = DEFAULT_DICTS.METADATA
-    WAVE_FORMS = DEFAULT_DICTS.WAVE_FORMS
-    WAVE_FORMS_LIST = DEFAULT_DICTS.WAVE_FORMS_LIST
-    MEDIAN_BEATS_LIST = DEFAULT_DICTS.MEDIAN_BEATS_LIST
-    RESULTS_LIST = DEFAULT_DICTS.RESULTS_LIST
+    # #### default tags - hacking about to make these non-persistance
+    # NOTE this is probably related to DICOMTags being a @dataclass
+    METADATA = copy.deepcopy(DICOMTags().METADATA)
+    WAVE_FORMS = copy.deepcopy(DICOMTags().WAVE_FORMS)
+    WAVE_FORMS_DICT = copy.deepcopy(DICOMTags().WAVE_FORMS_DICT)
+    MEDIAN_BEATS_DICT = copy.deepcopy(DICOMTags().MEDIAN_BEATS_DICT)
+    ECG_TRAIT_DICT = copy.deepcopy(DICOMTags().ECG_INTERPERTATION_DICT)
     # #### default dates to extract and format
     STUDY_DATE_SOURCE = "%Y%m%d"
     STUDY_DATE_TARGET = "%Y-%m-%d"
@@ -115,28 +157,25 @@ class ECGDICOMReader(object):
         
         Parameters
         ----------
-        path: str
+        path : str
             The path to the .dcm file.
-        skip_empty: bool, default `True`
+        skip_empty : bool, default `True`
             Whether empty tags should be skipped or throw an error.
-        verbose: bool, default `False`
+        verbose : bool, default `False`
             Prints missing tags if skip_empty is set to `True`.
         
         Attributes
         ----------
-        GeneralInfo: list [`str`]
+        GeneralInfo : list [`str`]
             A list of dcmread extracted attributes.
-        Waveforms: dict of arrays
+        Waveforms : dict [`str`, `np.array`]
             The lead specific ECG waveforms.
-        MedianWaveforms: dict of arrays
+        MedianWaveforms : dict [`str`, `np.array`]
             The lead specific ECG median beats.
-        DMCReadInstance: DCM class instance
-            The original dcmread instance.
-        
         
         Returns
         -------
-        self: `ECGDICOMReader` instance
+        self : `ECGDICOMReader` instance
             Returns the class instance with updated attributes extracted
             from `dcmread`.
         """
@@ -145,6 +184,8 @@ class ECGDICOMReader(object):
         is_type(verbose, bool, 'verbose')
         # confirm file is readable
         _check_readable(path)
+        # results dict for the tabular part
+        results_dict = {}
         # #### Read DICOM
         # NOTE `with` closes automatically if an error is raised
         with open(path, 'rb') as dicom:
@@ -155,17 +196,17 @@ class ECGDICOMReader(object):
             for t, s in self.METADATA.items():
                 if hasattr(ECG, s):
                     # Assign if present
-                    setattr(self, t, getattr(ECG, s))
+                    results_dict[t] = getattr(ECG, s)
                 elif skip_empty == False:
                     # Should an Error be returned
                     raise MissingDICOMTagError(s)
                 else:
                     # assign NA and append missing metadata
-                    setattr(self, t, np.nan)
+                    results_dict[t] = np.nan
                     empty_metadata.append(s)
             # #### Extract waveforms
             try:
-                nam, el = self.WAVE_FORMS_LIST[PDNames.WAVE_ARRAY]
+                nam, el = self.WAVE_FORMS_DICT[PDNames.WAVE_ARRAY]
                 setattr(self, PDNames.WAVE_ARRAY,
                         getattr(ECG, nam)(el).T)
             except:
@@ -177,18 +218,18 @@ class ECGDICOMReader(object):
             for t, s in self.WAVE_FORMS.items():
                 # if present in WAVE or SETTINGS assign
                 if hasattr(WAVE, s):
-                    setattr(self, t, getattr(WAVE, s))
+                    results_dict[t] = getattr(WAVE, s)
                 elif hasattr(SETTINGS, s):
-                    setattr(self, t, getattr(SETTINGS, s))
+                    results_dict[t] = getattr(SETTINGS, s)
                 elif skip_empty == False:
                     # Should an Error be returned
                     raise MissingDICOMTagError(s)
                 else:
                     # assign NA and append missing metadata
-                    setattr(self, t, np.nan)
+                    results_dict[t] = np.nan
                     empty_wave_forms.append(s)
                 # Check number of channels in ECG waveform
-            if getattr(self, PDNames.CHANNEL_NUMBER) >= 8:
+            if results_dict[PDNames.CHANNEL_NUMBER] >= 8:
                 channel_seq = getattr(getattr(ECG, PDNames.WAVE_FORM_SEQ)[0],
                                       PDNames.CHANNEL_DEF_SEQ)
                 lead_info_waveform=self._get_lead_info(channel_seq)
@@ -198,16 +239,18 @@ class ECGDICOMReader(object):
                             waveform_array=getattr(self, PDNames.WAVE_ARRAY),
                             augment_leads=self.augment_leads,
                             ))
-                setattr(self, PDNames.SAMPLING_FREQ,
-                        getattr(self, PDNames.SF_ORIGINAL))
+                results_dict[PDNames.SAMPLING_FREQ] =\
+                    results_dict[PDNames.SF_ORIGINAL]
+                if self.retain_raw == False:
+                    delattr(self, PDNames.WAVE_ARRAY)
             else:
                 # set to NA
                 setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
                 empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
-                setattr(self, PDNames.SAMLING_FREQ,
-                        getattr(self, PDNames.SF_ORIGINAL))
+                results_dict[PDNames.SAMPLING_FREQ] =\
+                    results_dict[PDNames.SF_ORIGINAL]
             # #### Extract Median beats
-            nam, el = self.MEDIAN_BEATS_LIST[PDNames.MEDIAN_ARRAY]
+            nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
             if hasattr(ECG, nam):
                 # Assign if present
                 channel_seq_median = getattr(
@@ -217,6 +260,7 @@ class ECGDICOMReader(object):
                 setattr(self, PDNames.MEDIAN_ARRAY,
                         getattr(ECG, nam)(el).T)
                 setattr(self, PDNames.MEDIAN_PRESENT, True)
+                results_dict[PDNames.MEDIAN_PRESENT] = True
                 setattr(self, PDNames.LEAD_VOLTAGES2,
                         self.make_leadvoltages(
                             lead_info=lead_info_median,
@@ -231,44 +275,117 @@ class ECGDICOMReader(object):
                 setattr(self, PDNames.MEDIAN_ARRAY, np.nan)
                 setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
                 setattr(self, PDNames.MEDIAN_PRESENT, False)
+                results_dict[PDNames.MEDIAN_PRESENT] = False
+            if self.retain_raw == False:
+                delattr(self, PDNames.MEDIAN_ARRAY)
             # do we need to resample the freq
             if self.resample_500 == True:
                 # the function will internally adjust
                 # LEAD_VOLTAGES, and LEAD_VOLTAGES2
                 # Nothing is returned
-                self._resampling_500hz()
+                self._resampling_500hz(frequency=results_dict[PDNames.SF])
                 setattr(self, PDNames.OVERSAMPLED, True)
-                setattr(self, PDNames.SF, 500)
-                setattr(self, PDNames.SAMPLING_FREQ, 500)
+                results_dict[PDNames.OVERSAMPLED] = True
+                results_dict[PDNames.SF] = 500
+                results_dict[PDNames.SAMPLING_FREQ] = 500
             else:
                 setattr(self, PDNames.OVERSAMPLED, False)
+                results_dict[PDNames.OVERSAMPLED] = False
+            # #### Extract standard ECG measurements
+            temp_results_dict = {}
+            # first set everything to NA
+            for e in self.ECG_TRAIT_DICT:
+                results_dict[e] = np.nan
+            # next see if we can extract some interpretations.
+            if hasattr(ECG, PDNames.ECG_INTERPERTATION):
+                # get the values lower-case strings (which are lists)
+                ECG_CMPR_LWR = [it.lower() for sl\
+                                in self.ECG_TRAIT_DICT.values() for it in sl]
+                for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
+                    if hasattr(w, PDNames.ECG_CONCEPTNAME):
+                        ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
+                        try:
+                            ecg_trait = getattr(ecg_int, PDNames.ECG_TRAIT_NAME)
+                            # find matching element - using lower case again
+                            if ecg_trait.lower() in ECG_CMPR_LWR:
+                                # set to float
+                                temp_results_dict[ecg_trait.lower()] = float(
+                                            getattr(w, PDNames.ECG_TRAIT_VALUE)
+                                        )
+                        except AttributeError:
+                            pass
+            # now assign temp_results_dict to results_dict dealing with
+            # keys with more than one matching string.
+            if len(temp_results_dict) > 0:
+                for k, idx in self.ECG_TRAIT_DICT.items():
+                    # Check if idx has more than one entry
+                    # extract all entries and make sure they are the
+                    # same  - NOTE using set comprehension to get the
+                    # unique elements
+                    unique_set = list({temp_results_dict[el.lower()] for el in\
+                                       idx if el.lower() in temp_results_dict})
+                    print(unique_set)
+                    if len(unique_set) == 1:
+                        # if only one unique entry simply assign this to k
+                        for e in idx:
+                            try:
+                                results_dict[k] =\
+                                    temp_results_dict[e.lower()]
+                            except KeyError:
+                                pass
+                    elif len(unique_set) > 1:
+                        # given that the results are not unique
+                        # we will return all using the individual `idx` elements
+                        # instead of `k` - NOTE the index without call to lower
+                        # is intended.
+                        for e in idx:
+                            try:
+                                results_dict[e] =\
+                                    temp_results_dict[e.lower()]
+                            except KeyError:
+                                pass
+            # which ECG traits are still nan
+            print(results_dict)
+            missing_ecg_traits = [k for k in self.ECG_TRAIT_DICT if\
+                                  np.isnan(results_dict[k])]
+            print(missing_ecg_traits)
+            if skip_empty == False and len(missing_ecg_traits) > 0:
+                # Should an Error be returned
+                raise ValueError('The following ECG measurments are '
+                                 'unavailable: {}'.format(missing_ecg_traits))
+                                 
+            else:
+                # add missing metadata
+                empty_metadata = empty_metadata + missing_ecg_traits
+        # #### add duration,
+        # NOTE both values are either int/float or NA so no need
+        # for a try except
+        results_dict[PDNames.DURATION] = (
+            results_dict[PDNames.SAMPLING_NUMBER] /
+            results_dict[PDNames.SAMPLING_FREQ]
+        )
         # #### end of `dicom` part, optionally printing tags which were missing
         if verbose == True:
             if len(empty_metadata) + len(empty_wave_forms) > 0:
                 warnings.warn(
                     'The following DICOM tags could not be found: {}.'.format(
                         empty_metadata + empty_wave_forms))
-        # #### The results dictionary
-        results_dict = {}
-        for t in self.RESULTS_LIST:
-            # if present in WAVE or SETTINGS assign
-            if hasattr(self, t):
-                results_dict[t] = getattr(self, t)
-            else:
-                raise ValueError('`{0}` is not available.'.format(s))
         # add time variables
-        results_dict[PDNames.STUDY_TIME] = getattr(self, PDNames.STUDY_TIME)
-        raw_AD = getattr(self, PDNames.ACQUISITION_DATE)
-        raw_SD = getattr(self, PDNames.STUDY_DATE)
+        raw_AD = results_dict[PDNames.ACQUISITION_DATE]
+        raw_SD = results_dict[PDNames.STUDY_DATE]
         results_dict[PDNames.ACQUISITION_DATE] = \
             datetime.strptime(raw_AD, self.ACQUISITION_DATE_SOURCE).\
             strftime(self.ACQUISITION_DATE_TARGET)
         results_dict[PDNames.STUDY_DATE] = \
             datetime.strptime(raw_SD, self.STUDY_DATE_SOURCE).\
             strftime(self.STUDY_DATE_TARGET)
+        # #### assign results_dict
         setattr(self, PDNames.RESULTS_DICT, results_dict)
+        # assign unique identifier
+        setattr(self, PDNames.SOP_UID, results_dict[PDNames.SOP_UID])
         # add the original dcmread instance
-        setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
+        if self.retain_raw == True:
+            setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
         # #### return stuff
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -279,12 +396,12 @@ class ECGDICOMReader(object):
         
         Parameters
         ----------
-        channel_seq: DCM_Class
+        channel_seq : DCM_Class
             A `pydicom.sequence.Sequence` instance.
         
         Returns
         -------
-        leadnames: dict [`int`, `str`]
+        leadnames : dict [`int`, `str`]
             A dictionary with numerical (interval) keys and the lead names as
             values.
         """
@@ -316,12 +433,12 @@ class ECGDICOMReader(object):
         
         Parameters
         ----------
-        waveform_array: np.ndarray
+        waveform_array : np.ndarray
             An array with the waveforms.
         lead_info: dict [`int`, `str`]
             A dictionary where the keys match the `waveform_array` rows and
             the dictionary values contain the lead name strings.
-        augment_leads: bool
+        augment_leads : bool
             Whether to calculate the additional augmented leads. Will only work
             if there are exactly 8 leads available.
         
@@ -351,11 +468,18 @@ class ECGDICOMReader(object):
         # return
         return leads
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def _resampling_500hz(self):
+    def _resampling_500hz(self, frequency:int|float):
         """
         Re-sample the frequency to 500 hz.
+        
+        Parameters
+        ----------
+        frequency : int or float
+            The original sampling frequency. Will simply check that this is
+            not 500 and if not proceed with the resampling.
+        
         """
-        if int(getattr(self, PDNames.SF)) != 500:
+        if int(frequency) != 500:
             # #### wave forms
             lead_volt_temp = getattr(self, PDNames.LEAD_VOLTAGES)
             for i in lead_volt_temp:
@@ -369,7 +493,6 @@ class ECGDICOMReader(object):
                     lead_volt_temp2[f"{i}"] = \
                         signal.resample(lead_volt_temp2[f"{i}"], 600)
                 setattr(self, PDNames.LEAD_VOLTAGES2, lead_volt_temp2)
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class ECGDICOMTable(object):
@@ -415,13 +538,15 @@ class ECGDICOMTable(object):
         setattr(self, PDNames.RPATH_L, path_list)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
-        return (f"ECGDICOMTable instance with "
+        CLASS_NAME = type(self).__name__
+        return (f"{CLASS_NAME} instance with "
                 f"ecgdicomreader={self.ecgdicomreader}, "
                 f"path_list={getattr(self, PDNames.RPATH_L)}."
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __repr__(self):
-        return (f"ECGDICOMTable(ecgdicomreader={self.ecgdicomreader}, "
+        CLASS_NAME = type(self).__name__
+        return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader}, "
                 f"augment_leads={getattr(self, PDNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -448,7 +573,7 @@ class ECGDICOMTable(object):
         
         Returns
         -------
-        self: `ECGDICOMTable` instance
+        self : `ECGDICOMTable` instance
             Returns the class instance with updated attributes.
         """
         is_type(skip_missing, bool, 'skip_missing')
@@ -511,7 +636,7 @@ class ECGDICOMTable(object):
         
         Returns
         -------
-        self: `ECGDICOMTable` instance
+        self : `ECGDICOMTable` instance
             Returns the class instance with updated attributes.
         """
         self.kwargs = kwargs
@@ -572,24 +697,24 @@ class ECGDICOMTable(object):
         
         Parameters
         ----------
-        lead_list: list of dicts
+        lead_list : list [`dict`]
             A list of dictionaries with the lead mapped to the keys and the
             voltage mapped to the values.
-        wave_type: str,
+        wave_type : str,
             Adds a column `Waveform type` containing this string as a constant.
-        update_keys: dict [`str`, `str`], default `NoneType`
+        update_keys : dict [`str`, `str`], default `NoneType`
             A dictionary to remap lead names: [`old`, `new`]
-        **kwargs: optional
+        **kwargs : optional
             keyword arguments passed to pd.DataFrame.
         
         Attributes
         ----------
-        kwargs_pdd: optional
+        kwargs_pdd : optional
             The keyword arguments supplied to pd.DataFrame.
         
         Returns
         -------
-        self: pd.DataFrame
+        self : pd.DataFrame
             A long-formatted table with lead, voltage, sampling indicator
             columns grouped by file (including an unique file indicator column)
         '''
