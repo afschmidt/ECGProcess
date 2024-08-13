@@ -253,10 +253,17 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 results_dict[PDNames.LEAD_UNITS] = np.nan
             # #### Extract Median beats
             nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
-            # NOTE WAVE_FORM_SEQ is present because it is used by the
-            # WaveForm section - hence checking the length.
-            if hasattr(ECG, nam) and\
-                    len(getattr(ECG, PDNames.WAVE_FORM_SEQ)) == 2:
+            # NOTE WAVE_FORM_SEQ is present because the code
+            # above for the waveforms would have failed otherwise. So just
+            # checking the number of elements - the median beats info should be
+            # element 1 (i.e. len(x) == 2)
+            try:
+                sccss = True
+                # note this is a method call
+                getattr(ECG, nam)(el)
+            except:
+                sccss = False
+            if sccss == True and len(getattr(ECG, PDNames.WAVE_FORM_SEQ)) == 2:
                 # Assign if present
                 channel_seq_median = getattr(
                     getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
