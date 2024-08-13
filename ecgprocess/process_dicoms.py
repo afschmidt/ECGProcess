@@ -253,7 +253,10 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 results_dict[PDNames.LEAD_UNITS] = np.nan
             # #### Extract Median beats
             nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
-            if hasattr(ECG, nam):
+            # NOTE WAVE_FORM_SEQ is present because it is used by the
+            # WaveForm section - hence checking the length.
+            if hasattr(ECG, nam) and\
+                    len(getattr(ECG, PDNames.WAVE_FORM_SEQ)) == 2:
                 # Assign if present
                 channel_seq_median = getattr(
                     getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
@@ -262,9 +265,6 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     self._get_lead_info(channel_seq_median)
                 setattr(self, PDNames.MEDIAN_ARRAY,
                         getattr(ECG, nam)(el).T)
-                setattr(self, PDNames.MEDIAN_PRESENT, True)
-                results_dict[PDNames.MEDIAN_PRESENT] = True
-                results_dict[PDNames.LEAD_UNITS2] = lead_units2
                 setattr(self, PDNames.LEAD_VOLTAGES2,
                         self.make_leadvoltages(
                             lead_info=lead_info_median,
@@ -272,6 +272,9 @@ class ECGDICOMReader(BaseECGDICOMReader):
                             getattr(self, PDNames.MEDIAN_ARRAY),
                             augment_leads=self.augment_leads,
                             ))
+                setattr(self, PDNames.MEDIAN_PRESENT, True)
+                results_dict[PDNames.MEDIAN_PRESENT] = True
+                results_dict[PDNames.LEAD_UNITS2] = lead_units2
             elif skip_empty == False:
                 raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
             else:
