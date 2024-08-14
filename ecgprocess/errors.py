@@ -272,6 +272,7 @@ class Error_MSG(object):
     MISSING_DICOM = '`{}` not found in DICOM file.'
     MISSING_KEY = 'key `{}` not found in object `{}`.'
     MISSING_ATTR = 'attribute `{}` not found in object `{}`.'
+    CHOICE_PARM = '`{}` is contrainted to `{}`.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

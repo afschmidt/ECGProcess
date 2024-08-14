@@ -116,7 +116,7 @@ class TestECGDICOMTable(object):
         ecgtable = ECGDICOMTable(ecgreader,
                                  path_list=dicom_path_list + dicom_wrong_list)
         with pytest.warns(UserWarning):
-            res = ecgtable(verbose=True, skip_missing=True)
+            res = ecgtable(verbose=True, skip_missing='Data')
         assert getattr(res, PDNames.CPATH_L) == dicom_path_list
         assert getattr(res, PDNames.FPATH_L) == dicom_wrong_list
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -125,7 +125,7 @@ class TestECGDICOMTable(object):
         ecgtable = ECGDICOMTable(ecgreader,
                                  path_list=dicom_path_list + dicom_wrong_list)
         with pytest.raises(PermissionError):
-            _ = ecgtable(verbose=True, skip_missing=False)
+            _ = ecgtable(verbose=True, skip_missing='None')
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_get_table(self):
         ecgreader = ECGDICOMReader()

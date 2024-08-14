@@ -48,6 +48,7 @@ class ProcessDicomNames(object):
     # WAVE_L                = 'WaveformsList'
     # MEDIAN_L              = 'MedianWaveformsList'
     KEY_L                 = 'IndexList'
+    FAILED_DATA_L         = 'NoDataList'
     INFO_T                = 'GeneralInfoTable'
     WAVE_T                = 'WaveFormsTable'
     MEDIAN_T              = 'MedianWaveTable'
@@ -76,6 +77,9 @@ class ProcessDicomNames(object):
     ECG_TRAIT_QRS_D       = 'QRS Duration'
     ECG_UNIT              = 'MeasurementUnitsCodeSequence'
     ECG_UNIT_STRING       = ' UNIT'
+    SKIP_PERMISSIONS      = 'Permissions'
+    SKIP_DATA             = 'Data'
+    SKIP_NONE             = 'None'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass

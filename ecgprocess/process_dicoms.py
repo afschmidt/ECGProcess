@@ -19,7 +19,7 @@ from pydicom.dataset import FileDataset as DCM_Class
 from datetime import datetime
 from scipy import signal
 from dataclasses import dataclass, field
-from typing import List, Type, Union, Tuple, Self, Dict, Optional, Any
+from typing import List, Type, Union, Tuple, Self, Dict, Optional, Any, Literal
 from ecgprocess.errors import (
     NotCalledError,
     is_type,
@@ -210,7 +210,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 setattr(self, PDNames.WAVE_ARRAY,
                         getattr(ECG, nam)(el).T)
             except:
-                raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
+                raise AttributeError(Error_MSG.MISSING_DICOM.format(nam))
             WAVE = getattr(ECG, PDNames.WAVE_FORM_SEQ)[0]
             SETTINGS = getattr(WAVE, PDNames.CHANNEL_DEF_SEQ)[0]
             # loop over the remaining wave form data
@@ -594,7 +594,9 @@ class ECGDICOMTable(object):
                 f"augment_leads={getattr(self, PDNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, skip_missing:bool=True, verbose:bool=False,
+    def __call__(self,
+                 skip_missing:Literal['Permissions', 'Data', 'None']='Permissions',
+                 verbose:bool=False,
                  ) -> Self:
         """
         Will take a ECGDICOMReader and loops over a list of dcm file paths and
@@ -602,9 +604,15 @@ class ECGDICOMTable(object):
         
         Parameters
         ----------
-        skip_missing : bool, default `True`
-            Whether missing files or files without read permissions should
-            be skipped.
+        skip_missing : {'Permissions', 'Data', 'None'}, default `Permissions`
+            Whether files with a `PermissionError` or `AttributeError` should
+            be skipped, or whether all errors should be raised.
+            A PermissionError implies either the file is absent or it cannot
+            be read. An AttributeError indicates the waveform_array
+            attribute is absent from the pydicom instance.
+            `Permissions` will only skip PermissionErrors, while `Data` will
+            skip both PermssionErrors and AttributeErrors (due to a missing
+            waveform_array), `None` will not skip errors.
         verbose : bool, default `False`
             Prints missing files if skip_missing is set to `True`.
         
@@ -620,10 +628,17 @@ class ECGDICOMTable(object):
         self : `ECGDICOMTable` instance
             Returns the class instance with updated attributes.
         """
-        is_type(skip_missing, bool, 'skip_missing')
-        is_type(verbose, bool, 'verbose')
+        is_type(skip_missing, str)
+        is_type(verbose, bool)
         self.skip_missing = skip_missing
         self.verbose = verbose
+        SKIP_MISSING = [PDNames.SKIP_PERMISSIONS,
+                        PDNames.SKIP_DATA,
+                        PDNames.SKIP_NONE,
+                        ]
+        if not skip_missing in SKIP_MISSING:
+            raise ValueError(Error_MSG.CHOICE_PARM.\
+                             format('skip_missing', ', '.join(SKIP_MISSING)))
         # #### loop over path
         empty_list = []
         curated_list = []
@@ -636,7 +651,7 @@ class ECGDICOMTable(object):
             except PermissionError as PE:
                 empty_list.append(p)
                 # try next
-                if skip_missing == True:
+                if self.skip_missing != PDNames.SKIP_NONE:
                     curated_list.pop()
                     pass
                 else:
@@ -677,6 +692,8 @@ class ECGDICOMTable(object):
             A  long-format table with waveforms.
         MedianWaveTable: pandas.DataFrame
             A long-format table with the median beat waveforms.
+        NoDataList : `list` [`str`]
+            A list of dicom files without a waveform_array.
         
         Returns
         -------
@@ -688,13 +705,22 @@ class ECGDICOMTable(object):
         if not hasattr(self, PDNames.CPATH_L):
             raise NotCalledError()
         # #### extract dicom data
-        key_list, info_list, wave_list, median_list = [[] for _ in range(4)]
+        no_data_list, key_list, info_list, wave_list, median_list =\
+            [[] for _ in range(5)]
         # loop over individual dcm files
         for p in getattr(self, PDNames.CPATH_L):
             if self.verbose == True:
                 print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
             # get instance
-            ecg_inst = self.ecgdicomreader(p, **self.kwargs)
+            try:
+                ecg_inst = self.ecgdicomreader(p, **self.kwargs)
+            except AttributeError as AE:
+                if self.skip_missing == PDNames.SKIP_DATA:
+                    no_data_list.append(p)
+                    # moving to the next path
+                    continue
+                else:
+                    raise AE
             # extract unique identifier and check if it has been used before
             if hasattr(ecg_inst, PDNames.SOP_UID) == False:
                 raise AttributeError(Error_MSG.MISSING_ATTR.format(
@@ -711,6 +737,7 @@ class ECGDICOMTable(object):
             wave_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES))
             median_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES2))
         # #### make tables
+        setattr(self, PDNames.FAILED_DATA_L, no_data_list)
         setattr(self, PDNames.KEY_L, key_list)
         # general info
         setattr(self, PDNames.INFO_T, pd.DataFrame(
@@ -854,6 +881,8 @@ class ECGDICOMTable(object):
         ----------
         target_path : str
             The directory or tar file path were the files are written to.
+        NoDataList : `list` [`str`]
+            A list of dicom files without a waveform_array.
         
         Returns
         -------
@@ -902,19 +931,23 @@ class ECGDICOMTable(object):
         # #### check if __call__ has been run
         if not hasattr(self, PDNames.CPATH_L):
             raise NotCalledError()
-        # #### write empty files, note not compressing these
-        with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
-            for p in getattr(self, PDNames.FPATH_L):
-                file.write(p + '\n')
         # #### extract dicom data
         first=True
-        key_list = []
+        key_list, no_data_list = [[] for _ in range(2)]
         # loop over individual dcm files
         for p in getattr(self, PDNames.CPATH_L):
             if self.verbose == True:
                 print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
             # get instance
-            ecg_inst = self.ecgdicomreader(p, **self.kwargs)
+            try:
+                ecg_inst = self.ecgdicomreader(p, **self.kwargs)
+            except AttributeError as AE:
+                if self.skip_missing == PDNames.SKIP_DATA:
+                    no_data_list.append(p)
+                    # moving to the next path
+                    continue
+                else:
+                    raise AE
             # extract unique identifier and check if it has been used before
             if hasattr(ecg_inst, PDNames.SOP_UID) == False:
                 raise AttributeError(Error_MSG.MISSING_ATTR.format(
@@ -927,6 +960,7 @@ class ECGDICOMTable(object):
             else:
                 key_list.append(key)
             # extract the remaining
+            setattr(self, PDNames.FAILED_DATA_L, no_data_list)
             setattr(self, PDNames.KEY_L, [key])
             info=getattr(ecg_inst, PDNames.RESULTS_DICT)
             wave=getattr(ecg_inst, PDNames.LEAD_VOLTAGES)
@@ -978,6 +1012,17 @@ class ECGDICOMTable(object):
                         header=False, mode='a', compression=compression)
             # delete key
             delattr(self, PDNames.KEY_L)
+        # #### write failed files, note not compressing these
+        DELIM = '\t'
+        # adding the reason for failing
+        total_failures = [
+            (p, PDNames.SKIP_PERMISSIONS) for p in getattr(self, PDNames.FPATH_L)
+        ] + [
+            (p, PDNames.SKIP_DATA) for p in getattr(self, PDNames.FAILED_DATA_L)]
+        # writing to text file
+        with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
+            for p, cause in total_failures:
+                file.write(p + DELIM + cause + "\n")
         # #### if needed replace directory by tar.gz version
         if target_tar is not None:
             # create the final target path
