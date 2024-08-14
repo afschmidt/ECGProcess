@@ -13,11 +13,13 @@ Where the image can be pushed to docker hub as follows
 
 ```sh
 docker image list
-sudo docker push docker.io/<USERNAME>/ECGProcess:master
+sudo docker push docker.io/<USERNAME>/ecgprocess:master
 ```
 
-Docker can be removed using `please docker image prune -a`, 
-where an existing docker can be pulled from docker hub by 
+Unused Docker image's can be removed using `sudo docker image prune -a`, 
+or by docker image id `sudo docker rmi ade67f3b8eaf`.
+
+An existing docker can be pulled from docker hub by 
 running
 
 ```sh
