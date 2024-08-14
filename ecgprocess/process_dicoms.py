@@ -542,12 +542,12 @@ class ECGDICOMReader(BaseECGDICOMReader):
 class ECGDICOMTable(object):
     '''
     Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
-    and maps these to numpy or pandas tables which can be saved to disk.
+    and maps these to which can be used in analyses or saved to disk.
     
     Attributes
     ----------
     RawPathList : list [`str`]
-        A list of dcm file paths which have not been confirmed to exist.
+        A list of dcm file paths.
     
     Methods
     -------
@@ -716,7 +716,7 @@ class ECGDICOMTable(object):
         setattr(self, PDNames.INFO_T, pd.DataFrame(
             info_list, index=getattr(self, PDNames.KEY_L)
         ))
-        # wave forms, and median beta
+        # wave forms, and median beats
         setattr(self, PDNames.WAVE_T, self._get_long_table(
             wave_list, wave_type=PDNames.WAVETYPE_RHYTHM,
             update_keys=update_keys,
@@ -986,5 +986,293 @@ class ECGDICOMTable(object):
             setattr(self, PDNames.WRITE_ECS_PATH, target_final)
         # #### return
         return self
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class ECGDICOMDrawing(object):
+    '''
+    Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
+    and maps these to maplotlib figures be saved to disk or mapped to a
+    numpy.ndarray for analyses.
+    
+    Attributes
+    ----------
+    RawPathList : list [`str`]
+        A list of dcm file paths.
+    
+    Methods
+    -------
+    '''
+    
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __init__(self, ecgdicomreader:ECGDICOMReader,
+                 ) -> None:
+        """
+        Initialises a new instance of `ECGDICOMDrawing`.
+        
+        Parameters
+        ----------
+        ecgdicomreader : ECGDICOMReader
+            An instance of the ECGDICOMReader data class.
+        """
+        # #### check input
+        is_type(ecgdicomreader, ECGDICOMReader, 'ecgdicomreader')
+        self.ecgdicomreader = ecgdicomreader
+        # #### set sensible plotting defaults matching an actual ECG print out
+        # standard A4 size in mm - landscape!
+        self.paper_w = 297.0
+        self.paper_h = 210.0
+        # Dimensions in mm of plot area
+        self.width = 250.0
+        self.height = 170.0
+        margin_left =  .5 * (self.paper_w - self.width)
+        # margin_right = .5 * (self.paper_w - self.width)
+        margin_bottom = 10.0
+        # Normalized in [0, 1]
+        self.left = margin_left / paper_w
+        self.right = left + width / paper_w
+        self.bottom = margin_bottom / paper_h
+        self.top = bottom + height / paper_h
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __str__(self):
+        CLASS_NAME = type(self).__name__
+        return (f"{CLASS_NAME} instance with "
+                f"ecgdicomreader={self.ecgdicomreader}, "
+                f"path_list={getattr(self, PDNames.RPATH_L)}."
+                )
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __repr__(self):
+        CLASS_NAME = type(self).__name__
+        return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader}, "
+                f"augment_leads={getattr(self, PDNames.RPATH_L)})"
+                )
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __call__(self, skip_missing:bool=True, verbose:bool=False,
+                 ) -> Self:
+        pass
+        # set-up the matplotlib axes
+        
+    # ### part 1
+    # def create_figure(self):
+    #     """Prepare figure and axes"""
+        
+    #     # Init figure and axes
+    #     fig, axes = plt.subplots()
+        
+    #     fig.subplots_adjust(left=self.left, right=self.right, top=self.top,
+    #                         bottom=self.bottom)
+        
+    #     axes.set_ylim([0, self.height])
+        
+    #     # We want to plot N values, where N=number of samples
+    #     axes.set_xlim([0, self.samples - 1])
+    #     return fig, axes
+
+    # ### part 2
+        # def draw_grid(self, minor_axis):
+        # """Draw the grid in the ecg plotting area."""
+        # if minor_axis:
+        #     self.axis.xaxis.set_minor_locator(
+        #         plt.LinearLocator(int(self.width + 1))
+        #     )
+        #     self.axis.yaxis.set_minor_locator(
+        #         plt.LinearLocator(int(self.height + 1))
+        #     )
+        # self.axis.xaxis.set_major_locator(
+        #     plt.LinearLocator(int(self.width / 5 + 1))
+        # )
+        # self.axis.yaxis.set_major_locator(
+        #     plt.LinearLocator(int(self.height / 5 + 1))
+        # )
+        # color = {'minor': '#ff5333', 'major': '#d43d1a'}
+        # linewidth = {'minor': .1, 'major': .2}
+        # for axe in 'x', 'y':
+        #     for which in 'major', 'minor':
+        #         self.axis.grid(
+        #             which=which,
+        #             axis=axe,
+        #             linestyle='-',
+        #             linewidth=linewidth[which],
+        #             color=color[which]
+        #         )
+        #         self.axis.tick_params(
+        #             which=which,
+        #             axis=axe,
+        #             color=color[which],
+        #             bottom=False,
+        #             top=False,
+        #             left=False,
+        #             right=False
+        #         )
+        # self.axis.set_xticklabels([])
+        # self.axis.set_yticklabels([])
+
+        def plot():
+            # Actual plot the ECGs
+            
+            # Part 1
+            # note mm_mv is the conversion factor from mm to millivolts,
+            # which is 10 be default. Will need to check whether the waveform
+            # data is in millivolts and if not convert it.  To convert
+            # microvolts (µV) to millivolts (mV), you divide the value in
+            # microvolts by 1,000.
+    # def plot(self, layoutid, mm_mv):
+    #     """Plot the ecg signals inside the plotting area.
+    #     Possible layout choice are:
+    #     * 12x1 (one signal per line)
+    #     * 6x2 (6 rows 2 columns)
+    #     * 3x4 (4 signal chunk per line)
+    #     * 3x4_1 (4 signal chunk per line. on the last line
+    #     is drawn a complete signal)
+    #     * ... and much much more
+
+    #     The general rule is that the layout list is formed
+    #     by as much lists as the number of lines we want to draw into the
+    #     plotting area, each one containing the number of the signal chunk
+    #     we want to plot in that line.
+
+    #     @param layoutid: the desired layout
+    #     @type layoutid: C{list} of C{list}
+    #     """
+
+    #     self.mm_mv = mm_mv
+
+    #     layout = LAYOUT[layoutid]
+    #     rows = len(layout)
+
+    #     for numrow, row in enumerate(layout):
+
+    #         columns = len(row)
+    #         row_height = self.height / rows
+
+    #         # Horizontal shift for lead labels and separators
+    #         h_delta = self.samples / columns
+
+    #         # Vertical shift of the origin
+    #         v_delta = round(
+    #             self.height * (1.0 - 1.0 / (rows * 2)) -
+    #             numrow * (self.height / rows)
+    #         )
+
+    #         # Let's shift the origin on a multiple of 5 mm
+    #         v_delta = (v_delta + 2.5) - (v_delta + 2.5) % 5
+
+    #         # Lenght of a signal chunk
+    #         chunk_size = int(self.samples / len(row))
+    #         for numcol, signum in enumerate(row):
+    #             left = numcol * chunk_size
+    #             right = (1 + numcol) * chunk_size
+
+    #             # The signal chunk, vertical shifted and
+    #             # scaled by mm/mV factor
+    #             signal = v_delta + mm_mv * self.signals[signum][left:right]
+    #             self.axis.plot(
+    #                 list(range(left, right)),
+    #                 signal,
+    #                 clip_on=False,
+    #                 linewidth=0.6,
+    #                 color='black',
+    #                 zorder=10)
+    #             if self.channel_definitions:
+    #                 cseq = self.channel_definitions[signum].ChannelSourceSequence
+    #                 meaning = cseq[0].CodeMeaning.replace(
+    #                     'Lead', '').replace('(Einthoven)', '')
+    #             elif self.channel_names:
+    #                 meaning = self.channel_names[signum]
+    #             else:
+    #                 # Is there is no name, we print no name
+    #                 meaning = ['']
+
+    #             h = h_delta * numcol
+    #             v = v_delta + row_height / 2.6
+    #             plt.plot(
+    #                 [h, h],
+    #                 [v - 3, v],
+    #                 lw=.6,
+    #                 color='black',
+    #                 zorder=50
+    #             )
+
+    #             self.axis.text(
+    #                 h + 40,
+    #                 v_delta + row_height / 3,
+    #                 meaning,
+    #                 zorder=50,
+    #                 fontsize=8
+    #             )
+
+    #     # A4 size in inches
+    #     self.fig.set_size_inches(11.69, 8.27)
+
+
+        """
+        Will take a ECGDICOMReader and draw an ECG illustration of the
+        lead-specific waveforms or median beats
+        and confirm the files exist and have appropriate read permission
+        
+        Parameters
+        ----------
+        skip_missing : bool, default `True`
+            Whether missing files, files without read permissions, or missing
+            waveform data should be skipped.
+        verbose : bool, default `False`
+            Prints missing files if skip_missing is set to `True`.
+        
+        Attributes
+        ----------
+        FailedPathList : list [`str`]
+            File paths were either the file was absent or without read
+            permission.
+        CuratedPathList : list [`str`]
+            File paths for files wich exist and are readable.
+        
+        Returns
+        -------
+        self : `ECGDICOMDrawing` instance
+            Returns the class instance with updated attributes.
+        
+        Notes
+        -----
+        Internally this simply creates and calls an instance the ECGDICOMTable
+        class.
+        """
+        # #### set to self
+        self.verbose = verbose
+        self.skip_missing = skip_missing
+        # #### call ECGDICOMTable and assign to self
+        ecgtable = ECGDICOMTable(self.ecgdicomreader,
+                                 path_list=getattr(self, PDNames.RPATH_L)
+        checkedpaths = ecgtable(skip_missing=self.skip_missing,
+                                verbose=self.verbose)
+        setattr(self, PDNames.FPATH_L, getattr(checkedpaths, PDNames.FPATH_L))
+        setattr(self, PDNames.CPATH_L, getattr(checkedpaths, PDNames.CPATH_L))
+
+
+from matplotlib import pylab as plt
+
+
+
+paper_w, paper_h = 297.0, 210.0
+
+# Dimensions in mm of plot area
+width = 250.0
+height = 170.0
+margin_left = margin_right = .5 * (paper_w - width)
+margin_bottom = 10.0
+
+# Normalized in [0, 1]
+left = margin_left / paper_w
+right = left + width / paper_w
+bottom = margin_bottom / paper_h
+top = bottom + height / paper_h
+
+plt.ion()
+fig, axes = plt.subplots()
+fig.subplots_adjust(left=left, right=right, top=top,
+                    bottom=bottom)
+
+axes.set_ylim([0, height])
+
+# We want to plot N values, where N=number of samples
+axes.set_xlim([0, samples - 1])
 
 
