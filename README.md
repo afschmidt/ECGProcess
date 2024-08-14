@@ -1,5 +1,5 @@
 # An ECG processing module
-__version__: `0.0.000`
+__version__: `0.1.0a0`
 
 
 This repository (will) host a mixture of function dealing with processing 
