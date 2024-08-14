@@ -14,12 +14,15 @@ import warnings
 import numpy as np
 import pandas as pd
 import copy
+import matplotlib.pylab as plt
 from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
 from datetime import datetime
 from scipy import signal
 from dataclasses import dataclass, field
-from typing import List, Type, Union, Tuple, Self, Dict, Optional, Any
+from typing import (
+    List, Literal, Type, Union, Tuple, Self, Dict, Optional, Any,
+)
 from ecgprocess.errors import (
     NotCalledError,
     is_type,
@@ -602,10 +605,10 @@ class ECGDICOMTable(object):
         
         Parameters
         ----------
-        skip_missing : bool, default `True`
+        skip_missing : `bool`, default `True`
             Whether missing files or files without read permissions should
             be skipped.
-        verbose : bool, default `False`
+        verbose : `bool`, default `False`
             Prints missing files if skip_missing is set to `True`.
         
         Attributes
@@ -987,6 +990,16 @@ class ECGDICOMTable(object):
         # #### return
         return self
 
+
+from ecgprocess.example_data.examples import (
+    list_data_paths,
+)
+verbose=True
+skip_empty=True
+path = list_data_paths()['example_dicom_1']
+ecgdicomreader = ECGDICOMReader()
+ecgdicomreader = ecgdicomreader(path=path, skip_empty=skip_empty,
+                               verbose=verbose)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class ECGDICOMDrawing(object):
     '''
@@ -1004,20 +1017,19 @@ class ECGDICOMDrawing(object):
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __init__(self, ecgdicomreader:ECGDICOMReader,
-                 ) -> None:
+    def __init__(self, ecgdicomreader:ECGDICOMReader) -> None:
         """
         Initialises a new instance of `ECGDICOMDrawing`.
         
         Parameters
         ----------
         ecgdicomreader : ECGDICOMReader
-            An instance of the ECGDICOMReader data class.
+            An instance of the `ECGDICOMReader` data class that has already
+            been called to process the ECG data.
         """
-        # #### check input
-        is_type(ecgdicomreader, ECGDICOMReader, 'ecgdicomreader')
+        # assign ecgdicomreader
         self.ecgdicomreader = ecgdicomreader
-        # #### set sensible plotting defaults matching an actual ECG print out
+        # #### set sensible plotting defaults matching an actual ECG printout
         # standard A4 size in mm - landscape!
         self.paper_w = 297.0
         self.paper_h = 210.0
@@ -1025,13 +1037,16 @@ class ECGDICOMDrawing(object):
         self.width = 250.0
         self.height = 170.0
         margin_left =  .5 * (self.paper_w - self.width)
-        # margin_right = .5 * (self.paper_w - self.width)
+        # margin_right = .5 * (paper_w - width)
         margin_bottom = 10.0
         # Normalized in [0, 1]
         self.left = margin_left / paper_w
         self.right = left + width / paper_w
         self.bottom = margin_bottom / paper_h
         self.top = bottom + height / paper_h
+        # The grid constants
+        self.color = {'minor': '#ff5333', 'major': '#d43d1a'}
+        self.linewidth = {'minor': .1, 'major': .2}
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
         CLASS_NAME = type(self).__name__
@@ -1046,67 +1061,149 @@ class ECGDICOMDrawing(object):
                 f"augment_leads={getattr(self, PDNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, skip_missing:bool=True, verbose:bool=False,
+    def __call__(self, wave_type:Literal['rhythm', 'median']='rhythm',
+                 add_grid:bool=False, minor_axis:bool=True,
+                 ax:plt.Axes | None=None,
+                 verbose:bool=True,
                  ) -> Self:
-        pass
-        # set-up the matplotlib axes
+        '''
+        Creates an ECG drawing using either the waveforms `rhythm` or the median
+        beats signals.
         
-    # ### part 1
-    # def create_figure(self):
-    #     """Prepare figure and axes"""
+        Parameters
+        ----------
+        wave_type : {'rhythm', 'median'}, default `rhythm`
+            The type of ECG signal to plot.
+        add_grid : `bool`, default `False`
+            Whether to annotate the ECG image with a canonical grid (with small
+            squares indicating 0.04 seconds (x-axis) and 0.1 mV (y-axis) and
+            the larger squares a 5 multiple. Depending on the intended
+            deployment setting and the applied pre-processing you may want to
+            remove the grid.
+        minor_axis: `bool`, default `True`
+            Whether to add the minor grid axes.
+        ax : plt.Axes, default `NoneType`
+            A `matplotlib.axes.Axes` instance to which the figure is plotted.
+            If provided please make sure the formatting is as intended with or
+            without a grid, and skip the internal grid annotation step.
+            Will internally create a matplotlib figure and axes mimicking a
+            canonical ECG image (using an A4 size y and x-axis aspect ratio).
+        verbose : `bool`, default `False`
+            Prints missing files if skip_missing is set to `True`.
         
-    #     # Init figure and axes
-    #     fig, axes = plt.subplots()
+        Returns
+        -------
+        self : `ECGDICOMDraw` instance
+            Returns the class instance with updated attributes.
+        '''
+        # check input and assign to self
+        is_type(verbose, bool)
+        is_type(wave_type, str)
+        is_type(add_grid, bool)
+        is_type(minor_axes, bool)
+        is_type(ax, (type(None), plt.Axes))
+        self.verbose = verbose
+        self.wave_type = wave_type
+        WAVE_TYPE = [PDNames.WAVETYPE_RHYTHM,
+                    PDNames.WAVETYPE_MEDIAN,
+                    ]
+        if not self.wave_type in WAVE_TYPE:
+            raise ValueError(Error_MSG.CHOICE_PARM.\
+                             format('wave_type', ', '.join(WAVE_TYPE)))
+        # #### get ecg data
+        if self.wave_type == PDNames.WAVETYPE_RHYTHM:
+            self.ecg_signal=getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES)
+        else:
+            self.ecg_signal=getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES2)
+        # #### create figure
+        self._set_canvas(ax=ax)
+        if add_grid == True:
+            self._draw_grid(minor_axis=True)
+        # #### return self
+        return self
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def _set_canvas(self, ax:plt.Axes | None=None,
+                    ) -> None:
+        '''
+        Creates the matplotlib figure and axes objects.
         
-    #     fig.subplots_adjust(left=self.left, right=self.right, top=self.top,
-    #                         bottom=self.bottom)
+        Parameters
+        ----------
+        ax : plt.Axes, default `NoneType`
+            A `matplotlib.axes.Axes` instance to which the figure is plotted.
+            If provided please make sure the formatting is as intended with or
+            without a grid, and skip the internal grid annotation step.
+            Will internally create a matplotlib figure and axes mimicking a
+            canonical ECG image (using an A4 size y and x-axis aspect ratio).
         
-    #     axes.set_ylim([0, self.height])
-        
-    #     # We want to plot N values, where N=number of samples
-    #     axes.set_xlim([0, self.samples - 1])
-    #     return fig, axes
+        '''
+        # #### check input
+        is_type(ax, (type(None), plt.Axes))
+        # #### set canvas
+        if ax is None:
+            f, axes = plt.subplots()
+            # set the canvas
+            f.subplots_adjust(left=self.left, right=self.right, top=self.top,
+                                bottom=self.bottom)
+            # set the plotting axis
+            setattr(self, PDNames.SAMPLING_NUMBER,
+                    getattr(self.ecgdicomreader, PDNames.RESULTS_DICT)[
+                        PDNames.SAMPLING_NUMBER])
+            axes.set_ylim([0, self.height])
+            axes.set_xlim([0, getattr(self, PDNames.SAMPLING_NUMBER) - 1])
+            # set to self
+            self.fig = f
+            self.ax = axes
+        else:
+            # otherwise just assign ax and its figure
+            self.ax = ax
+            self.fig = ax.figure
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def _draw_grid(self, minor_axis:bool=True) -> None:
+        '''
+        To Do
+        '''
+        # do we want to add minor axes - these should have a stepsize of 1 in
+        # ECG images
+        if minor_axis == True:
+            self.ax.xaxis.set_minor_locator(
+                plt.LinearLocator(int(self.width + 1))
+            )
+            self.ax.yaxis.set_minor_locator(
+                plt.LinearLocator(int(self.height + 1))
+            )
+        # annotating the major axes - these should have a stepsize of 5 in
+        # ECG images
+        self.ax.xaxis.set_major_locator(
+            plt.LinearLocator(int(self.width / 5 + 1))
+        )
+        self.ax.yaxis.set_major_locator(
+            plt.LinearLocator(int(self.height / 5 + 1))
+        )
+        for a in 'x', 'y':
+            for which in 'major', 'minor':
+                self.ax.grid(
+                    which=which,
+                    axis=a,
+                    linestyle='-',
+                    linewidth=self.linewidth[which],
+                    color=self.color[which]
+                )
+                self.ax.tick_params(
+                    which=which,
+                    axis=a,
+                    color=self.color[which],
+                    bottom=False,
+                    top=False,
+                    left=False,
+                    right=False
+                )
+        # remove the tick labels
+        self.ax.set_xticklabels([])
+        self.ax.set_yticklabels([])
+    # /////////////////////////////////////////////////////////////////////////
 
-    # ### part 2
-        # def draw_grid(self, minor_axis):
-        # """Draw the grid in the ecg plotting area."""
-        # if minor_axis:
-        #     self.axis.xaxis.set_minor_locator(
-        #         plt.LinearLocator(int(self.width + 1))
-        #     )
-        #     self.axis.yaxis.set_minor_locator(
-        #         plt.LinearLocator(int(self.height + 1))
-        #     )
-        # self.axis.xaxis.set_major_locator(
-        #     plt.LinearLocator(int(self.width / 5 + 1))
-        # )
-        # self.axis.yaxis.set_major_locator(
-        #     plt.LinearLocator(int(self.height / 5 + 1))
-        # )
-        # color = {'minor': '#ff5333', 'major': '#d43d1a'}
-        # linewidth = {'minor': .1, 'major': .2}
-        # for axe in 'x', 'y':
-        #     for which in 'major', 'minor':
-        #         self.axis.grid(
-        #             which=which,
-        #             axis=axe,
-        #             linestyle='-',
-        #             linewidth=linewidth[which],
-        #             color=color[which]
-        #         )
-        #         self.axis.tick_params(
-        #             which=which,
-        #             axis=axe,
-        #             color=color[which],
-        #             bottom=False,
-        #             top=False,
-        #             left=False,
-        #             right=False
-        #         )
-        # self.axis.set_xticklabels([])
-        # self.axis.set_yticklabels([])
-
-        def plot():
+        # def plot():
             # Actual plot the ECGs
             
             # Part 1
@@ -1247,32 +1344,31 @@ class ECGDICOMDrawing(object):
         setattr(self, PDNames.CPATH_L, getattr(checkedpaths, PDNames.CPATH_L))
 
 
-from matplotlib import pylab as plt
 
 
 
-paper_w, paper_h = 297.0, 210.0
+# paper_w, paper_h = 297.0, 210.0
 
-# Dimensions in mm of plot area
-width = 250.0
-height = 170.0
-margin_left = margin_right = .5 * (paper_w - width)
-margin_bottom = 10.0
+# # Dimensions in mm of plot area
+# width = 250.0
+# height = 170.0
+# margin_left = margin_right = .5 * (paper_w - width)
+# margin_bottom = 10.0
 
-# Normalized in [0, 1]
-left = margin_left / paper_w
-right = left + width / paper_w
-bottom = margin_bottom / paper_h
-top = bottom + height / paper_h
+# # Normalized in [0, 1]
+# left = margin_left / paper_w
+# right = left + width / paper_w
+# bottom = margin_bottom / paper_h
+# top = bottom + height / paper_h
 
-plt.ion()
-fig, axes = plt.subplots()
-fig.subplots_adjust(left=left, right=right, top=top,
-                    bottom=bottom)
+# plt.ion()
+# fig, axes = plt.subplots()
+# fig.subplots_adjust(left=left, right=right, top=top,
+#                     bottom=bottom)
 
-axes.set_ylim([0, height])
+# axes.set_ylim([0, height])
 
-# We want to plot N values, where N=number of samples
-axes.set_xlim([0, samples - 1])
+# # We want to plot N values, where N=number of samples
+# axes.set_xlim([0, samples - 1])
 
 
