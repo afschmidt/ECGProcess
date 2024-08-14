@@ -994,12 +994,31 @@ class ECGDICOMTable(object):
 from ecgprocess.example_data.examples import (
     list_data_paths,
 )
-verbose=True
+verbose=False
 skip_empty=True
 path = list_data_paths()['example_dicom_1']
 ecgdicomreader = ECGDICOMReader()
 ecgdicomreader = ecgdicomreader(path=path, skip_empty=skip_empty,
                                verbose=verbose)
+# standard A4 size in mm - landscape!
+paper_w = 297.0
+paper_h = 210.0
+# Dimensions in mm of plot area
+width = 250.0
+height = 170.0
+margin_left =  .5 * (paper_w - width)
+# margin_right = .5 * (paper_w - width)
+margin_bottom = 10.0
+# Normalized in [0, 1]
+left = margin_left / paper_w
+right = left + width / paper_w
+bottom = margin_bottom / paper_h
+top = bottom + height / paper_h
+# The grid constants
+color = {'minor': '#ff5333', 'major': '#d43d1a'}
+linewidth = {'minor': .1, 'major': .2}
+plt.ion()
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class ECGDICOMDrawing(object):
     '''
@@ -1030,6 +1049,7 @@ class ECGDICOMDrawing(object):
         # assign ecgdicomreader
         self.ecgdicomreader = ecgdicomreader
         # #### set sensible plotting defaults matching an actual ECG printout
+        self.inch_mm = 24.5
         # standard A4 size in mm - landscape!
         self.paper_w = 297.0
         self.paper_h = 210.0
@@ -1141,13 +1161,15 @@ class ECGDICOMDrawing(object):
         is_type(ax, (type(None), plt.Axes))
         # #### set canvas
         if ax is None:
-            f, axes = plt.subplots()
+            # #### using a default A4 landscape page
+            f, axes = plt.subplots(figsize=(self.paper_w/self.inch_mm,
+                                            self.paper_h/self.inch_mm))
             # set the canvas
             f.subplots_adjust(left=self.left, right=self.right, top=self.top,
                                 bottom=self.bottom)
             # set the plotting axis
             setattr(self, PDNames.SAMPLING_NUMBER,
-                    getattr(self.ecgdicomreader, PDNames.RESULTS_DICT)[
+                    getattr(ecgdicomreader, PDNames.RESULTS_DICT)[
                         PDNames.SAMPLING_NUMBER])
             axes.set_ylim([0, self.height])
             axes.set_xlim([0, getattr(self, PDNames.SAMPLING_NUMBER) - 1])
@@ -1155,9 +1177,17 @@ class ECGDICOMDrawing(object):
             self.fig = f
             self.ax = axes
         else:
-            # otherwise just assign ax and its figure
+            # #### otherwise just assign ax and its figure
             self.ax = ax
             self.fig = ax.figure
+            # #### and update height and width with the ax properties
+            pos = self.ax.get_position()
+            _, _, width_n, height_n = pos.bounds
+            # Get the figure dimensions in inches
+            fig_width, fig_height = self.fig.get_size_inches()
+            # Convert normalized dimensions to inches
+            self.width = np.round(width_n * fig_width * self.inch_mm)
+            self.height = np.round(height_n * fig_height * self.inch_mm)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _draw_grid(self, minor_axis:bool=True) -> None:
         '''
