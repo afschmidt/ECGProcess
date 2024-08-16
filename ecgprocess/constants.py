@@ -76,13 +76,17 @@ class ProcessDicomNames(object):
     ECG_TRAIT_QRS_D       = 'QRS Duration'
     ECG_UNIT              = 'MeasurementUnitsCodeSequence'
     ECG_UNIT_STRING       = ' UNIT'
-    WAVE_SCALING          = 'MM_MV'
+    WAVE_SCALING          = 'mm_mv'
     MICROVOLT             = 'microvolt'
     MILLIVOLT             = 'millivolt'
     ECG_SIGNAL            = 'ecg_signal'
     WAVE_TYPE             = 'wave_type'
-    PLOT_LAYOUT           = 'layout'
+    PLOT_LAYOUT           = 'image_layout'
     PLOT_HEIGHT           = 'height'
+    PLOT_WIDTH            = 'width'
+    PLOT_UNIT             = 'ecg_unit'
+    PLOT_AXES             = 'ax'
+    PLOT_FIGSIZE          = 'figsize'
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

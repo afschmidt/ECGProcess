@@ -1040,47 +1040,58 @@ class ECGDICOMTable(object):
 # ecgdicomreader = ecgdicomreader(path=path, skip_empty=skip_empty,
 #                                verbose=verbose)
 # plt.ion()
-# artist = ECGDICOMDrawing(ecgdicomreader)
-# artist(add_grid=True)
+# artist = ECGDICOMDrawing()
+# f, axes = plt.subplots(figsize=(20, 4))
 
-# artist._set_canvas()
-# artist._draw_grid()
-# artist._draw_signal()
+# test = artist(ecgdicomreader, add_grid=True, minor_axis=False,
+#               ax=axes)
+# set2 = set(dir(test))
+# set2-set1
+
+# # artist._set_canvas()
+# # artist._draw_grid()
+# # artist._draw_signal()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# NOTE add UNIT to SELF
-# Update the docstring to mention the conversion from uM to mV
-# write docstrings of methods
-# try with a user supplied axes object
-# update class docstring describing the relevant attributes and methods
+# NOTE add tests
+# NOTE add a numpy method - mapping a matplotlib illustration to a numpy array.
 class ECGDICOMDrawing(object):
     '''
-    Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
-    and maps these to maplotlib figures be saved to disk or mapped to a
-    numpy.ndarray for analyses.
+    Takes a called `ECGDICOMReader` instance and plots the lead-specific
+    ECG signals.
     
     Attributes
     ----------
-    RawPathList : list [`str`]
-        A list of dcm file paths.
+    mm_mv : `float`, default 10
+        The scaling factor applied to the ECG signals, mapping these from
+        1mm/mV to mm_vv * mm/mv.
+    paper_w : `float`, default 297 mm
+        The figure width.
+    paper_h : `float`
+        The figure height, default 210 mm
+    width : `float`
+        The plotting area width, default 250 mm
+    height : `float`
+        The plotting area height, default 170 mm
+    grid_color : `dict` {`minor`: colour_1, `major`: color_2}
+        The grid line colours.
+    grid_linewidth : `dict`
+        The grid line width.
+    text_pad_x : `float`, default 40
+        Padding of the text x-axis coordinate.
     
-    Methods
-    -------
+    Notes
+    -----
+    Calling the class instance will check the ECG unit, and if needed convert
+    microvolts (µV) to millivolts (mV).
+    
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __init__(self, ecgdicomreader:ECGDICOMReader) -> None:
+    def __init__(self) -> None:
         """
         Initialises a new instance of `ECGDICOMDrawing`.
-        
-        Parameters
-        ----------
-        ecgdicomreader : ECGDICOMReader
-            An instance of the `ECGDICOMReader` data class that has already
-            been called to process the ECG data.
         """
-        # assign ecgdicomreader
-        self.ecgdicomreader = ecgdicomreader
         # scaling factor for 1/mV to FACTOR/mV
         setattr(self, PDNames.WAVE_SCALING, 10)
         # #### set sensible plotting defaults matching an actual ECG printout
@@ -1091,17 +1102,11 @@ class ECGDICOMDrawing(object):
         # Dimensions in mm of plot area
         self.width = 250.0
         self.height = 170.0
-        margin_left =  .5 * (self.paper_w - self.width)
-        # margin_right = .5 * (paper_w - width)
-        margin_bottom = 10.0
-        # Normalized in [0, 1]
-        self.left = margin_left / self.paper_w
-        self.right = self.left + self.width /self.paper_w
-        self.bottom = margin_bottom / self.paper_h
-        self.top = self.bottom + self.height / self.paper_h
         # The grid constants
-        self.color = {'minor': '#ff5333', 'major': '#d43d1a'}
-        self.linewidth = {'minor': .1, 'major': .2}
+        self.grid_color = {'minor': '#ff5333', 'major': '#d43d1a'}
+        self.grid_linewidth = {'minor': .1, 'major': .2}
+        # the text constants
+        self.text_pad_x = 40
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
         CLASS_NAME = type(self).__name__
@@ -1114,10 +1119,13 @@ class ECGDICOMDrawing(object):
         return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, wave_type:Literal['rhythm', 'median']='rhythm',
-                 add_grid:bool=False, minor_axes:bool=True,
-                 ax:plt.Axes | None=None,
+    def __call__(self, ecgdicomreader:ECGDICOMReader,
+                 wave_type:Literal['rhythm', 'median']='rhythm',
+                 add_grid:bool=False, minor_axis:bool=True,
+                 image_layout:list[list[str]] | None=None,
+                 auto_margins:bool=True,
                  verbose:bool=True,
+                 ax:plt.Axes | None=None,
                  ) -> Self:
         '''
         Creates an ECG drawing using either the waveforms `rhythm` or the median
@@ -1125,6 +1133,9 @@ class ECGDICOMDrawing(object):
         
         Parameters
         ----------
+        ecgdicomreader : ECGDICOMReader
+            An instance of the `ECGDICOMReader` data class that has already
+            been called to process the ECG data.
         wave_type : {'rhythm', 'median'}, default `rhythm`
             The type of ECG signal to plot.
         add_grid : `bool`, default `False`
@@ -1133,16 +1144,35 @@ class ECGDICOMDrawing(object):
             the larger squares a 5 multiple. Depending on the intended
             deployment setting and the applied pre-processing you may want to
             remove the grid.
-        minor_axes: `bool`, default `True`
+        minor_axis: `bool`, default `True`
             Whether to add the minor grid axes.
+        image_layout : `list` [`list` [`str`]]
+            A nested lists organising the image by ECG lead names.
         ax : plt.Axes, default `NoneType`
-            A `matplotlib.axes.Axes` instance to which the figure is plotted.
-            If provided please make sure the formatting is as intended with or
-            without a grid, and skip the internal grid annotation step.
-            Will internally create a matplotlib figure and axes mimicking a
+            An optional `matplotlib.axes.Axes` instance on which the ECG
+            signals are plotted. If ommited will simply take an A4 x/y axes
+            aspect ratio and mimic a cononical ECG image.
             canonical ECG image (using an A4 size y and x-axis aspect ratio).
         verbose : `bool`, default `False`
             Prints missing files if skip_missing is set to `True`.
+        
+        Attributes
+        ----------
+        ecg_signal : `dict` [`str`, `np.ndarray`]
+            The ECG signals depicted in the figure. Organised as a dictionary
+            with keys matching the lead name and np.ndarray as values recording
+            the ECG measurement.
+        ecg_unit : `str`
+            The measurement unit - should be `millivolt`. Included here for
+            checking/debugging.
+        image_layout : `list` [`list` [`str`]]
+            A nested lists organising the image by ECG lead names.
+        wave_type : `str`
+            The type of ECG signal.
+        fig : `plt.figure`
+            The matplotlib figure.
+        ax : `plt.axes`
+            The matplotlib axes.
         
         Returns
         -------
@@ -1158,8 +1188,9 @@ class ECGDICOMDrawing(object):
         is_type(verbose, bool)
         is_type(wave_type, str)
         is_type(add_grid, bool)
-        is_type(minor_axes, bool)
+        is_type(minor_axis, bool)
         is_type(ax, (type(None), plt.Axes))
+        is_type(image_layout, (type(None), list))
         self.verbose = verbose
         setattr(self, PDNames.WAVE_TYPE, wave_type)
         WAVE_TYPE = [PDNames.WAVETYPE_RHYTHM,
@@ -1168,7 +1199,16 @@ class ECGDICOMDrawing(object):
         if not getattr(self, PDNames.WAVE_TYPE) in WAVE_TYPE:
             raise ValueError(Error_MSG.CHOICE_PARM.\
                              format('wave_type', ', '.join(WAVE_TYPE)))
+        if image_layout is None:
+            image_layout = [
+                ['I', 'aVR', 'V1', 'V4'],
+                ['II', 'aVL', 'V2', 'V5'],
+                ['III', 'aVF', 'V3', 'V6'],
+                ['II'],
+            ]
+        setattr(self, PDNames.PLOT_LAYOUT, image_layout)
         # #### get ecg data
+        self.ecgdicomreader = ecgdicomreader
         if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
             setattr(self, PDNames.ECG_SIGNAL,
                     getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES)
@@ -1203,90 +1243,166 @@ class ECGDICOMDrawing(object):
         if unit is None or pd.isna(unit):
             warnings.warn(WARN2)
         # add unit
-        if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
-            setattr(self, PDNames.LEAD_UNITS, unit)
-        else:
-            setattr(self, PDNames.LEAD_UNITS2, unit)
+        setattr(self, PDNames.PLOT_UNIT, unit)
         # #### extract additional meta data
         # sampling number
         setattr(self, PDNames.SAMPLING_NUMBER,
                 getattr(ecgdicomreader, PDNames.RESULTS_DICT)[
                     PDNames.SAMPLING_NUMBER])
         # #### create figure
-        self._set_canvas()
+        self._set_canvas(auto_margins=auto_margins, ax=ax)
         if add_grid == True:
-            self._draw_grid(minor_axis=True)
+            self._draw_grid(minor_axis=minor_axis)
         # #### draw ecg signal
-        self._draw_signal()
+        self._draw_signal(layout=getattr(self, PDNames.PLOT_LAYOUT))
         # #### return self
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def _set_canvas(self,) -> None:
+    def _set_canvas(self, auto_margins:bool=True,
+                    ax:plt.Axes | None=None,
+                    kwargs_subplots:dict[Any, Any] | None=None,
+                    kwargs_subplots_adjust:dict[Any, Any] | None=None,
+                    ) -> None:
         '''
-        Creates the matplotlib figure and axes objects.
+        Creates the matplotlib figure and axes objects and assigns this to the
+        class instance.
+        
+        Parameters
+        ----------
+        auto_margins : `bool`, default `True`
+            Whether the margins should be calculated based on the supplied
+            figure and plotting area dimensions.
+        ax : plt.Axes, default `NoneType`
+            An optional `matplotlib.axes.Axes` instance on which the ECG
+            signals are plotted. If ommited will simply take an A4 x/y axes
+            aspect ratio and mimic a cononical ECG image.
+            canonical ECG image (using an A4 size y and x-axis aspect ratio).
+        kwargs_*_dict : `dict` [`any`, `any`], default `NoneType`
+            Optional arguments supplied to the various plotting functions:
+                kwargs_subplots         --> plt.subplots
+                kwargs_subplots_adjust  --> figure.subplots_adjust
+        
+        Attributes
+        ----------
+        fig : `plt.figure`
+            The matplotlib figure.
+        ax : `plt.axes`
+            The matplotlib axes.
         '''
-        # #### using a default A4 landscape page
-        f, axes = plt.subplots()
-        # set the canvas
-        f.subplots_adjust(left=self.left, right=self.right, top=self.top,
-                            bottom=self.bottom)
+        is_type(ax, (type(None), plt.Axes))
+        is_type(auto_margins, bool)
+        # ### settings empty dict defaults
+        kwargs_subplots, kwargs_subplots_adjust = assign_empty_default(
+            [kwargs_subplots, kwargs_subplots_adjust], dict)
+        # #### set canvas
+        if ax is None:
+            # using a default A4 landscape page
+            f, axes = plt.subplots(**kwargs_subplots)
+        else:
+            # assign ax and its figure
+            axes = ax
+            f = ax.figure
+            # update height and width with the ax properties
+            pos = axes.get_position()
+            _, _, width_n, height_n = pos.bounds
+            # Get the figure dimensions in inches
+            fig_width, fig_height = f.get_size_inches()
+            # Convert normalized dimensions to inches
+            setattr(self, PDNames.PLOT_WIDTH,
+                    np.round(width_n * fig_width * self.inch_mm))
+            setattr(self, PDNames.PLOT_HEIGHT,
+                    np.round(height_n * fig_height * self.inch_mm))
+        # calculate marings
+        if auto_margins == True:
+            margin_left =  .5 * (self.paper_w -
+                                 getattr(self, PDNames.PLOT_WIDTH))
+            # margin_right = .5 * (paper_w - width)
+            margin_bottom = 10.0
+            # Normalized in [0, 1]
+            self.left = margin_left / self.paper_w
+            self.right = self.left +\
+                getattr(self, PDNames.PLOT_WIDTH)/self.paper_w
+            self.bottom = margin_bottom / self.paper_h
+            self.top = self.bottom + self.height / self.paper_h
+            # apply margins
+            new_kwargs_adjust = _update_kwargs(
+                update_dict=kwargs_subplots_adjust,
+                left=self.left,
+                right=self.right,
+                top=self.top,
+                bottom=self.bottom,
+            )
+            f.subplots_adjust(**new_kwargs_adjust)
         # set the plotting axis
-        axes.set_ylim([0, self.height])
+        axes.set_ylim([0, getattr(self, PDNames.PLOT_HEIGHT)])
         # axes.set_ylim([0, 5000])
         axes.set_xlim([0, getattr(self, PDNames.SAMPLING_NUMBER) - 1])
         # set to self
         self.fig = f
-        self.ax = axes
+        setattr(self, PDNames.PLOT_AXES, axes)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _draw_grid(self, minor_axis:bool=True) -> None:
         '''
-        To Do
+        Draws the minor and major grid lines of an ECG image.
+        
+        Parameters
+        ----------
+        minor_axis : `bool`, default `True`
+            Whether the minor grid lines should be drawn.
         '''
         # do we want to add minor axes - these should have a stepsize of 1 in
         # ECG images
         if minor_axis == True:
-            self.ax.xaxis.set_minor_locator(
+            getattr(self, PDNames.PLOT_AXES).xaxis.set_minor_locator(
                 plt.LinearLocator(int(self.width + 1))
             )
-            self.ax.yaxis.set_minor_locator(
-                plt.LinearLocator(int(self.height + 1))
+            getattr(self, PDNames.PLOT_AXES).yaxis.set_minor_locator(
+                plt.LinearLocator(int(getattr(self, PDNames.PLOT_HEIGHT)+ 1))
             )
         # annotating the major axes - these should have a stepsize of 5 in
         # ECG images
-        self.ax.xaxis.set_major_locator(
+        getattr(self, PDNames.PLOT_AXES).xaxis.set_major_locator(
             plt.LinearLocator(int(self.width / 5 + 1))
         )
-        self.ax.yaxis.set_major_locator(
-            plt.LinearLocator(int(self.height / 5 + 1))
+        getattr(self, PDNames.PLOT_AXES).yaxis.set_major_locator(
+            plt.LinearLocator(int(getattr(self, PDNames.PLOT_HEIGHT)/ 5 + 1))
         )
         for a in 'x', 'y':
             for which in 'major', 'minor':
-                self.ax.grid(
+                getattr(self, PDNames.PLOT_AXES).grid(
                     which=which,
                     axis=a,
                     linestyle='-',
-                    linewidth=self.linewidth[which],
-                    color=self.color[which]
+                    linewidth=self.grid_linewidth[which],
+                    color=self.grid_color[which]
                 )
-                self.ax.tick_params(
+                getattr(self, PDNames.PLOT_AXES).tick_params(
                     which=which,
                     axis=a,
-                    color=self.color[which],
+                    color=self.grid_color[which],
                     bottom=False,
                     top=False,
                     left=False,
                     right=False
                 )
     # /////////////////////////////////////////////////////////////////////////
-    # TODO add _update_kwargs.
-    def _draw_signal(self, layout:list[list[str]] | None=None,
+    def _draw_signal(self, layout:list[list[str]],
                      figsize:tuple[float, float] | None=None,
                      kwargs_signal:dict[Any, Any] | None=None,
                      kwargs_text:dict[Any, Any] | None=None,
                      ) -> None:
         '''
-        To Do
-        kwargs_*_dict : dict, default None
+        Draws ECG signals on a matplotlib axis.
+        
+        Parameters
+        ----------
+        layout : `list` [`list` [`str`]]
+            A nested lists organising the image by ECG lead names.
+        figsize : `tuple` (`floa`, `float`), default `NoneType`
+            The width by height figure size in inches. If `NoneType` it will
+            use the self.paper_h and self_paper_w attributes which are
+            defined in millimetres divided by self.inch_mm.
+        kwargs_*_dict : `dict` [`any`, `any`], default `NoneType`
             Optional arguments supplied to the various plotting functions:
                 kwargs_signal        --> ax.plot
                 kwargs_text          --> ax.text
@@ -1294,14 +1410,11 @@ class ECGDICOMDrawing(object):
         # #### check input
         is_type(layout, (type(None), list))
         is_type(figsize, (type(None), tuple))
-        if layout is None:
-            layout = [
-                ['I', 'aVR', 'V1', 'V4'],
-                ['II', 'aVL', 'V2', 'V5'],
-                ['III', 'aVF', 'V3', 'V6'],
-                ['II'],
-            ]
         setattr(self, PDNames.PLOT_LAYOUT, layout)
+        # check an axis is available
+        if hasattr(self, PDNames.PLOT_AXES) == False:
+            raise NotCalledError('The `_set_canvas` method has not been '
+                                 'Called. There is no axes to draw on.')
         # confirm layout matches the signal.keys
         flat_layout = [l for s in getattr(self, PDNames.PLOT_LAYOUT) for l in s]
         msg_elements = [l for l in flat_layout if l not in\
@@ -1314,6 +1427,7 @@ class ECGDICOMDrawing(object):
         # set some default
         if figsize is None:
             figsize=(self.paper_w/self.inch_mm, self.paper_h/self.inch_mm)
+        setattr(self, PDNames.PLOT_FIGSIZE, figsize)
         # map None to dict
         kwargs_signal, kwargs_text = assign_empty_default(
             [kwargs_signal, kwargs_text], dict)
@@ -1342,35 +1456,38 @@ class ECGDICOMDrawing(object):
                 signal = v_delta + getattr(self, PDNames.WAVE_SCALING) *\
                     getattr(self, PDNames.ECG_SIGNAL)[k][left:right]
                 # update kwargs
-                new_kwargs_signal = _update_kwargs(update_dict=kwargs_signal,
-                                                   clip_on=False,
-                                                   linewidth=0.6,
-                                                   color='black',
-                                                   zorder=2,
-                                                   )
+                new_kwargs_signal = _update_kwargs(
+                    update_dict=kwargs_signal,
+                    clip_on=False,
+                    linewidth=0.6,
+                    color='black',
+                    zorder=2,
+                )
                 # plot the signal
-                self.ax.plot(
+                getattr(self, PDNames.PLOT_AXES).plot(
                     list(range(left, right)),
                     signal,
                     **new_kwargs_signal,
                     )
                 # update kwargs
-                new_kwargs_text = _update_kwargs(update_dict=kwargs_text,
-                                                 zorder=3,
-                                                 fontsize=8,
-                                                 )
+                new_kwargs_text = _update_kwargs(
+                    update_dict=kwargs_text,
+                    zorder=3,
+                    fontsize=8,
+                )
                 # plot the lead name
                 h = h_delta * numcol
-                v = v_delta + row_height / 2.6
-                self.ax.text(
-                    x=h + 40,
+                # v = v_delta + row_height / 2.6
+                getattr(self, PDNames.PLOT_AXES).text(
+                    x=h + self.text_pad_x,
                     y=v_delta + row_height / 3,
                     s=k,
                     **new_kwargs_text,
                 )
             # remove the tick labels
-            self.ax.set_xticklabels([])
-            self.ax.set_yticklabels([])
+            getattr(self, PDNames.PLOT_AXES).set_xticklabels([])
+            getattr(self, PDNames.PLOT_AXES).set_yticklabels([])
             # resize figure
             self.fig.set_size_inches(figsize)
+
 
