@@ -38,6 +38,8 @@ from ecgprocess.constants import (
 )
 from ecgprocess.utils.general import (
     replace_with_tar,
+    assign_empty_default,
+    _update_kwargs,
 )
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -991,35 +993,66 @@ class ECGDICOMTable(object):
         return self
 
 
-from ecgprocess.example_data.examples import (
-    list_data_paths,
-)
-verbose=False
-skip_empty=True
-path = list_data_paths()['example_dicom_1']
-ecgdicomreader = ECGDICOMReader()
-ecgdicomreader = ecgdicomreader(path=path, skip_empty=skip_empty,
-                               verbose=verbose)
-# standard A4 size in mm - landscape!
-paper_w = 297.0
-paper_h = 210.0
-# Dimensions in mm of plot area
-width = 250.0
-height = 170.0
-margin_left =  .5 * (paper_w - width)
-# margin_right = .5 * (paper_w - width)
-margin_bottom = 10.0
-# Normalized in [0, 1]
-left = margin_left / paper_w
-right = left + width / paper_w
-bottom = margin_bottom / paper_h
-top = bottom + height / paper_h
-# The grid constants
-color = {'minor': '#ff5333', 'major': '#d43d1a'}
-linewidth = {'minor': .1, 'major': .2}
-plt.ion()
+# # standard A4 size in mm - landscape!
+# paper_w = 297.0
+# paper_h = 210.0
+# # Dimensions in mm of plot area
+# width = 250.0
+# height = 170.0
+# margin_left =  .5 * (paper_w - width)
+# # margin_right = .5 * (paper_w - width)
+# margin_bottom = 10.0
+# # Normalized in [0, 1]
+# left = margin_left / paper_w
+# right = left + width / paper_w
+# bottom = margin_bottom / paper_h
+# top = bottom + height / paper_h
+# # The grid constants
+# color = {'minor': '#ff5333', 'major': '#d43d1a'}
+# linewidth = {'minor': .1, 'major': .2}
+# inch_mm = 24.5
+# layout= [['I', 'aVR', 'V1', 'V4'],
+#          ['II', 'aVL', 'V2', 'V5'],
+#          ['III', 'aVF', 'V3', 'V6'],
+#          ['II']]
+# ecg_signal=getattr(ecgdicomreader, PDNames.LEAD_VOLTAGES)
+# plt.ion()
+# # #### using a default A4 landscape page
+# f, axes = plt.subplots(figsize=(paper_w/inch_mm,
+#                                 paper_h/inch_mm))
+# # set the canvas
+# f.subplots_adjust(left=left, right=right, top=top,
+#                     bottom=bottom)
+# # set the plotting axis
+# axes.set_ylim([0, height])
+# axes.set_ylim([0, 5000])
+# # set to self
+# fig = f
+# ax = axes
+
+# from ecgprocess.example_data.examples import (
+#     list_data_paths,
+# )
+# verbose=False
+# skip_empty=True
+# path = list_data_paths()['example_dicom_1']
+# ecgdicomreader = ECGDICOMReader()
+# ecgdicomreader = ecgdicomreader(path=path, skip_empty=skip_empty,
+#                                verbose=verbose)
+# plt.ion()
+# artist = ECGDICOMDrawing(ecgdicomreader)
+# artist(add_grid=True)
+
+# artist._set_canvas()
+# artist._draw_grid()
+# artist._draw_signal()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# NOTE add UNIT to SELF
+# Update the docstring to mention the conversion from uM to mV
+# write docstrings of methods
+# try with a user supplied axes object
+# update class docstring describing the relevant attributes and methods
 class ECGDICOMDrawing(object):
     '''
     Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
@@ -1048,6 +1081,8 @@ class ECGDICOMDrawing(object):
         """
         # assign ecgdicomreader
         self.ecgdicomreader = ecgdicomreader
+        # scaling factor for 1/mV to FACTOR/mV
+        setattr(self, PDNames.WAVE_SCALING, 10)
         # #### set sensible plotting defaults matching an actual ECG printout
         self.inch_mm = 24.5
         # standard A4 size in mm - landscape!
@@ -1060,10 +1095,10 @@ class ECGDICOMDrawing(object):
         # margin_right = .5 * (paper_w - width)
         margin_bottom = 10.0
         # Normalized in [0, 1]
-        self.left = margin_left / paper_w
-        self.right = left + width / paper_w
-        self.bottom = margin_bottom / paper_h
-        self.top = bottom + height / paper_h
+        self.left = margin_left / self.paper_w
+        self.right = self.left + self.width /self.paper_w
+        self.bottom = margin_bottom / self.paper_h
+        self.top = self.bottom + self.height / self.paper_h
         # The grid constants
         self.color = {'minor': '#ff5333', 'major': '#d43d1a'}
         self.linewidth = {'minor': .1, 'major': .2}
@@ -1071,18 +1106,16 @@ class ECGDICOMDrawing(object):
     def __str__(self):
         CLASS_NAME = type(self).__name__
         return (f"{CLASS_NAME} instance with "
-                f"ecgdicomreader={self.ecgdicomreader}, "
-                f"path_list={getattr(self, PDNames.RPATH_L)}."
+                f"ecgdicomreader={self.ecgdicomreader}."
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __repr__(self):
         CLASS_NAME = type(self).__name__
-        return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader}, "
-                f"augment_leads={getattr(self, PDNames.RPATH_L)})"
+        return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, wave_type:Literal['rhythm', 'median']='rhythm',
-                 add_grid:bool=False, minor_axis:bool=True,
+                 add_grid:bool=False, minor_axes:bool=True,
                  ax:plt.Axes | None=None,
                  verbose:bool=True,
                  ) -> Self:
@@ -1100,7 +1133,7 @@ class ECGDICOMDrawing(object):
             the larger squares a 5 multiple. Depending on the intended
             deployment setting and the applied pre-processing you may want to
             remove the grid.
-        minor_axis: `bool`, default `True`
+        minor_axes: `bool`, default `True`
             Whether to add the minor grid axes.
         ax : plt.Axes, default `NoneType`
             A `matplotlib.axes.Axes` instance to which the figure is plotted.
@@ -1116,6 +1149,11 @@ class ECGDICOMDrawing(object):
         self : `ECGDICOMDraw` instance
             Returns the class instance with updated attributes.
         '''
+        # constants
+        WARN1 = ('The Waveform unit is unavailable. Assuming '
+                 f'measurements were in {PDNames.MILLIVOLT}.')
+        WARN2 = ('The Waveform unit is not recognised: `{}`. Assuming '
+                 f'measurements were in {PDNames.MILLIVOLT}.')
         # check input and assign to self
         is_type(verbose, bool)
         is_type(wave_type, str)
@@ -1123,71 +1161,82 @@ class ECGDICOMDrawing(object):
         is_type(minor_axes, bool)
         is_type(ax, (type(None), plt.Axes))
         self.verbose = verbose
-        self.wave_type = wave_type
+        setattr(self, PDNames.WAVE_TYPE, wave_type)
         WAVE_TYPE = [PDNames.WAVETYPE_RHYTHM,
                     PDNames.WAVETYPE_MEDIAN,
                     ]
-        if not self.wave_type in WAVE_TYPE:
+        if not getattr(self, PDNames.WAVE_TYPE) in WAVE_TYPE:
             raise ValueError(Error_MSG.CHOICE_PARM.\
                              format('wave_type', ', '.join(WAVE_TYPE)))
         # #### get ecg data
-        if self.wave_type == PDNames.WAVETYPE_RHYTHM:
-            self.ecg_signal=getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES)
+        if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
+            setattr(self, PDNames.ECG_SIGNAL,
+                    getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES)
+                    )
         else:
-            self.ecg_signal=getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES2)
+            setattr(self, PDNames.ECG_SIGNAL,
+                    getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES2)
+                    )
+        # #### convert microvolts (µV) to millivolts (mV)
+        try:
+            unit = getattr(self.ecgdicomreader,
+                           PDNames.RESULTS_DICT)[PDNames.LEAD_UNITS]
+        except KeyError:
+            try:
+                unit = getattr(self.ecgdicomreader,
+                               PDNames.RESULTS_DICT)[PDNames.LEAD_UNITS2]
+            except KeyError:
+                warnings.warn(WARN1)
+                unit = PDNames.MILLIVOLT
+        if unit == PDNames.MICROVOLT:
+            setattr(self, PDNames.ECG_SIGNAL,
+                    {k:v/1000 for k,v in\
+                     getattr(self, PDNames.ECG_SIGNAL).items()}
+                    )
+            pass
+        elif unit == PDNames.MILLIVOLT:
+            # already correct units
+            pass
+        else:
+            warnings.warn(WARN2.format(unit))
+        # raise warning if unit is not helpful
+        if unit is None or pd.isna(unit):
+            warnings.warn(WARN2)
+        # add unit
+        if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
+            setattr(self, PDNames.LEAD_UNITS, unit)
+        else:
+            setattr(self, PDNames.LEAD_UNITS2, unit)
+        # #### extract additional meta data
+        # sampling number
+        setattr(self, PDNames.SAMPLING_NUMBER,
+                getattr(ecgdicomreader, PDNames.RESULTS_DICT)[
+                    PDNames.SAMPLING_NUMBER])
         # #### create figure
-        self._set_canvas(ax=ax)
+        self._set_canvas()
         if add_grid == True:
             self._draw_grid(minor_axis=True)
+        # #### draw ecg signal
+        self._draw_signal()
         # #### return self
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def _set_canvas(self, ax:plt.Axes | None=None,
-                    ) -> None:
+    def _set_canvas(self,) -> None:
         '''
         Creates the matplotlib figure and axes objects.
-        
-        Parameters
-        ----------
-        ax : plt.Axes, default `NoneType`
-            A `matplotlib.axes.Axes` instance to which the figure is plotted.
-            If provided please make sure the formatting is as intended with or
-            without a grid, and skip the internal grid annotation step.
-            Will internally create a matplotlib figure and axes mimicking a
-            canonical ECG image (using an A4 size y and x-axis aspect ratio).
-        
         '''
-        # #### check input
-        is_type(ax, (type(None), plt.Axes))
-        # #### set canvas
-        if ax is None:
-            # #### using a default A4 landscape page
-            f, axes = plt.subplots(figsize=(self.paper_w/self.inch_mm,
-                                            self.paper_h/self.inch_mm))
-            # set the canvas
-            f.subplots_adjust(left=self.left, right=self.right, top=self.top,
-                                bottom=self.bottom)
-            # set the plotting axis
-            setattr(self, PDNames.SAMPLING_NUMBER,
-                    getattr(ecgdicomreader, PDNames.RESULTS_DICT)[
-                        PDNames.SAMPLING_NUMBER])
-            axes.set_ylim([0, self.height])
-            axes.set_xlim([0, getattr(self, PDNames.SAMPLING_NUMBER) - 1])
-            # set to self
-            self.fig = f
-            self.ax = axes
-        else:
-            # #### otherwise just assign ax and its figure
-            self.ax = ax
-            self.fig = ax.figure
-            # #### and update height and width with the ax properties
-            pos = self.ax.get_position()
-            _, _, width_n, height_n = pos.bounds
-            # Get the figure dimensions in inches
-            fig_width, fig_height = self.fig.get_size_inches()
-            # Convert normalized dimensions to inches
-            self.width = np.round(width_n * fig_width * self.inch_mm)
-            self.height = np.round(height_n * fig_height * self.inch_mm)
+        # #### using a default A4 landscape page
+        f, axes = plt.subplots()
+        # set the canvas
+        f.subplots_adjust(left=self.left, right=self.right, top=self.top,
+                            bottom=self.bottom)
+        # set the plotting axis
+        axes.set_ylim([0, self.height])
+        # axes.set_ylim([0, 5000])
+        axes.set_xlim([0, getattr(self, PDNames.SAMPLING_NUMBER) - 1])
+        # set to self
+        self.fig = f
+        self.ax = axes
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _draw_grid(self, minor_axis:bool=True) -> None:
         '''
@@ -1228,177 +1277,100 @@ class ECGDICOMDrawing(object):
                     left=False,
                     right=False
                 )
-        # remove the tick labels
-        self.ax.set_xticklabels([])
-        self.ax.set_yticklabels([])
     # /////////////////////////////////////////////////////////////////////////
-
-        # def plot():
-            # Actual plot the ECGs
-            
-            # Part 1
-            # note mm_mv is the conversion factor from mm to millivolts,
-            # which is 10 be default. Will need to check whether the waveform
-            # data is in millivolts and if not convert it.  To convert
-            # microvolts (µV) to millivolts (mV), you divide the value in
-            # microvolts by 1,000.
-    # def plot(self, layoutid, mm_mv):
-    #     """Plot the ecg signals inside the plotting area.
-    #     Possible layout choice are:
-    #     * 12x1 (one signal per line)
-    #     * 6x2 (6 rows 2 columns)
-    #     * 3x4 (4 signal chunk per line)
-    #     * 3x4_1 (4 signal chunk per line. on the last line
-    #     is drawn a complete signal)
-    #     * ... and much much more
-
-    #     The general rule is that the layout list is formed
-    #     by as much lists as the number of lines we want to draw into the
-    #     plotting area, each one containing the number of the signal chunk
-    #     we want to plot in that line.
-
-    #     @param layoutid: the desired layout
-    #     @type layoutid: C{list} of C{list}
-    #     """
-
-    #     self.mm_mv = mm_mv
-
-    #     layout = LAYOUT[layoutid]
-    #     rows = len(layout)
-
-    #     for numrow, row in enumerate(layout):
-
-    #         columns = len(row)
-    #         row_height = self.height / rows
-
-    #         # Horizontal shift for lead labels and separators
-    #         h_delta = self.samples / columns
-
-    #         # Vertical shift of the origin
-    #         v_delta = round(
-    #             self.height * (1.0 - 1.0 / (rows * 2)) -
-    #             numrow * (self.height / rows)
-    #         )
-
-    #         # Let's shift the origin on a multiple of 5 mm
-    #         v_delta = (v_delta + 2.5) - (v_delta + 2.5) % 5
-
-    #         # Lenght of a signal chunk
-    #         chunk_size = int(self.samples / len(row))
-    #         for numcol, signum in enumerate(row):
-    #             left = numcol * chunk_size
-    #             right = (1 + numcol) * chunk_size
-
-    #             # The signal chunk, vertical shifted and
-    #             # scaled by mm/mV factor
-    #             signal = v_delta + mm_mv * self.signals[signum][left:right]
-    #             self.axis.plot(
-    #                 list(range(left, right)),
-    #                 signal,
-    #                 clip_on=False,
-    #                 linewidth=0.6,
-    #                 color='black',
-    #                 zorder=10)
-    #             if self.channel_definitions:
-    #                 cseq = self.channel_definitions[signum].ChannelSourceSequence
-    #                 meaning = cseq[0].CodeMeaning.replace(
-    #                     'Lead', '').replace('(Einthoven)', '')
-    #             elif self.channel_names:
-    #                 meaning = self.channel_names[signum]
-    #             else:
-    #                 # Is there is no name, we print no name
-    #                 meaning = ['']
-
-    #             h = h_delta * numcol
-    #             v = v_delta + row_height / 2.6
-    #             plt.plot(
-    #                 [h, h],
-    #                 [v - 3, v],
-    #                 lw=.6,
-    #                 color='black',
-    #                 zorder=50
-    #             )
-
-    #             self.axis.text(
-    #                 h + 40,
-    #                 v_delta + row_height / 3,
-    #                 meaning,
-    #                 zorder=50,
-    #                 fontsize=8
-    #             )
-
-    #     # A4 size in inches
-    #     self.fig.set_size_inches(11.69, 8.27)
-
-
-        """
-        Will take a ECGDICOMReader and draw an ECG illustration of the
-        lead-specific waveforms or median beats
-        and confirm the files exist and have appropriate read permission
-        
-        Parameters
-        ----------
-        skip_missing : bool, default `True`
-            Whether missing files, files without read permissions, or missing
-            waveform data should be skipped.
-        verbose : bool, default `False`
-            Prints missing files if skip_missing is set to `True`.
-        
-        Attributes
-        ----------
-        FailedPathList : list [`str`]
-            File paths were either the file was absent or without read
-            permission.
-        CuratedPathList : list [`str`]
-            File paths for files wich exist and are readable.
-        
-        Returns
-        -------
-        self : `ECGDICOMDrawing` instance
-            Returns the class instance with updated attributes.
-        
-        Notes
-        -----
-        Internally this simply creates and calls an instance the ECGDICOMTable
-        class.
-        """
-        # #### set to self
-        self.verbose = verbose
-        self.skip_missing = skip_missing
-        # #### call ECGDICOMTable and assign to self
-        ecgtable = ECGDICOMTable(self.ecgdicomreader,
-                                 path_list=getattr(self, PDNames.RPATH_L)
-        checkedpaths = ecgtable(skip_missing=self.skip_missing,
-                                verbose=self.verbose)
-        setattr(self, PDNames.FPATH_L, getattr(checkedpaths, PDNames.FPATH_L))
-        setattr(self, PDNames.CPATH_L, getattr(checkedpaths, PDNames.CPATH_L))
-
-
-
-
-
-# paper_w, paper_h = 297.0, 210.0
-
-# # Dimensions in mm of plot area
-# width = 250.0
-# height = 170.0
-# margin_left = margin_right = .5 * (paper_w - width)
-# margin_bottom = 10.0
-
-# # Normalized in [0, 1]
-# left = margin_left / paper_w
-# right = left + width / paper_w
-# bottom = margin_bottom / paper_h
-# top = bottom + height / paper_h
-
-# plt.ion()
-# fig, axes = plt.subplots()
-# fig.subplots_adjust(left=left, right=right, top=top,
-#                     bottom=bottom)
-
-# axes.set_ylim([0, height])
-
-# # We want to plot N values, where N=number of samples
-# axes.set_xlim([0, samples - 1])
-
+    # TODO add _update_kwargs.
+    def _draw_signal(self, layout:list[list[str]] | None=None,
+                     figsize:tuple[float, float] | None=None,
+                     kwargs_signal:dict[Any, Any] | None=None,
+                     kwargs_text:dict[Any, Any] | None=None,
+                     ) -> None:
+        '''
+        To Do
+        kwargs_*_dict : dict, default None
+            Optional arguments supplied to the various plotting functions:
+                kwargs_signal        --> ax.plot
+                kwargs_text          --> ax.text
+        '''
+        # #### check input
+        is_type(layout, (type(None), list))
+        is_type(figsize, (type(None), tuple))
+        if layout is None:
+            layout = [
+                ['I', 'aVR', 'V1', 'V4'],
+                ['II', 'aVL', 'V2', 'V5'],
+                ['III', 'aVF', 'V3', 'V6'],
+                ['II'],
+            ]
+        setattr(self, PDNames.PLOT_LAYOUT, layout)
+        # confirm layout matches the signal.keys
+        flat_layout = [l for s in getattr(self, PDNames.PLOT_LAYOUT) for l in s]
+        msg_elements = [l for l in flat_layout if l not in\
+                        getattr(self, PDNames.ECG_SIGNAL)]
+        if msg_elements:
+            raise KeyError(f"The following `layout` entries are unavailable "
+                           f"in the waveform dictionary: {msg_elements}. "
+                           f"The dictionary keys are: "
+                           f"{list(getattr(self, PDNames.ECG_SIGNAL))}.")
+        # set some default
+        if figsize is None:
+            figsize=(self.paper_w/self.inch_mm, self.paper_h/self.inch_mm)
+        # map None to dict
+        kwargs_signal, kwargs_text = assign_empty_default(
+            [kwargs_signal, kwargs_text], dict)
+        # #### sort out the ploting areas (note not using gridspecs currently)
+        rows = len(getattr(self, PDNames.PLOT_LAYOUT))
+        for numrow, row in enumerate(getattr(self, PDNames.PLOT_LAYOUT)):
+            columns = len(row)
+            row_height = getattr(self, PDNames.PLOT_HEIGHT) / rows
+            # Horizontal shift for lead labels and separators
+            h_delta = getattr(self, PDNames.SAMPLING_NUMBER)/ columns
+            # Vertical shift of the origin
+            v_delta = round(
+                getattr(self, PDNames.PLOT_HEIGHT) * (1.0 - 1.0 / (rows * 2)) -
+                numrow * (getattr(self, PDNames.PLOT_HEIGHT) / rows)
+            )
+            # Let's shift the origin on a multiple of 5 mm
+            v_delta = (v_delta + 2.5) - (v_delta + 2.5) % 5
+            # Lenght of a signal chunk
+            chunk_size = int(getattr(self, PDNames.SAMPLING_NUMBER) / len(row))
+            # ### actually plot the signals
+            for numcol, k in enumerate(row):
+                left = numcol * chunk_size
+                right = (1 + numcol) * chunk_size
+                # The signal chunk, vertical shifted and
+                # scaled by mm/mV factor
+                signal = v_delta + getattr(self, PDNames.WAVE_SCALING) *\
+                    getattr(self, PDNames.ECG_SIGNAL)[k][left:right]
+                # update kwargs
+                new_kwargs_signal = _update_kwargs(update_dict=kwargs_signal,
+                                                   clip_on=False,
+                                                   linewidth=0.6,
+                                                   color='black',
+                                                   zorder=2,
+                                                   )
+                # plot the signal
+                self.ax.plot(
+                    list(range(left, right)),
+                    signal,
+                    **new_kwargs_signal,
+                    )
+                # update kwargs
+                new_kwargs_text = _update_kwargs(update_dict=kwargs_text,
+                                                 zorder=3,
+                                                 fontsize=8,
+                                                 )
+                # plot the lead name
+                h = h_delta * numcol
+                v = v_delta + row_height / 2.6
+                self.ax.text(
+                    x=h + 40,
+                    y=v_delta + row_height / 3,
+                    s=k,
+                    **new_kwargs_text,
+                )
+            # remove the tick labels
+            self.ax.set_xticklabels([])
+            self.ax.set_yticklabels([])
+            # resize figure
+            self.fig.set_size_inches(figsize)
 

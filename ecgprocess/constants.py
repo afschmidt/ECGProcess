@@ -11,8 +11,8 @@ class ProcessDicomNames(object):
     '''
     MEDIAN_PRESENT        = 'MedianWaveformPresent'
     WAVE_ARRAY            = 'Raw_Waveforms'
-    LEAD_UNITS            = 'WaveformsUnits'
-    LEAD_UNITS2           = 'MedianWaveformsUnits'
+    LEAD_UNITS            = 'WaveformUnits'
+    LEAD_UNITS2           = 'MedianWaveformUnits'
     MEDIAN_ARRAY          = 'Raw_MedianWaveforms'
     LEAD_VOLTAGES         = 'Waveforms'
     LEAD_VOLTAGES2        = 'MedianWaveforms'
@@ -76,6 +76,14 @@ class ProcessDicomNames(object):
     ECG_TRAIT_QRS_D       = 'QRS Duration'
     ECG_UNIT              = 'MeasurementUnitsCodeSequence'
     ECG_UNIT_STRING       = ' UNIT'
+    WAVE_SCALING          = 'MM_MV'
+    MICROVOLT             = 'microvolt'
+    MILLIVOLT             = 'millivolt'
+    ECG_SIGNAL            = 'ecg_signal'
+    WAVE_TYPE             = 'wave_type'
+    PLOT_LAYOUT           = 'layout'
+    PLOT_HEIGHT           = 'height'
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
