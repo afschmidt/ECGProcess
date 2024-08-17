@@ -86,6 +86,7 @@ class ProcessDicomNames(object):
     PLOT_WIDTH            = 'width'
     PLOT_UNIT             = 'ecg_unit'
     PLOT_AXES             = 'ax'
+    PLOT_FIG              = 'fig'
     PLOT_FIGSIZE          = 'figsize'
 
 
