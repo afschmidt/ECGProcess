@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pylab as plt
 from typing import (
-    List, Literal, Type, Union, Tuple, Self, Dict, Optional, Any,
+    Callable, List, Literal, Type, Union, Tuple, Self, Dict, Optional, Any,
 )
 from ecgprocess.errors import (
     NotCalledError,
@@ -34,7 +34,8 @@ from ecgprocess.utils.general import (
 class ECGDrawing(object):
     '''
     Takes a called `ECGDICOMReader` instance and plots the lead-specific
-    ECG signals.
+    ECG signals. Includes a method to map the figure to a 3-dimensional numpy
+    array.
     
     Attributes
     ----------
@@ -58,9 +59,9 @@ class ECGDrawing(object):
     
     Methods
     -------
-    to_numpy()
+    to_numpy(crop)
         maps a matplotlib image to a numpy array.
-     
+    
     Notes
     -----
     Calling the class instance will check the ECG unit, and if needed convert
@@ -100,7 +101,7 @@ class ECGDrawing(object):
         return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, ecgdicomreader:ECGDICOMReader,
+    def __call__(self, ecgdicomreader:Callable,
                  wave_type:Literal['rhythm', 'median']='rhythm',
                  add_grid:bool=False, minor_axis:bool=True,
                  image_layout:list[list[str]] | None=None,
@@ -489,9 +490,16 @@ class ECGDrawing(object):
             # resize figure
             getattr(self, PDNames.PLOT_FIG).set_size_inches(figsize)
     # /////////////////////////////////////////////////////////////////////////
-    def to_numpy(self) -> np.ndarray:
+    def to_numpy(self, crop:bool=False) -> np.ndarray:
         '''
         Maps a matplotlib image to a numpy array.
+        
+        Parameters
+        ----------
+        crop : `bool`, default `False`
+            Whether the image should be cropped to focus on the data within
+            the axes spines. False simply maps the entire figure object to a
+            numpy array.
         
         Returns
         -------
@@ -502,11 +510,26 @@ class ECGDrawing(object):
                 z: the number of channels (4 for an RGBA image).
         '''
         # #### check input and ensure a figure is present
-        is_type(figure, bool)
+        is_type(crop, bool)
         # check a figure is present (should have a fig and unit attribute)
         if hasattr(self, PDNames.PLOT_FIG) == False or\
                 hasattr(self, PDNames.PLOT_UNIT) == False:
             raise NotCalledError()
+        # ##### Does the figure need to be cropped
+        if crop == True:
+            # # # the bounding box of the area between the spines
+            # bbox = getattr(self, PDNames.PLOT_AXES).get_position()
+            # # Adjust the figure size to fit the bounding box
+            # fig_w, fig_h = getattr(self, PDNames.PLOT_FIG).get_size_inches()
+            # bbox_width = bbox.width * fig_w
+            # bbox_height = bbox.height * fig_h
+            # getattr(self, PDNames.PLOT_FIG).\
+            #     set_size_inches(bbox_width, bbox_height)
+            # just simply call height and width from self
+            getattr(self, PDNames.PLOT_FIG).set_size_inches(
+                    getattr(self, PDNames.PLOT_WIDTH)/self.inch_mm,
+                    getattr(self, PDNames.PLOT_HEIGHT)/self.inch_mm,
+                )
         # #### the actual mapping to numpy
         # render the figure buffer
         getattr(self, PDNames.PLOT_FIG).canvas.draw()
@@ -526,10 +549,9 @@ class ECGDrawing(object):
         # reorder the channels from ARGB to RGBA
         img_array = np.roll(img_array, 3, axis=2)
         # #### close figure
-        plt.close(getattr(self, PDNames.PLOT_FIG))
+        # plt.close(getattr(self, PDNames.PLOT_FIG))
         # #### return
         return img_array
-
 
 # # NOTE delete the imports
 # from ecgprocess.example_data.examples import (
@@ -547,10 +569,15 @@ class ECGDrawing(object):
 #                                verbose=verbose)
 
 # artist = ECGDrawing()
-# arr = artist(ecgdicomreader, add_grid=True).to_numpy(figure=False)
-# arr.shape
+# arr = artist(ecgdicomreader, add_grid=True).to_numpy(crop=False)
+# plt.close('all')
+# # arr.shape
+# # >>> arr.shape
+# # (693, 1019, 4)
 
-# plt.ion()
+# >>> arr.shape
+# (369, 496, 4)
+# # plt.ion()
 # plt.imshow(arr)
 # plt.close()
 # plt.ioff()
