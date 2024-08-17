@@ -549,7 +549,7 @@ class ECGDrawing(object):
         # reorder the channels from ARGB to RGBA
         img_array = np.roll(img_array, 3, axis=2)
         # #### close figure
-        # plt.close(getattr(self, PDNames.PLOT_FIG))
+        plt.close(getattr(self, PDNames.PLOT_FIG))
         # #### return
         return img_array
 
