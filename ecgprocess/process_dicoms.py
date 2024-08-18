@@ -18,8 +18,10 @@ from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
 from datetime import datetime
 from scipy import signal
-from dataclasses import dataclass, field
-from typing import List, Type, Union, Tuple, Self, Dict, Optional, Any, Literal
+from dataclasses import dataclass
+from typing import (
+    List, Type, Union, Tuple, Self, Dict, Optional, Any, Literal,
+)
 from ecgprocess.errors import (
     NotCalledError,
     is_type,
@@ -138,6 +140,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
     METADATA = copy.deepcopy(DICOMTags().METADATA)
     WAVE_FORMS = copy.deepcopy(DICOMTags().WAVE_FORMS)
     WAVE_FORMS_DICT = copy.deepcopy(DICOMTags().WAVE_FORMS_DICT)
+    MEDIAN_BEATS = copy.deepcopy(DICOMTags().MEDIAN_BEATS)
     MEDIAN_BEATS_DICT = copy.deepcopy(DICOMTags().MEDIAN_BEATS_DICT)
     ECG_TRAIT_DICT = copy.deepcopy(DICOMTags().ECG_INTERPERTATION_DICT)
     # #### default dates to extract and format
@@ -251,6 +254,8 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 results_dict[PDNames.SAMPLING_FREQ] =\
                     results_dict[PDNames.SF_ORIGINAL]
                 results_dict[PDNames.LEAD_UNITS] = np.nan
+            # add to missing dict
+            
             # #### Extract Median beats
             nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
             # NOTE WAVE_FORM_SEQ is present because the code
@@ -264,6 +269,23 @@ class ECGDICOMReader(BaseECGDICOMReader):
             except:
                 sccss = False
             if sccss == True and len(getattr(ECG, PDNames.WAVE_FORM_SEQ)) == 2:
+                WAVE_M = getattr(ECG, PDNames.WAVE_FORM_SEQ)[1]
+                SETTINGS_M = getattr(WAVE, PDNames.CHANNEL_DEF_SEQ)[1]
+                empty_median_beats = []
+                for t, s in self.MEDIAN_BEATS.items():
+                    # if present in WAVE or SETTINGS assign
+                    if hasattr(WAVE_M, s):
+                        results_dict[t] = getattr(WAVE_M, s)
+                    elif hasattr(SETTINGS_M, s):
+                        results_dict[t] = getattr(SETTINGS_M, s)
+                    elif skip_empty == False:
+                        # Should an Error be returned
+                        raise MissingDICOMTagError(s)
+                    else:
+                        # assign NA and append missing metadata
+                        results_dict[t] = np.nan
+                        empty_median_beats.append(s)
+                # Check number of channels in ECG waveform
                 # Assign if present
                 channel_seq_median = getattr(
                     getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
@@ -398,10 +420,12 @@ class ECGDICOMReader(BaseECGDICOMReader):
         )
         # #### end of `dicom` part, optionally printing tags which were missing
         if verbose == True:
-            if len(empty_metadata) + len(empty_wave_forms) > 0:
+            if len(empty_metadata) + len(empty_wave_forms) +\
+                    len(empty_median_beats)> 0:
                 warnings.warn(
                     'The following DICOM tags could not be found: {}.'.format(
-                        empty_metadata + empty_wave_forms))
+                        empty_metadata + empty_wave_forms +\
+                    empty_median_beats))
         # add time variables
         raw_AD = results_dict[PDNames.ACQUISITION_DATE]
         raw_SD = results_dict[PDNames.STUDY_DATE]
@@ -542,12 +566,12 @@ class ECGDICOMReader(BaseECGDICOMReader):
 class ECGDICOMTable(object):
     '''
     Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
-    and maps these to numpy or pandas tables which can be saved to disk.
+    and maps these to which can be used in analyses or saved to disk.
     
     Attributes
     ----------
     RawPathList : list [`str`]
-        A list of dcm file paths which have not been confirmed to exist.
+        A list of dcm file paths.
     
     Methods
     -------
@@ -743,7 +767,7 @@ class ECGDICOMTable(object):
         setattr(self, PDNames.INFO_T, pd.DataFrame(
             info_list, index=getattr(self, PDNames.KEY_L)
         ))
-        # wave forms, and median beta
+        # wave forms, and median beats
         setattr(self, PDNames.WAVE_T, self._get_long_table(
             wave_list, wave_type=PDNames.WAVETYPE_RHYTHM,
             update_keys=update_keys,
@@ -1031,5 +1055,6 @@ class ECGDICOMTable(object):
             setattr(self, PDNames.WRITE_ECS_PATH, target_final)
         # #### return
         return self
+
 
 

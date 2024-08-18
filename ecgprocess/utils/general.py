@@ -4,7 +4,10 @@ The general utils module
 import os
 import shutil
 import tarfile
-from typing import List, Any
+from typing import Any, List, Type, Union, Tuple, Callable, Optional, Dict
+from ecgprocess.errors import (
+    is_type,
+)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def replace_with_tar(old_dir:str, new_tar:str, mode:str='w:gz'):
@@ -83,3 +86,75 @@ def getattr_case_insensitive(obj:object, attr_name:str) -> Any:
     # Raise an AttributeError if no match is found
     raise AttributeError(f"'{type(obj).__name__}' object has no attribute "
                          f"'{attr_name}'")
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def assign_empty_default(arguments:List[Any], empty_object:Callable[[],Any],
+                         ) -> List[Any]:
+    '''
+    Takes a list of `arguments`, checks if these are `NoneType` and if so
+    asigns them 'empty_object'.
+    
+    This function helps deal with the pitfall of assigning an empty mutable
+    object as a default function argument, which would persist through multiple
+    function calls, leading to unexpected/undesired behaviours.
+    
+    Parameters
+    ----------
+    arguments: list of arguments
+        A list of arguments which may be set to `NoneType`.
+    empty_object: Callable that returns a mutable object
+        Examples include a `list` or a `dict`.
+    
+    Returns
+    -------
+    new_arguments: list
+        List with `NoneType` replaced by empty mutable object.
+    
+    Examples
+    --------
+    >>> assign_empty_default(['hi', None, 'hello'], empty_object=list)
+    ['hi', [], 'hello']
+    '''
+    # check input
+    is_type(arguments, list, 'arguments')
+    is_type(empty_object, type, 'empty_object')
+    # loop over arguments
+    new_args = [empty_object() if arg is None else arg for arg in arguments]
+    # return
+    return new_args
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _update_kwargs(update_dict:Dict[Any, Any], **kwargs:Optional[Any],
+            ) -> Dict[Any, Any]:
+    '''
+    This function will take any number of `kwargs` and add them to an
+    `update_dict`. If there are any duplicate values in the `kwargs` and the
+    `update_dict`, the entries in the `update_dict` will take precedence.
+    
+    Parameters
+    ----------
+    update_dict : dict
+        A dictionary with key - value pairs that should be combined with any
+        of the supplied kwargs.
+    kwargs : Any
+        Arbitrary keyword arguments.
+    
+    Returns
+    -------
+    dict:
+        A dictionary with the update_dict and kwargs combined, where duplicate
+        entries from update_dict overwrite those in kwargs.
+    
+    Examples
+    --------
+        The function is particularly useful to overwrite `kwargs` that are
+        supplied to a nested function say
+        
+        >>> _update_kwargs(update_dict={'c': 'black'}, c='red',
+                         alpha = 0.5)
+        >>> {'c': 'black', 'alpha': 0.5}
+    '''
+    new_dict = {**kwargs, **update_dict}
+    # returns
+    return new_dict
+

@@ -4,6 +4,12 @@ process_dicoms
    :members:
    :special-members:
 
+plot_ecgs
+--------------
+.. automodule:: ecgprocess.plot_ecgs
+   :members:
+   :special-members:
+
 process_dicoms.utils.general
 ----------------------------
 .. automodule:: ecgprocess.utils.general

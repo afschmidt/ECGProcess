@@ -11,8 +11,8 @@ class ProcessDicomNames(object):
     '''
     MEDIAN_PRESENT        = 'MedianWaveformPresent'
     WAVE_ARRAY            = 'Raw_Waveforms'
-    LEAD_UNITS            = 'WaveformsUnits'
-    LEAD_UNITS2           = 'MedianWaveformsUnits'
+    LEAD_UNITS            = 'WaveformUnits'
+    LEAD_UNITS2           = 'MedianWaveformUnits'
     MEDIAN_ARRAY          = 'Raw_MedianWaveforms'
     LEAD_VOLTAGES         = 'Waveforms'
     LEAD_VOLTAGES2        = 'MedianWaveforms'
@@ -30,6 +30,7 @@ class ProcessDicomNames(object):
     RESULTS_DICT          = 'GeneralInfo'
     SAMPLING_FREQ         = 'SamplingFrequency'
     SAMPLING_NUMBER       = 'NumberOfWaveformSamples'
+    SAMPLING_NUMBER_M     = 'NumberOfWaveformSamples (MEDIAN)'
     SF_ORIGINAL           = 'SamplingFrequencyOriginal'
     SF                    = 'sf'
     DURATION              = 'Duration'
@@ -80,6 +81,22 @@ class ProcessDicomNames(object):
     SKIP_PERMISSIONS      = 'Permissions'
     SKIP_DATA             = 'Data'
     SKIP_NONE             = 'None'
+    WAVE_SCALING          = 'mm_mv'
+    MICROVOLT             = 'microvolt'
+    MILLIVOLT             = 'millivolt'
+    ECG_SIGNAL            = 'ecg_signal'
+    WAVE_TYPE             = 'wave_type'
+    PLOT_LAYOUT           = 'image_layout'
+    PLOT_HEIGHT           = 'height'
+    PLOT_WIDTH            = 'width'
+    PAPER_HEIGHT          = 'paper_h'
+    PAPER_WIDTH           = 'paper_w'
+    PLOT_UNIT             = 'ecg_unit'
+    PLOT_AXES             = 'ax'
+    PLOT_FIG              = 'fig'
+    PLOT_FIGSIZE          = 'figsize'
+    PLOT_SAMPLING_NUMBER  = 'sampling number'
+    ECG_READER            = 'ECG_READER'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
@@ -98,11 +115,13 @@ class DICOMTags(object):
     WAVE_FORMS
         A dictionary describing the waveform data one wants to extract.
     WAVE_FORMS_DICT
-        A dictionary describing the waveform data one wants to extract.
+        A dictionary describing the median beats data one wants to extract
+        from the 'WaveformSequence' or 'ChannelDefinitionSequence' attributes.
         The dictionary value contains a list with an object name (str) and
         element to extract.
     MEDIAN_BEATS_DICT
-        A dictionary describing the median beats data one wants to extract.
+        A dictionary describing the median beats data one wants to extract
+        from the 'WaveformSequence' or 'ChannelDefinitionSequence' attributes.
         The dictionary value contains a list with an object name (str) and
         element to extract.
     ECG_INTERPERTATION_DICT
@@ -165,39 +184,22 @@ class DICOMTags(object):
         'PR Interval': ['PR Interval'],
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    MEDIAN_BEATS = {
+        'TimeOffset'                      : 'MultiplexGroupTimeOffset',
+        ProcessDicomNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
+        ProcessDicomNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
+        'ChannelSensitivity'              : 'ChannelSensitivity',
+        'ChannelBaseline'                 : 'ChannelBaseline',
+        'ChannelSampleSkew'               : 'ChannelSampleSkew',
+        'FilterLowFrequency'              : 'FilterLowFrequency',
+        'FilterHighFrequency'             : 'FilterHighFrequency',
+        'NotchFilterFrequency'            : 'NotchFilterFrequency',
+    }
+    MEDIAN_BEATS = {k + ' (MEDIAN)': v for k, v in MEDIAN_BEATS.items()}
     MEDIAN_BEATS_DICT = {
         ProcessDicomNames.MEDIAN_ARRAY   : ['waveform_array', 1],
         ProcessDicomNames.LEAD_INFO      : ['lead_info', 1],
         ProcessDicomNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
     }
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # RESULTS_LIST = [
-    #     ProcessDicomNames.SOP_UID,
-    #     "SERIESinstanceUID",
-    #     "STUDYinstanceUID",
-    #     "PatientID",
-    #     "PatientBirthDate",
-    #     "PatientName",
-    #     "PatientSex",
-    #     "StudyDescription",
-    #     "AcquisitionTimeZone",
-    #     "AccessionNumber",
-    #     ProcessDicomNames.SAMPLING_NUMBER,
-    #     ProcessDicomNames.SAMPLING_FREQ,
-    #     ProcessDicomNames.SF_ORIGINAL,
-    #     ProcessDicomNames.DURATION,
-    #     "ChannelNumber",
-    #     "ChannelSensitivity",
-    #     "ChannelBaseline",
-    #     "ChannelSampleSkew",
-    #     "FilterLowFrequency",
-    #     "FilterHighFrequency",
-    #     "NotchFilterFrequency",
-    #     "Manufacturer",
-    #     "ManufacturerModelName",
-    #     "SoftwareVersions",
-    #     "DataExportedBy",
-    # ] + ECG_INTERPERTATION_LIST
-     
 
 

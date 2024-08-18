@@ -46,6 +46,10 @@ class TestECGDICOMReader(object):
         assert res.__getattribute__(PDNames.OVERSAMPLED) == True
         assert getattr(res,PDNames.RESULTS_DICT)[PDNames.LEAD_UNITS2]==\
                        'microvolt'
+        assert getattr(res,PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER_M]==\
+                       600
+        assert getattr(res,PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER]==\
+                       5000
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_augment_leads(self):
         ECG_DCM = ECGDICOMReader(augment_leads=True)

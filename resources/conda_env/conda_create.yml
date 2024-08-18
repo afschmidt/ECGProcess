@@ -9,6 +9,7 @@ dependencies:
   - numpy>=1.26
   - scipy>=1.7
   - pydicom>=2.0
+  - matplotlib>=3.9
   - pytest>=6
   - pytest-mock>=3.0
   - pytest-dependency>=0.5
