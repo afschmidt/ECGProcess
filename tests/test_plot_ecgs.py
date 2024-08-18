@@ -91,7 +91,6 @@ class TestECGDrawing(object):
         assert not hasattr(ax.xaxis.get_minor_locator(), NUMTICKS)
         assert hasattr(ax.xaxis.get_major_locator(), NUMTICKS)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @pytest.mark.skip(reason='issue with the x and y shapes - need to fix')
     def test_wave_type(self, ecgdicomreader_fixture):
         ecgreader=ecgdicomreader_fixture(path=dicom_file_path)
         artist = ECGDrawing()(ecgreader, wave_type=MEDIAN)

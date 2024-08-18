@@ -210,11 +210,20 @@ class ECGDrawing(object):
         setattr(self, PDNames.ECG_READER, ecgreader)
         if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
             setattr(self, PDNames.ECG_SIGNAL,
-                    getattr(getattr(self, PDNames.ECG_READER), PDNames.LEAD_VOLTAGES)
+                    getattr(getattr(self, PDNames.ECG_READER),
+                            PDNames.LEAD_VOLTAGES)
+                    )
+            setattr(self, PDNames.PLOT_SAMPLING_NUMBER,
+                    getattr(getattr(self, PDNames.ECG_READER),
+                               PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER]
                     )
         else:
             setattr(self, PDNames.ECG_SIGNAL,
                     getattr(getattr(self, PDNames.ECG_READER), PDNames.LEAD_VOLTAGES2)
+                    )
+            setattr(self, PDNames.PLOT_SAMPLING_NUMBER,
+                    getattr(getattr(self, PDNames.ECG_READER),
+                               PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER_M]
                     )
         # #### convert microvolts (µV) to millivolts (mV)
         try:
@@ -243,11 +252,6 @@ class ECGDrawing(object):
             warnings.warn(WARN2.format(unit))
         # add unit
         setattr(self, PDNames.PLOT_UNIT, unit)
-        # #### extract additional meta data
-        # sampling number
-        setattr(self, PDNames.SAMPLING_NUMBER,
-                getattr(getattr(self, PDNames.ECG_READER),
-                        PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER])
         # #### create figure
         self._set_canvas(auto_margins=auto_margins, ax=ax)
         if add_grid == True:
@@ -339,7 +343,7 @@ class ECGDrawing(object):
         # set the plotting axis
         axes.set_ylim([0, getattr(self, PDNames.PLOT_HEIGHT)])
         # axes.set_ylim([0, 5000])
-        axes.set_xlim([0, getattr(self, PDNames.SAMPLING_NUMBER) - 1])
+        axes.set_xlim([0, getattr(self, PDNames.PLOT_SAMPLING_NUMBER) - 1])
         # set to self
         setattr(self, PDNames.PLOT_FIG, f)
         setattr(self, PDNames.PLOT_AXES, axes)
@@ -440,7 +444,7 @@ class ECGDrawing(object):
             columns = len(row)
             row_height = getattr(self, PDNames.PLOT_HEIGHT) / rows
             # Horizontal shift for lead labels and separators
-            h_delta = getattr(self, PDNames.SAMPLING_NUMBER)/ columns
+            h_delta = getattr(self, PDNames.PLOT_SAMPLING_NUMBER)/ columns
             # Vertical shift of the origin
             v_delta = round(
                 getattr(self, PDNames.PLOT_HEIGHT) * (1.0 - 1.0 / (rows * 2)) -
@@ -449,7 +453,8 @@ class ECGDrawing(object):
             # Let's shift the origin on a multiple of 5 mm
             v_delta = (v_delta + 2.5) - (v_delta + 2.5) % 5
             # Lenght of a signal chunk
-            chunk_size = int(getattr(self, PDNames.SAMPLING_NUMBER) / len(row))
+            chunk_size =\
+                int(getattr(self, PDNames.PLOT_SAMPLING_NUMBER) / len(row))
             # ### actually plot the signals
             for numcol, k in enumerate(row):
                 left = numcol * chunk_size

@@ -91,6 +91,7 @@ class ProcessDicomNames(object):
     PLOT_AXES             = 'ax'
     PLOT_FIG              = 'fig'
     PLOT_FIGSIZE          = 'figsize'
+    PLOT_SAMPLING_NUMBER  = 'sampling number'
     ECG_READER            = 'ECG_READER'
 
 
