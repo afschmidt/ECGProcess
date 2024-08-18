@@ -8,4 +8,5 @@ the basic features of ECGProcess
    :maxdepth: 1
 
    recipe/process_dicoms.nblink
+   recipe/plot_ecgs.nblink
 

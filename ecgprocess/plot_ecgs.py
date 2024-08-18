@@ -4,7 +4,7 @@ Tools to plot ECG signals.
 The primary aim is not to make nice ECG visuals but to create input data for
 image analysis.
 
-The code heavily borrows form the following brilliant github
+The code heavily borrows from the following brilliant github
 `repository <https://github.com/marcodebe/dicom-ecg-plot>`_.
 '''
 
