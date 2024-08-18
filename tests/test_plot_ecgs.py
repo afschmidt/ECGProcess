@@ -1,5 +1,4 @@
 import pytest
-import pandas as pd
 from ecgprocess.constants import ProcessDicomNames as PDNames
 from ecgprocess.errors import NotCalledError
 from ecgprocess.process_dicoms import (

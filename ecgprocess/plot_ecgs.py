@@ -497,7 +497,7 @@ class ECGDrawing(object):
             # resize figure
             getattr(self, PDNames.PLOT_FIG).set_size_inches(figsize)
     # /////////////////////////////////////////////////////////////////////////
-    def to_numpy(self, crop:bool=False) -> np.ndarray:
+    def to_numpy(self, crop:bool=False, close:bool=True) -> np.ndarray:
         '''
         Maps a matplotlib image to a numpy array.
         
@@ -507,6 +507,8 @@ class ECGDrawing(object):
             Whether the image should be cropped to focus on the data within
             the axes spines. False simply maps the entire figure object to a
             numpy array.
+        close : `bool`, default `True`
+            Whether to call `plt.close` after extracting the numpy array data.
         
         Returns
         -------
@@ -518,22 +520,23 @@ class ECGDrawing(object):
         
         Notes
         -----
-        To save memory method automatically closes the figure after extracting
-        the numpy array data.
+        Crop does not really crop the image it simply increases the axes to
+        cover the entire figure and resizes the figure to the original axes
+        size.
         '''
         # #### check input and ensure a figure is present
         is_type(crop, bool)
+        is_type(close, bool)
         # check a figure is present (should have a fig and unit attribute)
         if hasattr(self, PDNames.PLOT_FIG) == False or\
                 hasattr(self, PDNames.PLOT_UNIT) == False:
             raise NotCalledError()
         # ##### Does the figure need to be cropped
         if crop == True:
-            # first make sure the labels and ticks are gone
-            getattr(self, PDNames.PLOT_AXES).set_xlabel('')
-            getattr(self, PDNames.PLOT_AXES).set_ylabel('')
-            getattr(self, PDNames.PLOT_AXES).set_xticks([])
-            getattr(self, PDNames.PLOT_AXES).set_yticks([])
+            # remove the entire axis
+            getattr(self, PDNames.PLOT_FIG).axis('off')
+            # increase the axes size to cover the entire figure
+            getattr(self, PDNames.PLOT_AXEX).set_position([0, 0, 1, 1])
             # Crop by simply calling the height and width from self
             getattr(self, PDNames.PLOT_FIG).set_size_inches(
                     getattr(self, PDNames.PLOT_WIDTH)/self.inch_mm,
@@ -558,6 +561,7 @@ class ECGDrawing(object):
         # reorder the channels from ARGB to RGBA
         img_array = np.roll(img_array, 3, axis=2)
         # #### close figure
-        plt.close(getattr(self, PDNames.PLOT_FIG))
+        if close == True:
+            plt.close(getattr(self, PDNames.PLOT_FIG))
         # #### return
         return img_array
