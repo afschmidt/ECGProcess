@@ -131,7 +131,9 @@ class ECGDrawing(object):
         minor_axis: `bool`, default `True`
             Whether to add the minor grid axes.
         image_layout : `list` [`list` [`str`]]
-            A nested lists organising the image by ECG lead names.
+            A nested lists organising the image by ECG lead names. When
+            wave_type is `median` please ensure the supplied list has the same
+            number of columns in each row.
         ax : plt.Axes, default `NoneType`
             An optional `matplotlib.axes.Axes` instance on which the ECG
             signals are plotted. If ommited will simply take an A4 x/y axes
@@ -158,6 +160,22 @@ class ECGDrawing(object):
         ax : `plt.axes`
             The matplotlib axes.
         
+        Returns
+        -------
+        self : `ECGDICOMDraw` instance
+            Returns the class instance with updated attributes.
+        
+        Notes
+        -----
+        To replicate an actual ECG image the signals are plotted on a single
+        x-axis. When plotting waveforms (i.e. wave_type=`rhythm`) which are
+        periodic the x-axis is simply divided in equally spaced sections and
+        the ECG signals are sampled based on the x-axis coordinates which
+        match the specific section. Median beats are not periodic and hence
+        the class simply plots the entire signal. This does mean that the
+        image_layout should have the same number of elements/columns for each
+        row.
+        
         Example
         -------
         >>> layout = [
@@ -171,11 +189,6 @@ class ECGDrawing(object):
         >>> plt.ion()
         >>> artist = ECGDrawing(add_grid=True, image_layout=layout)
         >>> plt.close()
-        
-        Returns
-        -------
-        self : `ECGDICOMDraw` instance
-            Returns the class instance with updated attributes.
         '''
         # constants
         WARN1 = ('The Waveform unit attribute is unavailable. Drawing assumes '
@@ -202,7 +215,6 @@ class ECGDrawing(object):
                 ['I', 'aVR', 'V1', 'V4'],
                 ['II', 'aVL', 'V2', 'V5'],
                 ['III', 'aVF', 'V3', 'V6'],
-                ['II'],
             ]
         setattr(self, PDNames.PLOT_LAYOUT, image_layout)
         # #### get ecg data
@@ -224,9 +236,13 @@ class ECGDrawing(object):
             setattr(self, PDNames.ECG_SIGNAL,
                     getattr(getattr(self, PDNames.ECG_READER), PDNames.LEAD_VOLTAGES2)
                     )
+            # multiplying this by the maximum number of columns in any row
+            # of plot_layout
             setattr(self, PDNames.PLOT_SAMPLING_NUMBER,
-                    getattr(getattr(self, PDNames.ECG_READER),
-                               PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER_M]
+                    getattr(
+                        getattr(self, PDNames.ECG_READER),
+                        PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER_M]*\
+                    max(len(l) for l in getattr(self, PDNames.PLOT_LAYOUT))
                     )
         # #### convert microvolts (µV) to millivolts (mV)
         try:
@@ -462,10 +478,18 @@ class ECGDrawing(object):
             for numcol, k in enumerate(row):
                 left = numcol * chunk_size
                 right = (1 + numcol) * chunk_size
+                # get the signal - for rhythm sample across the xaxis.
+                if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
+                    signal_temp =\
+                        getattr(self, PDNames.ECG_SIGNAL)[k][left:right]
+                else:
+                    # for median beats just extract the entire signal
+                    signal_temp =\
+                        getattr(self, PDNames.ECG_SIGNAL)[k][0:(chunk_size)]
                 # The signal chunk, vertical shifted and
                 # scaled by mm/mV factor
                 signal = v_delta + getattr(self, PDNames.WAVE_SCALING) *\
-                    getattr(self, PDNames.ECG_SIGNAL)[k][left:right]
+                    signal_temp
                 # update kwargs
                 new_kwargs_signal = _update_kwargs(
                     update_dict=kwargs_signal,
@@ -568,3 +592,23 @@ class ECGDrawing(object):
             plt.close(getattr(self, PDNames.PLOT_FIG))
         # #### return
         return img_array
+
+import matplotlib.pylab as plt
+from ecgprocess.process_dicoms import (
+    ECGDICOMReader,
+)
+from ecgprocess.example_data.examples import (
+    list_data_paths,
+)
+dicom_file_path = list_data_paths()['example_dicom_2']
+
+ecgdicomreader = ECGDICOMReader()
+ecgreader=ecgdicomreader(path=dicom_file_path)
+layout = [
+    ['I (Einthoven)', 'V1'],
+    ['II', 'V2'],
+    ['III', 'V3'],
+    ['aVR', 'V4'],
+    ['aVL', 'V5'],
+    ['aVF', 'V6'],
+]
