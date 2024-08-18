@@ -9,11 +9,10 @@ from ecgprocess.errors import (
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # NOTE 1: add tests
-# NOTE 2: needs to extract the time unit of the ECG to ensure these are
 # actually in ms.
 def calc_ventricular_rate(duration:float, samples:int|float, rr_interval:float,
                           ) -> float:
-    """
+    r"""
     Calculate the ventricular (i.e. heart) rate from the RR-interval.
     
     Parameters
@@ -28,19 +27,17 @@ def calc_ventricular_rate(duration:float, samples:int|float, rr_interval:float,
     
     Returns
     -------
-    float
+    vrate : `float`
         The estimated ventricular rate.
     
     Notes
     -----
     The ventricular rate is calculated using the following formula:
     
-    .. math::
+    .. :math::
     
-    $$
         \text{vrate} = \frac{60.0}{\text{duration}} \times
                        \frac{\text{samples}}{\text{rr_interval}}
-    $$
     
     The formula is used to determine the ventricular rate (heart rate) from
     the ECG data.

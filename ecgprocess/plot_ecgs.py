@@ -33,7 +33,6 @@ from ecgprocess.utils.general import (
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# NOTE add tests
 class ECGDrawing(object):
     '''
     Takes a called `ECGDICOMReader` instance and plots the lead-specific
