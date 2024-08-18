@@ -84,10 +84,13 @@ class ProcessDicomNames(object):
     PLOT_LAYOUT           = 'image_layout'
     PLOT_HEIGHT           = 'height'
     PLOT_WIDTH            = 'width'
+    PAPER_HEIGHT          = 'paper_h'
+    PAPER_WIDTH           = 'paper_w'
     PLOT_UNIT             = 'ecg_unit'
     PLOT_AXES             = 'ax'
     PLOT_FIG              = 'fig'
     PLOT_FIGSIZE          = 'figsize'
+    ECG_READER            = 'ECG_READER'
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

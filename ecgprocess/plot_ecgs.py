@@ -92,16 +92,15 @@ class ECGDrawing(object):
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
         CLASS_NAME = type(self).__name__
-        return (f"{CLASS_NAME} instance with "
-                f"ecgdicomreader={self.ecgdicomreader}."
+        return (f"{CLASS_NAME}"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __repr__(self):
         CLASS_NAME = type(self).__name__
-        return (f"{CLASS_NAME}(ecgdicomreader={self.ecgdicomreader})"
+        return (f"{CLASS_NAME}()"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, ecgdicomreader:Callable,
+    def __call__(self, ecgreader:Callable,
                  wave_type:Literal['rhythm', 'median']='rhythm',
                  add_grid:bool=False, minor_axis:bool=True,
                  image_layout:list[list[str]] | None=None,
@@ -115,9 +114,9 @@ class ECGDrawing(object):
         
         Parameters
         ----------
-        ecgdicomreader : ECGDICOMReader
-            An instance of the `ECGDICOMReader` data class that has already
-            been called to process the ECG data.
+        ecgreader : Callable
+            An instance of the `ECGDICOMReader`, or a similar, data class that
+            has already been called to process the ECG data.
         wave_type : {'rhythm', 'median'}, default `rhythm`
             The type of ECG signal to plot.
         add_grid : `bool`, default `False`
@@ -205,25 +204,25 @@ class ECGDrawing(object):
         setattr(self, PDNames.PLOT_LAYOUT, image_layout)
         # #### get ecg data
         # confirm class has been called - result_dict whould always be present
-        if not hasattr(ecgdicomreader, PDNames.RESULTS_DICT):
-            raise NotCalledError("`ecgdicomreader` __call__ method has "
+        if not hasattr(ecgreader, PDNames.RESULTS_DICT):
+            raise NotCalledError(f"`{PDNames.ECG_READER}` __call__ method has "
                                  "not been invoked.")
-        self.ecgdicomreader = ecgdicomreader
+        setattr(self, PDNames.ECG_READER, ecgreader)
         if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
             setattr(self, PDNames.ECG_SIGNAL,
-                    getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES)
+                    getattr(getattr(self, PDNames.ECG_READER), PDNames.LEAD_VOLTAGES)
                     )
         else:
             setattr(self, PDNames.ECG_SIGNAL,
-                    getattr(self.ecgdicomreader, PDNames.LEAD_VOLTAGES2)
+                    getattr(getattr(self, PDNames.ECG_READER), PDNames.LEAD_VOLTAGES2)
                     )
         # #### convert microvolts (µV) to millivolts (mV)
         try:
-            unit = getattr(self.ecgdicomreader,
+            unit = getattr(getattr(self, PDNames.ECG_READER),
                            PDNames.RESULTS_DICT)[PDNames.LEAD_UNITS]
         except KeyError:
             try:
-                unit = getattr(self.ecgdicomreader,
+                unit = getattr(getattr(self, PDNames.ECG_READER),
                                PDNames.RESULTS_DICT)[PDNames.LEAD_UNITS2]
             except KeyError:
                 warnings.warn(WARN1)
@@ -247,8 +246,8 @@ class ECGDrawing(object):
         # #### extract additional meta data
         # sampling number
         setattr(self, PDNames.SAMPLING_NUMBER,
-                getattr(ecgdicomreader, PDNames.RESULTS_DICT)[
-                    PDNames.SAMPLING_NUMBER])
+                getattr(getattr(self, PDNames.ECG_READER),
+                        PDNames.RESULTS_DICT)[PDNames.SAMPLING_NUMBER])
         # #### create figure
         self._set_canvas(auto_margins=auto_margins, ax=ax)
         if add_grid == True:
@@ -312,6 +311,10 @@ class ECGDrawing(object):
                     np.round(width_n * fig_width * self.inch_mm))
             setattr(self, PDNames.PLOT_HEIGHT,
                     np.round(height_n * fig_height * self.inch_mm))
+            setattr(self, PDNames.PAPER_WIDTH,
+                    np.round(fig_width * self.inch_mm))
+            setattr(self, PDNames.PAPER_HEIGHT,
+                    np.round(fig_height * self.inch_mm))
         # calculate marings
         if auto_margins == True:
             margin_left =  .5 * (self.paper_w -
@@ -470,8 +473,7 @@ class ECGDrawing(object):
                     **new_kwargs_signal,
                     )
                 # update kwargs
-                new_kwargs_text = _update_kwargs(
-                    update_dict=kwargs_text,
+                new_kwargs_text = _update_kwargs( update_dict=kwargs_text,
                     zorder=3,
                     fontsize=8,
                 )
@@ -508,6 +510,11 @@ class ECGDrawing(object):
                 x: the pixels along the vertical axis.
                 y: the pixels along the horizontal axis.
                 z: the number of channels (4 for an RGBA image).
+        
+        Notes
+        -----
+        To save memory method automatically closes the figure after extracting
+        the numpy array data.
         '''
         # #### check input and ensure a figure is present
         is_type(crop, bool)
@@ -517,15 +524,12 @@ class ECGDrawing(object):
             raise NotCalledError()
         # ##### Does the figure need to be cropped
         if crop == True:
-            # # # the bounding box of the area between the spines
-            # bbox = getattr(self, PDNames.PLOT_AXES).get_position()
-            # # Adjust the figure size to fit the bounding box
-            # fig_w, fig_h = getattr(self, PDNames.PLOT_FIG).get_size_inches()
-            # bbox_width = bbox.width * fig_w
-            # bbox_height = bbox.height * fig_h
-            # getattr(self, PDNames.PLOT_FIG).\
-            #     set_size_inches(bbox_width, bbox_height)
-            # just simply call height and width from self
+            # first make sure the labels and ticks are gone
+            getattr(self, PDNames.PLOT_AXES).set_xlabel('')
+            getattr(self, PDNames.PLOT_AXES).set_ylabel('')
+            getattr(self, PDNames.PLOT_AXES).set_xticks([])
+            getattr(self, PDNames.PLOT_AXES).set_yticks([])
+            # Crop by simply calling the height and width from self
             getattr(self, PDNames.PLOT_FIG).set_size_inches(
                     getattr(self, PDNames.PLOT_WIDTH)/self.inch_mm,
                     getattr(self, PDNames.PLOT_HEIGHT)/self.inch_mm,
@@ -552,44 +556,3 @@ class ECGDrawing(object):
         plt.close(getattr(self, PDNames.PLOT_FIG))
         # #### return
         return img_array
-
-# # NOTE delete the imports
-# from ecgprocess.example_data.examples import (
-#     list_data_paths,
-# )
-# from ecgprocess.process_dicoms import (
-#     ECGDICOMReader,
-# )
-
-# verbose=False
-# skip_empty=True
-# path = list_data_paths()['example_dicom_1']
-# ecgdicomreader = ECGDICOMReader()
-# ecgdicomreader = ecgdicomreader(path=path, skip_empty=skip_empty,
-#                                verbose=verbose)
-
-# artist = ECGDrawing()
-# arr = artist(ecgdicomreader, add_grid=True).to_numpy(crop=False)
-# plt.close('all')
-# # arr.shape
-# # >>> arr.shape
-# # (693, 1019, 4)
-
-# >>> arr.shape
-# (369, 496, 4)
-# # plt.ion()
-# plt.imshow(arr)
-# plt.close()
-# plt.ioff()
-# # artist = ECGDrawing()
-# # f, axes = plt.subplots(figsize=(20, 4))
-
-# # test = artist(ecgdicomreader, add_grid=True, minor_axis=False,
-# #               ax=axes)
-# # set2 = set(dir(test))
-# # set2-set1
-
-# # # artist._set_canvas()
-# # # artist._draw_grid()
-# # # artist._draw_signal()
-
