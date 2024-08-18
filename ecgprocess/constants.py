@@ -30,6 +30,7 @@ class ProcessDicomNames(object):
     RESULTS_DICT          = 'GeneralInfo'
     SAMPLING_FREQ         = 'SamplingFrequency'
     SAMPLING_NUMBER       = 'NumberOfWaveformSamples'
+    SAMPLING_NUMBER_M     = 'NumberOfWaveformSamples (MEDIAN)'
     SF_ORIGINAL           = 'SamplingFrequencyOriginal'
     SF                    = 'sf'
     DURATION              = 'Duration'
@@ -110,11 +111,13 @@ class DICOMTags(object):
     WAVE_FORMS
         A dictionary describing the waveform data one wants to extract.
     WAVE_FORMS_DICT
-        A dictionary describing the waveform data one wants to extract.
+        A dictionary describing the median beats data one wants to extract
+        from the 'WaveformSequence' or 'ChannelDefinitionSequence' attributes.
         The dictionary value contains a list with an object name (str) and
         element to extract.
     MEDIAN_BEATS_DICT
-        A dictionary describing the median beats data one wants to extract.
+        A dictionary describing the median beats data one wants to extract
+        from the 'WaveformSequence' or 'ChannelDefinitionSequence' attributes.
         The dictionary value contains a list with an object name (str) and
         element to extract.
     ECG_INTERPERTATION_DICT
@@ -177,6 +180,18 @@ class DICOMTags(object):
         'PR Interval': ['PR Interval'],
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    MEDIAN_BEATS = {
+        'TimeOffset'                      : 'MultiplexGroupTimeOffset',
+        ProcessDicomNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
+        ProcessDicomNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
+        'ChannelSensitivity'              : 'ChannelSensitivity',
+        'ChannelBaseline'                 : 'ChannelBaseline',
+        'ChannelSampleSkew'               : 'ChannelSampleSkew',
+        'FilterLowFrequency'              : 'FilterLowFrequency',
+        'FilterHighFrequency'             : 'FilterHighFrequency',
+        'NotchFilterFrequency'            : 'NotchFilterFrequency',
+    }
+    MEDIAN_BEATS = {k + ' (MEDIAN)': v for k, v in MEDIAN_BEATS.items()}
     MEDIAN_BEATS_DICT = {
         ProcessDicomNames.MEDIAN_ARRAY   : ['waveform_array', 1],
         ProcessDicomNames.LEAD_INFO      : ['lead_info', 1],
