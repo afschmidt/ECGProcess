@@ -191,7 +191,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         _check_readable(path)
         # #### Read DICOM
         ECG, results_dict, empty_metadata = self.get_metadata(
-            path, skip_empty)
+            path, skip_empty=skip_empty)
         # #### Extract waveforms
         try:
             nam, el = self.WAVE_FORMS_DICT[PDNames.WAVE_ARRAY]
@@ -430,15 +430,18 @@ class ECGDICOMReader(BaseECGDICOMReader):
         # #### return stuff
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_metadata(self, path:str, skip_empty:bool=True
+    def get_metadata(self, path:str|None, dicom_instance: DCM_Class|None=None,
+                     skip_empty:bool=True
                      ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
         '''
         Extracts an dicom file, extracting its metadata.
         
         Parameters
         ----------
-        path : str,
+        path : str, default `NoneType`.
             The path to the .dcm file.
+        dicom_instance : DCM_Class, default `NoneType`.
+            A DCM_Class instance.
         
         Returns
         -------
@@ -446,28 +449,40 @@ class ECGDICOMReader(BaseECGDICOMReader):
             - A `DCM_Class` instance.
             - A dictionary with extracted metadata.
             - A list of missing `DCM_Class` attribute names.
+        
+        Notes
+        -----
+        Either supply a path or a DCM_Class instance
         '''
-        is_type(path, (pathlib.PosixPath, str))
+        # #### check input
+        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(dicom_instance, (type(None), DCM_Class))
         is_type(skip_empty, bool)
         results_dict = {}
+        if (not dicom_instance is None) and (not path is None):
+            raise ValueError('Please supply either `path` or `dicom_instance` '
+                             'but not both.')
         # #### Read DICOM
         # NOTE `with` closes automatically if an error is raised
-        with open(path, 'rb') as dicom:
-            # reads standard dicom content
-            ECG=dcmread(dicom)
-            # #### extract metadata
-            empty_metadata = []
-            for t, s in self.METADATA.items():
-                if hasattr(ECG, s):
-                    # Assign if present
-                    results_dict[t] = getattr(ECG, s)
-                elif skip_empty == False:
-                    # Should an Error be returned
-                    raise MissingDICOMTagError(s)
-                else:
-                    # assign NA and append missing metadata
-                    results_dict[t] = np.nan
-                    empty_metadata.append(s)
+        if not path is None:
+            with open(path, 'rb') as dicom:
+                # reads standard dicom content
+                ECG=dcmread(dicom)
+        else:
+            ECG=dicom_instance
+        # #### extract metadata
+        empty_metadata = []
+        for t, s in self.METADATA.items():
+            if hasattr(ECG, s):
+                # Assign if present
+                results_dict[t] = getattr(ECG, s)
+            elif skip_empty == False:
+                # Should an Error be returned
+                raise MissingDICOMTagError(s)
+            else:
+                # assign NA and append missing metadata
+                results_dict[t] = np.nan
+                empty_metadata.append(s)
         # return
         return ECG, results_dict, empty_metadata
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
