@@ -195,112 +195,14 @@ class ECGDICOMReader(BaseECGDICOMReader):
         ECG, results_dict, empty_metadata = self.get_metadata(
             path, skip_empty=skip_empty)
         # #### Extract waveforms
-        try:
-            nam, el = self.WAVE_FORMS_DICT[PDNames.WAVE_ARRAY]
-            setattr(self, PDNames.WAVE_ARRAY,
-                    getattr(ECG, nam)(el).T)
-        except:
-            raise AttributeError(Error_MSG.MISSING_DICOM.format(nam))
-        WAVE = getattr(ECG, PDNames.WAVE_FORM_SEQ)[0]
-        SETTINGS = getattr(WAVE, PDNames.CHANNEL_DEF_SEQ)[0]
-        # loop over the remaining wave form data
-        empty_wave_forms = []
-        for t, s in self.WAVE_FORMS.items():
-            # if present in WAVE or SETTINGS assign
-            if hasattr(WAVE, s):
-                results_dict[t] = getattr(WAVE, s)
-            elif hasattr(SETTINGS, s):
-                results_dict[t] = getattr(SETTINGS, s)
-            elif skip_empty == False:
-                # Should an Error be returned
-                raise MissingDICOMTagError(s)
-            else:
-                # assign NA and append missing metadata
-                results_dict[t] = np.nan
-                empty_wave_forms.append(s)
-            # Check number of channels in ECG waveform
-        if results_dict[PDNames.CHANNEL_NUMBER] >= 8:
-            channel_seq = getattr(getattr(ECG, PDNames.WAVE_FORM_SEQ)[0],
-                                  PDNames.CHANNEL_DEF_SEQ)
-            lead_info_waveform, lead_units=self._get_lead_info(channel_seq)
-            setattr(self, PDNames.LEAD_VOLTAGES,
-                    self.make_leadvoltages(
-                        lead_info=lead_info_waveform,
-                        waveform_array=getattr(self, PDNames.WAVE_ARRAY),
-                        augment_leads=self.augment_leads,
-                        ))
-            results_dict[PDNames.LEAD_UNITS] = lead_units
-            results_dict[PDNames.SAMPLING_FREQ] =\
-                results_dict[PDNames.SF_ORIGINAL]
-            if self.retain_raw == False:
-                delattr(self, PDNames.WAVE_ARRAY)
-        else:
-            # set to NA
-            setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
-            empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
-            results_dict[PDNames.SAMPLING_FREQ] =\
-                results_dict[PDNames.SF_ORIGINAL]
-            results_dict[PDNames.LEAD_UNITS] = np.nan
+        _, wave_dict, empty_wave_forms = self.get_waveforms(
+            dicom_instance=ECG, skip_empty=skip_empty)
+        results_dict.update(wave_dict)
         # #### Extract Median beats
-        nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
-        # NOTE WAVE_FORM_SEQ is present because the code
-        # above for the waveforms would have failed otherwise. So just
-        # checking the number of elements - the median beats info should be
-        # element 1 (i.e. len(x) == 2)
-        try:
-            sccss = True
-            # note this is a method call
-            getattr(ECG, nam)(el)
-        except:
-            sccss = False
-        if sccss == True and len(getattr(ECG, PDNames.WAVE_FORM_SEQ)) == 2:
-            WAVE_M = getattr(ECG, PDNames.WAVE_FORM_SEQ)[1]
-            SETTINGS_M = getattr(WAVE, PDNames.CHANNEL_DEF_SEQ)[1]
-            empty_median_beats = []
-            for t, s in self.MEDIAN_BEATS.items():
-                # if present in WAVE or SETTINGS assign
-                if hasattr(WAVE_M, s):
-                    results_dict[t] = getattr(WAVE_M, s)
-                elif hasattr(SETTINGS_M, s):
-                    results_dict[t] = getattr(SETTINGS_M, s)
-                elif skip_empty == False:
-                    # Should an Error be returned
-                    raise MissingDICOMTagError(s)
-                else:
-                    # assign NA and append missing metadata
-                    results_dict[t] = np.nan
-                    empty_median_beats.append(s)
-            # Check number of channels in ECG waveform
-            # Assign if present
-            channel_seq_median = getattr(
-                getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
-                PDNames.CHANNEL_DEF_SEQ)
-            lead_info_median, lead_units2=\
-                self._get_lead_info(channel_seq_median)
-            setattr(self, PDNames.MEDIAN_ARRAY,
-                    getattr(ECG, nam)(el).T)
-            setattr(self, PDNames.LEAD_VOLTAGES2,
-                    self.make_leadvoltages(
-                        lead_info=lead_info_median,
-                        waveform_array=\
-                        getattr(self, PDNames.MEDIAN_ARRAY),
-                        augment_leads=self.augment_leads,
-                        ))
-            setattr(self, PDNames.MEDIAN_PRESENT, True)
-            results_dict[PDNames.MEDIAN_PRESENT] = True
-            results_dict[PDNames.LEAD_UNITS2] = lead_units2
-        elif skip_empty == False:
-            raise ValueError(Error_MSG.MISSING_DICOM.format(nam))
-        else:
-            # set to missing
-            setattr(self, PDNames.MEDIAN_ARRAY, np.nan)
-            setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
-            setattr(self, PDNames.MEDIAN_PRESENT, False)
-            results_dict[PDNames.MEDIAN_PRESENT] = False
-            results_dict[PDNames.LEAD_UNITS2] = np.nan
-        if self.retain_raw == False:
-            delattr(self, PDNames.MEDIAN_ARRAY)
-        # do we need to resample the freq
+        _, median_dict, empty_median_beats = self.get_median_beats(
+            dicom_instance=ECG, skip_empty=skip_empty)
+        results_dict.update(median_dict)
+        # #### do we need to resample
         if self.resample_500 == True:
             # the function will internally adjust
             # LEAD_VOLTAGES, and LEAD_VOLTAGES2
@@ -313,13 +215,19 @@ class ECGDICOMReader(BaseECGDICOMReader):
         else:
             setattr(self, PDNames.OVERSAMPLED, False)
             results_dict[PDNames.OVERSAMPLED] = False
+        # #### remove raw data
+        if self.retain_raw == False:
+            try:
+                delattr(self, PDNames.WAVE_ARRAY)
+                delattr(self, PDNames.MEDIAN_ARRAY)
+            except AttributeError:
+                pass
         # #### Extract standard ECG measurements
         _, ecg_traits, missing_ecg_traits = self._get_waveform_annotation(
             dicom_instance=ECG, skip_empty=skip_empty)
-        # assign to results and missing
         results_dict.update(ecg_traits)
         empty_metadata = empty_metadata + missing_ecg_traits
-        # #### end of `dicom` part, optionally printing tags which were missing
+        # #### end of extractions, optionally printing tags which were missing
         if verbose == True:
             if len(empty_metadata) + len(empty_wave_forms) +\
                     len(empty_median_beats)> 0:
@@ -334,7 +242,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
             results_dict[PDNames.SAMPLING_NUMBER] /
             results_dict[PDNames.SAMPLING_FREQ]
         )
-        # add time variables
+        # #### add time variables
         raw_AD = results_dict[PDNames.ACQUISITION_DATE]
         raw_SD = results_dict[PDNames.STUDY_DATE]
         results_dict[PDNames.ACQUISITION_DATE] = \
@@ -407,6 +315,194 @@ class ECGDICOMReader(BaseECGDICOMReader):
                 empty_metadata.append(s)
         # return
         return ECG, results_dict, empty_metadata
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def get_waveforms(self, path:str|None=None,
+                     dicom_instance: DCM_Class|None=None,
+                     skip_empty:bool=True
+                     ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
+        '''
+        Takes a dicom file and extracts the waveforms and waveform metadata.
+        
+        Parameters
+        ----------
+        path : str, default `NoneType`.
+            The path to the .dcm file.
+        dicom_instance : DCM_Class, default `NoneType`.
+            A DCM_Class instance.
+        
+        Returns
+        -------
+        results : dict,DCM_Class
+            - A `DCM_Class` instance.
+            - A dictionary with extracted metadata.
+            - A list of missing `DCM_Class` attribute names.
+        
+        Notes
+        -----
+        Either supply a path to a dicom file or a DCM_Class instance
+        '''
+        # #### check input
+        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(dicom_instance, (type(None), DCM_Class))
+        is_type(skip_empty, bool)
+        temp_results_dict = {}
+        if (not dicom_instance is None) and (not path is None):
+            raise ValueError(self.__MSG1)
+        # #### Read DICOM
+        # NOTE `with` closes automatically if an error is raised
+        if not path is None:
+            with open(path, 'rb') as dicom:
+                # reads standard dicom content
+                ECG=dcmread(dicom)
+        else:
+            ECG=dicom_instance
+        # #### extract waveforms
+        try:
+            nam, el = self.WAVE_FORMS_DICT[PDNames.WAVE_ARRAY]
+            setattr(self, PDNames.WAVE_ARRAY,
+                    getattr(ECG, nam)(el).T)
+        except:
+            raise AttributeError(Error_MSG.MISSING_DICOM.format(nam))
+        WAVE = getattr(ECG, PDNames.WAVE_FORM_SEQ)[0]
+        SETTINGS = getattr(WAVE, PDNames.CHANNEL_DEF_SEQ)[0]
+        # loop over the remaining wave form data
+        empty_wave_forms = []
+        for t, s in self.WAVE_FORMS.items():
+            # if present in WAVE or SETTINGS assign
+            if hasattr(WAVE, s):
+                temp_results_dict[t] = getattr(WAVE, s)
+            elif hasattr(SETTINGS, s):
+                temp_results_dict[t] = getattr(SETTINGS, s)
+            elif skip_empty == False:
+                # Should an Error be returned
+                raise MissingDICOMTagError(s)
+            else:
+                # assign NA and append missing metadata
+                temp_results_dict[t] = np.nan
+                empty_wave_forms.append(s)
+        # Check number of channels in ECG waveform
+        if temp_results_dict[PDNames.CHANNEL_NUMBER] >= 8:
+            channel_seq = getattr(getattr(ECG, PDNames.WAVE_FORM_SEQ)[0],
+                                  PDNames.CHANNEL_DEF_SEQ)
+            lead_info_waveform, lead_units=self._get_lead_info(channel_seq)
+            setattr(self, PDNames.LEAD_VOLTAGES,
+                    self.make_leadvoltages(
+                        lead_info=lead_info_waveform,
+                        waveform_array=getattr(self, PDNames.WAVE_ARRAY),
+                        augment_leads=self.augment_leads,
+                        ))
+            temp_results_dict[PDNames.LEAD_UNITS] = lead_units
+            temp_results_dict[PDNames.SAMPLING_FREQ] =\
+                temp_results_dict[PDNames.SF_ORIGINAL]
+        else:
+            # set to NA
+            setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
+            empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
+            temp_results_dict[PDNames.SAMPLING_FREQ] =\
+                temp_results_dict[PDNames.SF_ORIGINAL]
+            temp_results_dict[PDNames.LEAD_UNITS] = np.nan
+        # return
+        return ECG, temp_results_dict, empty_wave_forms
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def get_median_beats(self, path:str|None=None,
+                     dicom_instance: DCM_Class|None=None,
+                     skip_empty:bool=True
+                     ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
+        '''
+        Takes a dicom file and extracts the median beats and its metadata.
+        
+        Parameters
+        ----------
+        path : str, default `NoneType`.
+            The path to the .dcm file.
+        dicom_instance : DCM_Class, default `NoneType`.
+            A DCM_Class instance.
+        
+        Returns
+        -------
+        results : dict,DCM_Class
+            - A `DCM_Class` instance.
+            - A dictionary with extracted metadata.
+            - A list of missing `DCM_Class` attribute names.
+        
+        Notes
+        -----
+        Either supply a path to a dicom file or a DCM_Class instance
+        '''
+        # #### check input
+        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(dicom_instance, (type(None), DCM_Class))
+        is_type(skip_empty, bool)
+        temp_results_dict = {}
+        if (not dicom_instance is None) and (not path is None):
+            raise ValueError(self.__MSG1)
+        # #### Read DICOM
+        # NOTE `with` closes automatically if an error is raised
+        if not path is None:
+            with open(path, 'rb') as dicom:
+                # reads standard dicom content
+                ECG=dcmread(dicom)
+        else:
+            ECG=dicom_instance
+        # ##### extract the median beats data
+        # check if the wave form is present and if the index is correct
+        # the median beats should be index 1 (starting at 0)
+        temp_results_dict = {k: np.nan for k in self.MEDIAN_BEATS}
+        empty_median_beats = list(self.MEDIAN_BEATS.keys())
+        sccss = True
+        try:
+            nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
+            setattr(self, PDNames.MEDIAN_ARRAY,
+                    getattr(ECG, nam)(el).T)
+        except:
+            if skip_empty == True:
+                sccss = False
+                setattr(self, PDNames.MEDIAN_ARRAY, np.nan)
+                pass
+            else:
+                raise AttributeError(Error_MSG.MISSING_DICOM.format(nam))
+        # getting WaveformSequence and ChannelDefinitionSequence attributes
+        if sccss == True:
+            WAVE_M = getattr(ECG, PDNames.WAVE_FORM_SEQ)[1]
+            SETTINGS_M = getattr(WAVE_M, PDNames.CHANNEL_DEF_SEQ)[1]
+            for t, s in self.MEDIAN_BEATS.items():
+                # if present in WAVE or SETTINGS assign
+                if hasattr(WAVE_M, s):
+                    temp_results_dict[t] = getattr(WAVE_M, s)
+                    empty_median_beats.remove(t)
+                elif hasattr(SETTINGS_M, s):
+                    temp_results_dict[t] = getattr(SETTINGS_M, s)
+                    empty_median_beats.remove(t)
+                elif skip_empty == False:
+                    # Should an Error be returned
+                    raise MissingDICOMTagError(s)
+                else:
+                    # the dict and list have already been pre-populated
+                    pass
+            # Update the leads if needed
+            channel_seq_median = getattr(
+                getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
+                PDNames.CHANNEL_DEF_SEQ)
+            lead_info_median, lead_units2=self._get_lead_info(channel_seq_median)
+            # assign the median beats
+            setattr(self, PDNames.LEAD_VOLTAGES2,
+                    self.make_leadvoltages(
+                        lead_info=lead_info_median,
+                        waveform_array=\
+                        getattr(self, PDNames.MEDIAN_ARRAY),
+                        augment_leads=self.augment_leads,
+                    ))
+            setattr(self, PDNames.MEDIAN_PRESENT, True)
+            temp_results_dict[PDNames.MEDIAN_PRESENT] = True
+            temp_results_dict[PDNames.LEAD_UNITS2] = lead_units2
+        else:
+            # set to missing
+            setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
+            setattr(self, PDNames.MEDIAN_PRESENT, False)
+            temp_results_dict[PDNames.MEDIAN_PRESENT] = False
+            temp_results_dict[PDNames.LEAD_UNITS2] = np.nan
+        # return
+        return ECG, temp_results_dict, empty_median_beats
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _get_waveform_annotation(
         self, path:str|None=None, dicom_instance: DCM_Class|None=None,
