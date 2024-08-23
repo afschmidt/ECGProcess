@@ -78,6 +78,9 @@ class ProcessDicomNames(object):
     ECG_TRAIT_QRS_D       = 'QRS Duration'
     ECG_UNIT              = 'MeasurementUnitsCodeSequence'
     ECG_UNIT_STRING       = ' UNIT'
+    REFERENCED_POS        = 'ReferencedSamplePositions'
+    PACEMAKER_SPIKE       = 'Pacemaker Spike'
+    FREE_TEXT             = 'UnformattedTextValue'
     SKIP_PERMISSIONS      = 'Permissions'
     SKIP_DATA             = 'Data'
     SKIP_NONE             = 'None'
@@ -175,12 +178,18 @@ class DICOMTags(object):
     ECG_INTERPERTATION_DICT ={
         'QT Interval' : ['QT Interval'],
         'QTc Interval': ['QTc Interval'],
-        'RR Interval': ['RR Interval'],
-        'VRate': ['VRate', 'Ventricular Heart Rate'],
+        'QTc Bazett' : ['QTc Bazett'],
         'QRS Duration': ['QRS Duration'],
         'QRS Axis': ['QRS Axis'],
+        'RR Interval': ['RR Interval'],
+        'VRate': ['VRate', 'Ventricular Heart Rate'],
+        'ARate': ['Atrial Heart Rate'],
         'T Axis': ['T Axis'],
         'P Axis': ['P Axis'],
+        'R Axis': ['R Axis'],
+        'P Onset': ['P Onset'],
+        'P Offset': ['P Offset'],
+        'T Offset': ['T Offset'],
         'PR Interval': ['PR Interval'],
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

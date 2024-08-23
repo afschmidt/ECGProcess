@@ -151,7 +151,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
     ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
     ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
     # #### Error MSG
-    MSG1=('Please supply either `path` or `dicom_instance` but not both.')
+    __MSG1=('Please supply either `path` or `dicom_instance` but not both.')
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, path:str, skip_empty:bool=True, verbose:bool=False,
                  ) -> Self:
@@ -383,7 +383,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         is_type(skip_empty, bool)
         results_dict = {}
         if (not dicom_instance is None) and (not path is None):
-            raise ValueError(self.MSG1)
+            raise ValueError(self.__MSG1)
         # #### Read DICOM
         # NOTE `with` closes automatically if an error is raised
         if not path is None:
@@ -441,7 +441,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         temp_results_dict = {}
         temp_unit_dict = {}
         if (not dicom_instance is None) and (not path is None):
-            raise ValueError(self.MSG1)
+            raise ValueError(self.__MSG1)
         # #### Read DICOM
         # NOTE `with` closes automatically if an error is raised
         if not path is None:
@@ -454,8 +454,11 @@ class ECGDICOMReader(BaseECGDICOMReader):
         for e in self.ECG_TRAIT_DICT:
            default_results_dict[e] = np.nan
            default_results_dict[e+PDNames.ECG_UNIT_STRING] = np.nan
+           free_text = np.nan
+           default_results_dict[PDNames.PACEMAKER_SPIKE]=np.nan
         # next see if we can extract some interpretations.
         if hasattr(ECG, PDNames.ECG_INTERPERTATION):
+            free_text = ''
             # get the values lower-case strings (which are lists)
             ECG_CMPR_LWR = [it.lower() for sl\
                             in self.ECG_TRAIT_DICT.values() for it in sl]
@@ -481,6 +484,25 @@ class ECGDICOMReader(BaseECGDICOMReader):
                                 pass
                     except AttributeError:
                         pass
+                    # #### ancillary info
+                    # see if there is a PaceMakerSpike
+                    if ecg_trait.lower() == PDNames.PACEMAKER_SPIKE.lower():
+                        try:
+                            default_results_dict[PDNames.PACEMAKER_SPIKE]=\
+                                getattr(w, PDNames.REFERENCED_POS)
+                        except AttributeError:
+                            pass
+                    # get free text
+                    if ecg_trait.lower() == PDNames.FREE_TEXT.lower():
+                        try:
+                            free_text = "%s\n%s" % (
+                                free_text,
+                                getattr(w, PDNames.FREE_TEXT)
+                            )
+                        except AttributeError:
+                            pass
+        # assing the final free_text object
+        default_results_dict[PDNames.FREE_TEXT]=free_text
         # now assign temp_results_dict todefault_results_dict dealing with
         # keys with more than one matching string.
         if len(temp_results_dict) > 0:
@@ -520,13 +542,13 @@ class ECGDICOMReader(BaseECGDICOMReader):
                         except KeyError:
                             pass
         # which ECG traits are still nan
-        missing_ecg_traits = [k for k in self.ECG_TRAIT_DICT if\
-                              np.isnan(default_results_dict[k])]
+        missing_ecg_traits =\
+            [k for k,v in default_results_dict.items() if pd.isna(v)]
         if skip_empty == False and len(missing_ecg_traits) > 0:
             # Should an Error be returned
             raise ValueError('The following ECG measurments are '
                              'unavailable: {}'.format(missing_ecg_traits))
-                             
+        # return
         return ECG, default_results_dict, missing_ecg_traits
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _get_lead_info(self, channel_seq: DCM_Class
