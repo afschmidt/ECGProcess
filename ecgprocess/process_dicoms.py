@@ -150,6 +150,8 @@ class ECGDICOMReader(BaseECGDICOMReader):
     STUDY_DATE_TARGET = "%Y-%m-%d"
     ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
     ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
+    # #### Error MSG
+    MSG1=('Please supply either `path` or `dicom_instance` but not both.')
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, path:str, skip_empty:bool=True, verbose:bool=False,
                  ) -> Self:
@@ -239,8 +241,6 @@ class ECGDICOMReader(BaseECGDICOMReader):
             results_dict[PDNames.SAMPLING_FREQ] =\
                 results_dict[PDNames.SF_ORIGINAL]
             results_dict[PDNames.LEAD_UNITS] = np.nan
-        # add to missing dict
-        
         # #### Extract Median beats
         nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
         # NOTE WAVE_FORM_SEQ is present because the code
@@ -314,12 +314,146 @@ class ECGDICOMReader(BaseECGDICOMReader):
             setattr(self, PDNames.OVERSAMPLED, False)
             results_dict[PDNames.OVERSAMPLED] = False
         # #### Extract standard ECG measurements
+        _, ecg_traits, missing_ecg_traits = self._get_waveform_annotation(
+            dicom_instance=ECG, skip_empty=skip_empty)
+        # assign to results and missing
+        results_dict.update(ecg_traits)
+        empty_metadata = empty_metadata + missing_ecg_traits
+        # #### end of `dicom` part, optionally printing tags which were missing
+        if verbose == True:
+            if len(empty_metadata) + len(empty_wave_forms) +\
+                    len(empty_median_beats)> 0:
+                warnings.warn(
+                    'The following DICOM tags could not be found: {}.'.format(
+                        empty_metadata + empty_wave_forms +\
+                    empty_median_beats))
+        # #### add duration,
+        # NOTE both values are either int/float or NA so no need
+        # for a try except
+        results_dict[PDNames.DURATION] = (
+            results_dict[PDNames.SAMPLING_NUMBER] /
+            results_dict[PDNames.SAMPLING_FREQ]
+        )
+        # add time variables
+        raw_AD = results_dict[PDNames.ACQUISITION_DATE]
+        raw_SD = results_dict[PDNames.STUDY_DATE]
+        results_dict[PDNames.ACQUISITION_DATE] = \
+            datetime.strptime(raw_AD, self.ACQUISITION_DATE_SOURCE).\
+            strftime(self.ACQUISITION_DATE_TARGET)
+        results_dict[PDNames.STUDY_DATE] = \
+            datetime.strptime(raw_SD, self.STUDY_DATE_SOURCE).\
+            strftime(self.STUDY_DATE_TARGET)
+        # #### assign results_dict
+        setattr(self, PDNames.RESULTS_DICT, results_dict)
+        # assign unique identifier
+        setattr(self, PDNames.SOP_UID, results_dict[PDNames.SOP_UID])
+        # add the original dcmread instance
+        if self.retain_raw == True:
+            setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
+        # #### return stuff
+        return self
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def get_metadata(self, path:str|None=None, dicom_instance: DCM_Class|None=None,
+                     skip_empty:bool=True
+                     ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
+        '''
+        Takes a dicom file and extracts its metedata
+        
+        Parameters
+        ----------
+        path : str, default `NoneType`.
+            The path to the .dcm file.
+        dicom_instance : DCM_Class, default `NoneType`.
+            A DCM_Class instance.
+        
+        Returns
+        -------
+        results : dict,DCM_Class
+            - A `DCM_Class` instance.
+            - A dictionary with extracted metadata.
+            - A list of missing `DCM_Class` attribute names.
+        
+        Notes
+        -----
+        Either supply a path to a dicom file or a DCM_Class instance
+        '''
+        # #### check input
+        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(dicom_instance, (type(None), DCM_Class))
+        is_type(skip_empty, bool)
+        results_dict = {}
+        if (not dicom_instance is None) and (not path is None):
+            raise ValueError(self.MSG1)
+        # #### Read DICOM
+        # NOTE `with` closes automatically if an error is raised
+        if not path is None:
+            with open(path, 'rb') as dicom:
+                # reads standard dicom content
+                ECG=dcmread(dicom)
+        else:
+            ECG=dicom_instance
+        # #### extract metadata
+        empty_metadata = []
+        for t, s in self.METADATA.items():
+            if hasattr(ECG, s):
+                # Assign if present
+                results_dict[t] = getattr(ECG, s)
+            elif skip_empty == False:
+                # Should an Error be returned
+                raise MissingDICOMTagError(s)
+            else:
+                # assign NA and append missing metadata
+                results_dict[t] = np.nan
+                empty_metadata.append(s)
+        # return
+        return ECG, results_dict, empty_metadata
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def _get_waveform_annotation(
+        self, path:str|None=None, dicom_instance: DCM_Class|None=None,
+        skip_empty:bool=True,) -> tuple[DCM_Class, dict[str, Any], list[str]]:
+        '''
+        Extract information from the `WaveformAnnotationSequence` attribute
+        of an dicom file.
+        
+        Parameters
+        ----------
+        path : str, default `NoneType`.
+            The path to the .dcm file.
+        dicom_instance : DCM_Class, default `NoneType`.
+            A DCM_Class instance.
+        
+        Returns
+        -------
+        results : dict,DCM_Class
+            - A `DCM_Class` instance.
+            - A dictionary with the extracted data.
+            - A list of missing `DCM_Class` attribute names.
+        
+        Notes
+        -----
+        Either supply a path to a dicom file or a DCM_Class instance
+        '''
+        # #### check input
+        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(dicom_instance, (type(None), DCM_Class))
+        is_type(skip_empty, bool)
+        default_results_dict = {}
         temp_results_dict = {}
         temp_unit_dict = {}
+        if (not dicom_instance is None) and (not path is None):
+            raise ValueError(self.MSG1)
+        # #### Read DICOM
+        # NOTE `with` closes automatically if an error is raised
+        if not path is None:
+            with open(path, 'rb') as dicom:
+                # reads standard dicom content
+                ECG=dcmread(dicom)
+        else:
+            ECG=dicom_instance
         # first set everything to NA
         for e in self.ECG_TRAIT_DICT:
-            results_dict[e] = np.nan
-            results_dict[e+PDNames.ECG_UNIT_STRING] = np.nan
+           default_results_dict[e] = np.nan
+           default_results_dict[e+PDNames.ECG_UNIT_STRING] = np.nan
         # next see if we can extract some interpretations.
         if hasattr(ECG, PDNames.ECG_INTERPERTATION):
             # get the values lower-case strings (which are lists)
@@ -347,7 +481,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                                 pass
                     except AttributeError:
                         pass
-        # now assign temp_results_dict to results_dict dealing with
+        # now assign temp_results_dict todefault_results_dict dealing with
         # keys with more than one matching string.
         if len(temp_results_dict) > 0:
             for k, idx in self.ECG_TRAIT_DICT.items():
@@ -361,9 +495,9 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     # if only one unique entry simply assign this to k
                     for e in idx:
                         try:
-                            results_dict[k] =\
+                           default_results_dict[k] =\
                                 temp_results_dict[e.lower()]
-                            results_dict[k+PDNames.ECG_UNIT_STRING] =\
+                           default_results_dict[k+PDNames.ECG_UNIT_STRING] =\
                                 temp_unit_dict[
                                     e.lower()+PDNames.ECG_UNIT_STRING]
                         except KeyError:
@@ -378,113 +512,22 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     # is intended.
                     for e in idx:
                         try:
-                            results_dict[e] =\
+                           default_results_dict[e] =\
                                 temp_results_dict[e.lower()]
-                            results_dict[e+PDNames.ECG_UNIT_STRING] =\
+                           default_results_dict[e+PDNames.ECG_UNIT_STRING] =\
                                 temp_unit_dict[
                                     e.lower()+PDNames.ECG_UNIT_STRING]
                         except KeyError:
                             pass
         # which ECG traits are still nan
         missing_ecg_traits = [k for k in self.ECG_TRAIT_DICT if\
-                              np.isnan(results_dict[k])]
+                              np.isnan(default_results_dict[k])]
         if skip_empty == False and len(missing_ecg_traits) > 0:
             # Should an Error be returned
             raise ValueError('The following ECG measurments are '
                              'unavailable: {}'.format(missing_ecg_traits))
                              
-        else:
-            # add missing metadata
-            empty_metadata = empty_metadata + missing_ecg_traits
-        # #### add duration,
-        # NOTE both values are either int/float or NA so no need
-        # for a try except
-        results_dict[PDNames.DURATION] = (
-            results_dict[PDNames.SAMPLING_NUMBER] /
-            results_dict[PDNames.SAMPLING_FREQ]
-        )
-        # #### end of `dicom` part, optionally printing tags which were missing
-        if verbose == True:
-            if len(empty_metadata) + len(empty_wave_forms) +\
-                    len(empty_median_beats)> 0:
-                warnings.warn(
-                    'The following DICOM tags could not be found: {}.'.format(
-                        empty_metadata + empty_wave_forms +\
-                    empty_median_beats))
-        # add time variables
-        raw_AD = results_dict[PDNames.ACQUISITION_DATE]
-        raw_SD = results_dict[PDNames.STUDY_DATE]
-        results_dict[PDNames.ACQUISITION_DATE] = \
-            datetime.strptime(raw_AD, self.ACQUISITION_DATE_SOURCE).\
-            strftime(self.ACQUISITION_DATE_TARGET)
-        results_dict[PDNames.STUDY_DATE] = \
-            datetime.strptime(raw_SD, self.STUDY_DATE_SOURCE).\
-            strftime(self.STUDY_DATE_TARGET)
-        # #### assign results_dict
-        setattr(self, PDNames.RESULTS_DICT, results_dict)
-        # assign unique identifier
-        setattr(self, PDNames.SOP_UID, results_dict[PDNames.SOP_UID])
-        # add the original dcmread instance
-        if self.retain_raw == True:
-            setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
-        # #### return stuff
-        return self
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_metadata(self, path:str|None, dicom_instance: DCM_Class|None=None,
-                     skip_empty:bool=True
-                     ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
-        '''
-        Extracts an dicom file, extracting its metadata.
-        
-        Parameters
-        ----------
-        path : str, default `NoneType`.
-            The path to the .dcm file.
-        dicom_instance : DCM_Class, default `NoneType`.
-            A DCM_Class instance.
-        
-        Returns
-        -------
-        results : dict,DCM_Class
-            - A `DCM_Class` instance.
-            - A dictionary with extracted metadata.
-            - A list of missing `DCM_Class` attribute names.
-        
-        Notes
-        -----
-        Either supply a path or a DCM_Class instance
-        '''
-        # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, str))
-        is_type(dicom_instance, (type(None), DCM_Class))
-        is_type(skip_empty, bool)
-        results_dict = {}
-        if (not dicom_instance is None) and (not path is None):
-            raise ValueError('Please supply either `path` or `dicom_instance` '
-                             'but not both.')
-        # #### Read DICOM
-        # NOTE `with` closes automatically if an error is raised
-        if not path is None:
-            with open(path, 'rb') as dicom:
-                # reads standard dicom content
-                ECG=dcmread(dicom)
-        else:
-            ECG=dicom_instance
-        # #### extract metadata
-        empty_metadata = []
-        for t, s in self.METADATA.items():
-            if hasattr(ECG, s):
-                # Assign if present
-                results_dict[t] = getattr(ECG, s)
-            elif skip_empty == False:
-                # Should an Error be returned
-                raise MissingDICOMTagError(s)
-            else:
-                # assign NA and append missing metadata
-                results_dict[t] = np.nan
-                empty_metadata.append(s)
-        # return
-        return ECG, results_dict, empty_metadata
+        return ECG, default_results_dict, missing_ecg_traits
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def _get_lead_info(self, channel_seq: DCM_Class
                        ) -> tuple[dict[int, str], str]:
