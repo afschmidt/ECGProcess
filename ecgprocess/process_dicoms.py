@@ -777,6 +777,8 @@ class ECGDICOMTable(object):
     ----------
     RawPathList : list [`str`]
         A list of dcm file paths.
+    info_type : str
+        The type of information one wants to extract from the dicom files.
     
     Methods
     -------
@@ -789,6 +791,9 @@ class ECGDICOMTable(object):
         waveforms, median beats). This is done by appending the extracted
         data from each file the target file set, minimising the memory
         footprint.
+    write_pdf(ecgdrawing, target_path, write_failed, kwargs_reader,
+    kwargs_drawing, kwargs_savefig)
+        writes dicom files to pdfs using the dicom unique id as file name.
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -835,10 +840,10 @@ class ECGDICOMTable(object):
                 f"augment_leads={getattr(self, PDNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self,
-                 skip_missing:Literal['Permissions', 'Data', 'None']='Permissions',
-                 verbose:bool=False,
-                 ) -> Self:
+    def __call__(
+        self, skip_missing:Literal['Permissions', 'Data', 'None']='Permissions',
+        verbose:bool=False,
+    ) -> Self:
         """
         Will take a ECGDICOMReader and loops over a list of dcm file paths and
         and confirm the files exist and have appropriate read permission
@@ -1055,6 +1060,8 @@ class ECGDICOMTable(object):
                 setattr(self, PREV, None)
         # #### initiate table and map lists
         table = pd.DataFrame()
+        print(lead_list)
+        print(getattr(self, PDNames.KEY_L))
         for w, k in zip(lead_list, getattr(self, PDNames.KEY_L), strict=True):
             # do we need to remap key names
             if update_keys is not None:
@@ -1188,44 +1195,28 @@ class ECGDICOMTable(object):
         key_list, no_data_list = [[] for _ in range(2)]
         # loop over individual dcm files
         for p in getattr(self, PDNames.CPATH_L):
-            if self.verbose == True:
-                print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
-            # get instance
-            try:
-                ecg_inst = self.ecgdicomreader(p, **self.kwargs)
-            except AttributeError as AE:
-                if self.skip_missing == PDNames.SKIP_DATA:
-                    no_data_list.append(p)
-                    # moving to the next path
-                    continue
-                else:
-                    raise AE
-            # extract unique identifier and check if it has been used before
-            if hasattr(ecg_inst, PDNames.SOP_UID) == False:
-                raise AttributeError(Error_MSG.MISSING_ATTR.format(
-                    PDNames.SOP_UID, 'ecg_inst'))
-            key = str(getattr(ecg_inst, PDNames.SOP_UID))
-            if key in key_list:
-                raise IndexError('{0}:{1} was already extracted before. Please '
-                                 'ensure the supplied files are unique.'.\
-                                 format(PDNames.SOP_UID, key))
-            else:
-                key_list.append(key)
-            # extract the remaining
-            setattr(self, PDNames.FAILED_DATA_L, no_data_list)
-            setattr(self, PDNames.KEY_L, [key])
+            no_data_list, key_list, ecg_inst = self._internal_write(
+                path=p, no_data_list=no_data_list, key_list=key_list,
+                **self.kwargs,
+                )
+            if isinstance(ecg_inst, str):
+                continue
+            # #### extract data from ecg_inst
             if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
                 info=getattr(ecg_inst, PDNames.RESULTS_DICT)
             if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
                 wave=getattr(ecg_inst, PDNames.LEAD_VOLTAGES)
             if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
                 median=getattr(ecg_inst, PDNames.LEAD_VOLTAGES2)
-            # write to disk
+            # assign key to self for use in `_get_long_table`
+            setattr(self, PDNames.KEY_L, [key_list[-1]])
+            # #### write to disk
             if first==True:
                 first = False
                 # metadata
+                print([key_list[-1]])
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
-                    pd.DataFrame([info], index=[key]).to_csv(
+                    pd.DataFrame([info], index=[key_list[-1]]).to_csv(
                         os.path.join(target, PDNames.INFO_FILE), sep=sep,
                         header=True, compression=compression)
                 # waveforms
@@ -1250,7 +1241,7 @@ class ECGDICOMTable(object):
                 # appending using mode = 'a'
                 # metadata
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
-                    pd.DataFrame([info], index=[key]).to_csv(
+                    pd.DataFrame([info], index=[key_list[-1]]).to_csv(
                         os.path.join(target, PDNames.INFO_FILE), sep=sep,
                         header=False, mode='a', compression=compression)
                 # waveforms
@@ -1278,9 +1269,10 @@ class ECGDICOMTable(object):
         if write_failed == True:
             # adding the reason for failing
             total_failures = [
-                (p, PDNames.SKIP_PERMISSIONS) for p in getattr(self, PDNames.FPATH_L)
-            ] + [
-                (p, PDNames.SKIP_DATA) for p in getattr(self, PDNames.FAILED_DATA_L)]
+                (p, PDNames.SKIP_PERMISSIONS) for p in\
+                getattr(self, PDNames.FPATH_L) ] + [
+                (p, PDNames.SKIP_DATA) for p in\
+                    getattr(self, PDNames.FAILED_DATA_L)]
             # writing to text file
             with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
                 for p, cause in total_failures:
@@ -1308,9 +1300,9 @@ class ECGDICOMTable(object):
         ----------
         ecgdrawing : ECGDrawing
             An instance of the ECGDrawing data class.
-        target_path : str, default '.'
+        target_path : `str`, default '.'
             The full path where the pdfs should be written to.
-        write_failed : bool, default `True`
+        write_failed : `bool`, default `True`
             Whether to write a text file to disk containing the failed file
             names.
         kwargs_*: dict [`any`, `any`], default `NoneType`
@@ -1319,7 +1311,7 @@ class ECGDICOMTable(object):
         
         Attributes
         ----------
-        target_path : str
+        target_path : `str`
             The directory or tar file path were the files are written to.
         NoDataList : `list` [`str`]
             A list of dicom files without a waveform_array.
@@ -1341,6 +1333,7 @@ class ECGDICOMTable(object):
         # #### check input and set constants
         is_type(kwargs_reader, (type(None), dict))
         is_type(kwargs_drawing, (type(None), dict))
+        is_type(kwargs_savefig, (type(None), dict))
         is_type(ecgdrawing, ECGDrawing)
         is_type(target_path, (pathlib.PosixPath, str))
         is_type(write_failed, bool)
@@ -1377,44 +1370,21 @@ class ECGDICOMTable(object):
                 )
             if isinstance(ecg_inst, str):
                 continue
-            # if self.verbose == True:
-            #     print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
-            # # get instance
-            # try:
-            #     ecg_inst = self.ecgdicomreader(p, **kwargs_reader)
-            # except AttributeError as AE:
-            #     if self.skip_missing == PDNames.SKIP_DATA:
-            #         no_data_list.append(p)
-            #         # moving to the next path
-            #         continue
-            #     else:
-            #         raise AE
-            # # extract unique identifier and check if it has been used before
-            # if hasattr(ecg_inst, PDNames.SOP_UID) == False:
-            #     raise AttributeError(Error_MSG.MISSING_ATTR.format(
-            #         PDNames.SOP_UID, 'ecg_inst'))
-            # key = str(getattr(ecg_inst, PDNames.SOP_UID))
-            # if key in key_list:
-            #     raise IndexError('{0}:{1} was already extracted before. Please '
-            #                      'ensure the supplied files are unique.'.\
-            #                      format(PDNames.SOP_UID, key))
-            # else:
-            #     key_list.append(key)
-            # extract the remaining
-            # setattr(self, PDNames.FAILED_DATA_L, no_data_list)
             ### draw and write figure
-            ecgdrawing()(ecg_inst, wave_type=signal_type, **kwargs_drawing)
-            filename_pdf = re.sub(r"[ ,\-\(\)\{\}]", '_', key) + '.pdf'
+            artist = ecgdrawing(ecgreader=ecg_inst, wave_type=signal_type,
+                                **kwargs_drawing)
+            filename_pdf = re.sub(r"[ ,\-\(\)\{\}]", '_', key_list[-1]) + '.pdf'
             plt.savefig(os.path.join(target, filename_pdf) **kwargs_savefig)
-            plt.close('all')
+            plt.close(artist.fig)
         # #### write failed files, note not compressing these
         DELIM = '\t'
         if write_failed == True:
             # adding the reason for failing
             total_failures = [
-                (p, PDNames.SKIP_PERMISSIONS) for p in getattr(self, PDNames.FPATH_L)
-            ] + [
-                (p, PDNames.SKIP_DATA) for p in getattr(self, PDNames.FAILED_DATA_L)]
+                (p, PDNames.SKIP_PERMISSIONS) for p in\
+                getattr(self, PDNames.FPATH_L) ] + [
+                (p, PDNames.SKIP_DATA) for p in\
+                    getattr(self, PDNames.FAILED_DATA_L)]
             # writing to text file
             with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
                 for p, cause in total_failures:
@@ -1425,7 +1395,7 @@ class ECGDICOMTable(object):
     def _internal_write(self, path:str, no_data_list:list[str],
                         key_list:list[str],
                         **kwargs,
-                        ) -> tuple[list, list, ECGDICOMReader]:
+                        ) -> tuple[list, list, ECGDICOMReader|str]:
         '''
         An internal function to read ECG dicom data, check whether there these
         data may have been extracted before (compared to key_list) and record
@@ -1440,10 +1410,18 @@ class ECGDICOMTable(object):
         
         Returns
         -------
-        tuple :
-            A tuple with `no_data_list`, `key_list`,
-            and an ECGDICOMReader instance.
+        `tuple`
+            A tuple with `no_data_list`, `key_list`, and an ECGDICOMReader
+            instance.
+        
+        Raises
+        ------
+        AttributeError
+            raised if waveform_array or SOPinstanceUID attributes are absent.
+        IndexError
+            raised if a dicom with the same SOPinstanceUID is processed
         '''
+        
         if self.verbose == True:
             print(STDOUT_MSG.PROCESSING_PATH.format(path), file=sys.stdout)
         # get instance
@@ -1452,8 +1430,8 @@ class ECGDICOMTable(object):
         except AttributeError as AE:
             if self.skip_missing == PDNames.SKIP_DATA:
                 no_data_list.append(path)
-                # moving to the next path
-                return no_data_list, key_list, 'no_data'
+                # moving to the next path - cannot use continue here
+                return no_data_list, key_list, 'continue'
             else:
                 raise AE
         # extract unique identifier and check if it has been used before
