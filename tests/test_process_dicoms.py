@@ -142,11 +142,28 @@ class TestECGDICOMTable(object):
         assert len(getattr(res, PDNames.MEDIAN_T)['Lead'].unique()) == 12
         assert getattr(res, PDNames.MEDIAN_T).shape[0] > 1000
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_get_table_error(self):
+    def test_get_metatable(self):
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list,
+                                 info_type='meta')
+        res = ecgtable().get_table()
+        assert len(getattr(res, PDNames.KEY_L)) == 2
+        assert len(getattr(res, PDNames.KEY_L)[0]) > 1
+        assert getattr(res, PDNames.INFO_T).shape[1] > 0
+        assert hasattr(res, PDNames.WAVE_T) == False
+        assert hasattr(res, PDNames.MEDIAN_T) == False
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_get_table_keyerror(self):
         ecgreader = ECGDICOMReader()
         ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
         with pytest.raises(KeyError):
             _ = ecgtable().get_table()
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_get_table_valerror(self):
+        ecgreader = ECGDICOMReader()
+        with pytest.raises(ValueError):
+            _ = ECGDICOMTable(ecgreader, path_list=dicom_path_list,
+                                     info_type='ALL')
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_write_ecg(self, tmp_path):
         # change current directory
@@ -156,8 +173,8 @@ class TestECGDICOMTable(object):
         ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
         res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'})
         # get content and read in a table
-        content = os.listdir(getattr(res, PDNames.WRITE_ECS_PATH))
-        table = pd.read_csv(os.path.join(getattr(res, PDNames.WRITE_ECS_PATH),
+        content = os.listdir(getattr(res, PDNames.WRITE_ECG_PATH))
+        table = pd.read_csv(os.path.join(getattr(res, PDNames.WRITE_ECG_PATH),
                                          PDNames.INFO_FILE),
                             sep='\t')
         assert set(content) == expect_content
@@ -170,7 +187,7 @@ class TestECGDICOMTable(object):
         ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
         res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'},
                                    target_path=tmp_path)
-        content = os.listdir(getattr(res, PDNames.WRITE_ECS_PATH))
+        content = os.listdir(getattr(res, PDNames.WRITE_ECG_PATH))
         assert set(content) == expect_content
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_write_ecg_tar(self, tmp_path):
@@ -180,8 +197,20 @@ class TestECGDICOMTable(object):
         res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'},
                                    target_path=tmp_path,
                                    target_tar='dir.tar.gz')
-        content = list_tar(getattr(res, PDNames.WRITE_ECS_PATH))
+        content = list_tar(getattr(res, PDNames.WRITE_ECG_PATH))
         assert set(content) == expect_content
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg_tar_median(self, tmp_path):
+        # run
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list,
+                                 info_type='median')
+        res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'},
+                                   target_path=tmp_path,
+                                   target_tar='dir.tar.gz')
+        content = list_tar(getattr(res, PDNames.WRITE_ECG_PATH))
+        assert set(content) == set(
+            [PDNames.FAILED_FILE, PDNames.MEDIAN_FILE])
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_write_ecg_error(self, tmp_path):
         # run

@@ -3,17 +3,18 @@ A module to extract median beats and raw waveforms from DICOM ECGs wrapping
 pydicom.
 '''
 
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import os
+import re
 import sys
+import copy
 import uuid
 import pathlib
 import warnings
 import numpy as np
 import pandas as pd
-import copy
+import matplotlib.pylab as plt
 from pydicom import dcmread
 from pydicom.dataset import FileDataset as DCM_Class
 from datetime import datetime
@@ -37,6 +38,10 @@ from ecgprocess.constants import (
 )
 from ecgprocess.utils.general import (
     replace_with_tar,
+    assign_empty_default,
+)
+from ecgprocess.plot_ecgs import (
+    ECGDrawing,
 )
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -128,8 +133,6 @@ class ECGDICOMReader(BaseECGDICOMReader):
     is further improved by setting `retain_raw` to `False` - the default
     behaviour.
     """
-    # #### set slots
-    # __slots__ = (PDNames.LEAD_VOLTAGES, PDNames.LEAD_VOLTAGES2)
     # #### parameters, with defaults
     augment_leads: bool=False
     resample_500:bool=True
@@ -790,6 +793,7 @@ class ECGDICOMTable(object):
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __init__(self, ecgdicomreader:ECGDICOMReader, path_list:List[str],
+                 info_type:Literal['all', 'rhythm', 'median', 'meta'] = 'all'
                  ) -> None:
         """
         Initialises a new instance of `ECGDICOMTable`.
@@ -800,11 +804,22 @@ class ECGDICOMTable(object):
             An instance of the ECGDICOMReader data class.
         path_list : list [`str`]
             A list of paths to one or more .dcm files.
+        info_type : {`all`, `rhythm`, `median`, `meta`}
+            Which information should be extracted.
         """
+        EXP_INFO=[PDNames.INFO_TYPE_ALL, PDNames.INFO_TYPE_RTM,
+                  PDNames.INFO_TYPE_MED, PDNames.INFO_TYPE_MET,
+                  ]
+        self.INFO_MET = [PDNames.INFO_TYPE_ALL, PDNames.INFO_TYPE_MET]
+        self.INFO_MED = [PDNames.INFO_TYPE_ALL, PDNames.INFO_TYPE_MED]
+        self.INFO_RTM = [PDNames.INFO_TYPE_ALL, PDNames.INFO_TYPE_RTM]
         # #### check input
         is_type(ecgdicomreader, ECGDICOMReader, 'ecgdicomreader')
         is_type(path_list, list, 'path_list')
+        if not info_type in EXP_INFO:
+            raise ValueError(f'`info_type` is restricted to `{EXP_INFO}`.')
         self.ecgdicomreader = ecgdicomreader
+        setattr(self, PDNames.INFO_TYPE, info_type)
         setattr(self, PDNames.RPATH_L, path_list)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
@@ -959,27 +974,33 @@ class ECGDICOMTable(object):
             else:
                 key_list.append(key)
             # extract the remaining
-            info_list.append(getattr(ecg_inst, PDNames.RESULTS_DICT))
-            wave_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES))
-            median_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES2))
+            if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
+                info_list.append(getattr(ecg_inst, PDNames.RESULTS_DICT))
+            if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
+                wave_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES))
+            if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
+                median_list.append(getattr(ecg_inst, PDNames.LEAD_VOLTAGES2))
         # #### make tables
         setattr(self, PDNames.FAILED_DATA_L, no_data_list)
         setattr(self, PDNames.KEY_L, key_list)
         # general info
-        setattr(self, PDNames.INFO_T, pd.DataFrame(
-            info_list, index=getattr(self, PDNames.KEY_L)
-        ))
+        if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
+            setattr(self, PDNames.INFO_T, pd.DataFrame(
+                info_list, index=getattr(self, PDNames.KEY_L)
+            ))
         # wave forms, and median beats
-        setattr(self, PDNames.WAVE_T, self._get_long_table(
-            wave_list, wave_type=PDNames.WAVETYPE_RHYTHM,
-            update_keys=update_keys,
-            purge_header=True,
-        ))
-        setattr(self, PDNames.MEDIAN_T, self._get_long_table(
-            median_list, wave_type=PDNames.WAVETYPE_MEDIAN,
-            update_keys=update_keys,
-            purge_header=True,
-        ))
+        if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
+            setattr(self, PDNames.WAVE_T, self._get_long_table(
+                wave_list, wave_type=PDNames.WAVETYPE_RHYTHM,
+                update_keys=update_keys,
+                purge_header=True,
+            ))
+        if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
+            setattr(self, PDNames.MEDIAN_T, self._get_long_table(
+                median_list, wave_type=PDNames.WAVETYPE_MEDIAN,
+                update_keys=update_keys,
+                purge_header=True,
+            ))
         # #### Return
         setattr(self, PDNames.TABLE_CALLED, 'True')
         return self
@@ -1069,8 +1090,9 @@ class ECGDICOMTable(object):
     def write_ecg(self, target_tar:Union[None,str]=None, target_path:str='.',
                   sep:str='\t', mode:str='w:gz', compression:str='gzip',
                   update_keys:Optional[Dict[str,str]]=None,
+                  write_failed:bool=True,
                   **kwargs:Optional[Any],
-                  ):
+                  ) -> Self:
         '''
         Extracts dicom files, and write these one by one to a set of target
         files. By appending each dicom individually to the target files the
@@ -1099,6 +1121,9 @@ class ECGDICOMTable(object):
             The file compression passed to pandas.DataFrame.write_csv.
         update_keys : dict [`str`, `str`], default `NoneType`
             A dictionary to remap lead names: [`old`, `new`]
+        write_failed : bool, default `True`
+            Whether to write a text file to disk containing the failed file
+            names.
         **kwargs : Optional[Any],
             Keyword arguments used in the call method of a `ECGDICOMReader`
             instance.
@@ -1112,7 +1137,8 @@ class ECGDICOMTable(object):
         
         Returns
         -------
-        None
+        self : `ECGDICOMTable` instance
+            Returns the class instance with updated attributes.
         
         Notes
         -----
@@ -1153,7 +1179,7 @@ class ECGDICOMTable(object):
             os.makedirs(target, exist_ok=True)
         else:
             target = target_path
-            setattr(self, PDNames.WRITE_ECS_PATH, target)
+            setattr(self, PDNames.WRITE_ECG_PATH, target)
         # #### check if __call__ has been run
         if not hasattr(self, PDNames.CPATH_L):
             raise NotCalledError()
@@ -1188,75 +1214,263 @@ class ECGDICOMTable(object):
             # extract the remaining
             setattr(self, PDNames.FAILED_DATA_L, no_data_list)
             setattr(self, PDNames.KEY_L, [key])
-            info=getattr(ecg_inst, PDNames.RESULTS_DICT)
-            wave=getattr(ecg_inst, PDNames.LEAD_VOLTAGES)
-            median=getattr(ecg_inst, PDNames.LEAD_VOLTAGES2)
+            if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
+                info=getattr(ecg_inst, PDNames.RESULTS_DICT)
+            if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
+                wave=getattr(ecg_inst, PDNames.LEAD_VOLTAGES)
+            if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
+                median=getattr(ecg_inst, PDNames.LEAD_VOLTAGES2)
             # write to disk
             if first==True:
                 first = False
                 # metadata
-                pd.DataFrame([info], index=[key]).to_csv(
-                    os.path.join(target, PDNames.INFO_FILE), sep=sep,
-                    header=True, compression=compression)
+                if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
+                    pd.DataFrame([info], index=[key]).to_csv(
+                        os.path.join(target, PDNames.INFO_FILE), sep=sep,
+                        header=True, compression=compression)
                 # waveforms
-                self._get_long_table(
-                    [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
-                    update_keys=update_keys,
-                    purge_header=True,
-                ).to_csv(
-                        os.path.join(target, PDNames.WAVE_FILE), sep=sep,
-                        header=True, compression=compression)
+                if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
+                    self._get_long_table(
+                        [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
+                        update_keys=update_keys,
+                        purge_header=True,
+                    ).to_csv(
+                            os.path.join(target, PDNames.WAVE_FILE), sep=sep,
+                            header=True, compression=compression)
                 # median beats
-                self._get_long_table(
-                    [median], wave_type=PDNames.WAVETYPE_MEDIAN,
-                    update_keys=update_keys,
-                    purge_header=True,
-                ).to_csv(
-                        os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
-                        header=True, compression=compression)
+                if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
+                    self._get_long_table(
+                        [median], wave_type=PDNames.WAVETYPE_MEDIAN,
+                        update_keys=update_keys,
+                        purge_header=True,
+                    ).to_csv(
+                            os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
+                            header=True, compression=compression)
             else:
                 # appending using mode = 'a'
                 # metadata
-                pd.DataFrame([info], index=[key]).to_csv(
-                    os.path.join(target, PDNames.INFO_FILE), sep=sep,
-                    header=False, mode='a', compression=compression)
+                if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
+                    pd.DataFrame([info], index=[key]).to_csv(
+                        os.path.join(target, PDNames.INFO_FILE), sep=sep,
+                        header=False, mode='a', compression=compression)
                 # waveforms
-                self._get_long_table(
-                    [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
-                    update_keys=update_keys,
-                    purge_header=False,
-                ).to_csv(
-                        os.path.join(target, PDNames.WAVE_FILE), sep=sep,
-                        header=False, mode='a', compression=compression)
+                if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
+                    self._get_long_table(
+                        [wave], wave_type=PDNames.WAVETYPE_RHYTHM,
+                        update_keys=update_keys,
+                        purge_header=False,
+                    ).to_csv(
+                            os.path.join(target, PDNames.WAVE_FILE), sep=sep,
+                            header=False, mode='a', compression=compression)
                 # median beats
-                self._get_long_table(
-                    [median], wave_type=PDNames.WAVETYPE_MEDIAN,
-                    update_keys=update_keys,
-                    purge_header=False,
-                ).to_csv(
-                        os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
-                        header=False, mode='a', compression=compression)
+                if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
+                    self._get_long_table(
+                        [median], wave_type=PDNames.WAVETYPE_MEDIAN,
+                        update_keys=update_keys,
+                        purge_header=False,
+                    ).to_csv(
+                            os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
+                            header=False, mode='a', compression=compression)
             # delete key
             delattr(self, PDNames.KEY_L)
         # #### write failed files, note not compressing these
         DELIM = '\t'
-        # adding the reason for failing
-        total_failures = [
-            (p, PDNames.SKIP_PERMISSIONS) for p in getattr(self, PDNames.FPATH_L)
-        ] + [
-            (p, PDNames.SKIP_DATA) for p in getattr(self, PDNames.FAILED_DATA_L)]
-        # writing to text file
-        with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
-            for p, cause in total_failures:
-                file.write(p + DELIM + cause + "\n")
+        if write_failed == True:
+            # adding the reason for failing
+            total_failures = [
+                (p, PDNames.SKIP_PERMISSIONS) for p in getattr(self, PDNames.FPATH_L)
+            ] + [
+                (p, PDNames.SKIP_DATA) for p in getattr(self, PDNames.FAILED_DATA_L)]
+            # writing to text file
+            with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
+                for p, cause in total_failures:
+                    file.write(p + DELIM + cause + "\n")
         # #### if needed replace directory by tar.gz version
         if target_tar is not None:
             # create the final target path
             target_final = os.path.join(target_path, target_tar)
             replace_with_tar(target, target_final, mode=mode)
-            setattr(self, PDNames.WRITE_ECS_PATH, target_final)
+            setattr(self, PDNames.WRITE_ECG_PATH, target_final)
         # #### return
         return self
+    # /////////////////////////////////////////////////////////////////////////
+    def write_pdf(self, ecgdrawing:ECGDrawing,
+                  target_path:str='.', write_failed:bool=True,
+                  kwargs_reader:Dict[Any,Any] | None=None,
+                  kwargs_drawing:Dict[Any,Any] | None=None,
+                  kwargs_savefig:Dict[Any,Any] | None=None,
+                  ) -> Self:
+        '''
+        Extracts dicom files, and write these one by one to a pdf files
+        using a supplied `ECGDrawing` instance.
+        
+        Parameters
+        ----------
+        ecgdrawing : ECGDrawing
+            An instance of the ECGDrawing data class.
+        target_path : str, default '.'
+            The full path where the pdfs should be written to.
+        write_failed : bool, default `True`
+            Whether to write a text file to disk containing the failed file
+            names.
+        kwargs_*: dict [`any`, `any`], default `NoneType`
+            dictionaries with keyword arguments for the `plt.savefig`,
+            ECGDrawing, or ECGDICOMReader instances.
+        
+        Attributes
+        ----------
+        target_path : str
+            The directory or tar file path were the files are written to.
+        NoDataList : `list` [`str`]
+            A list of dicom files without a waveform_array.
+        
+        Returns
+        -------
+        self : `ECGDICOMTable` instance
+            Returns the class instance with updated attributes.
+        
+        Notes
+        -----
+        The dicom UID instance will be used as file name for the pdfs.
+        
+        Raises
+        ------
+        NotADirectoryError or PermissionError
+            If the target directory does not exist or is not writable.
+        '''
+        # #### check input and set constants
+        is_type(kwargs_reader, (type(None), dict))
+        is_type(kwargs_drawing, (type(None), dict))
+        is_type(ecgdrawing, ECGDrawing)
+        is_type(target_path, (pathlib.PosixPath, str))
+        is_type(write_failed, bool)
+        # check readability
+        _check_presence(target_path)
+        _check_readable(target_path)
+        # map None to dict
+        kwargs_savefig, kwargs_reader, kwargs_drawing= assign_empty_default(
+                [kwargs_savefig, kwargs_reader, kwargs_drawing], dict)
+        # map info type to type of plot
+        if getattr(self, PDNames.INFO_TYPE) == PDNames.INFO_TYPE_MET:
+            raise AttributeError('`info` should be {0} or {1}.'.format(
+                PDNames.INFO_TYPE_MED, PDNames.INFO_TYPE_RTM))
+        elif getattr(self, PDNames.INFO_TYPE) == PDNames.INFO_TYPE_ALL:
+            signal_type = PDNames.WAVETYPE_RHYTHM
+        else:
+            signal_type = getattr(self, PDNames.INFO_TYPE)
+        # #### create target path
+        if target_path == '.':
+            target_path = os.getcwd()
+        # assign to self
+        target = target_path
+        setattr(self, PDNames.WRITE_ECG_PATH, target)
+        # #### check if __call__ has been run
+        if not hasattr(self, PDNames.CPATH_L):
+            raise NotCalledError()
+        # #### extract dicom data
+        key_list, no_data_list = [[] for _ in range(2)]
+        # loop over individual dcm files
+        for p in getattr(self, PDNames.CPATH_L):
+            no_data_list, key_list, ecg_inst = self._internal_write(
+                path=p, no_data_list=no_data_list, key_list=key_list,
+                **kwargs_reader,
+                )
+            if isinstance(ecg_inst, str):
+                continue
+            # if self.verbose == True:
+            #     print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
+            # # get instance
+            # try:
+            #     ecg_inst = self.ecgdicomreader(p, **kwargs_reader)
+            # except AttributeError as AE:
+            #     if self.skip_missing == PDNames.SKIP_DATA:
+            #         no_data_list.append(p)
+            #         # moving to the next path
+            #         continue
+            #     else:
+            #         raise AE
+            # # extract unique identifier and check if it has been used before
+            # if hasattr(ecg_inst, PDNames.SOP_UID) == False:
+            #     raise AttributeError(Error_MSG.MISSING_ATTR.format(
+            #         PDNames.SOP_UID, 'ecg_inst'))
+            # key = str(getattr(ecg_inst, PDNames.SOP_UID))
+            # if key in key_list:
+            #     raise IndexError('{0}:{1} was already extracted before. Please '
+            #                      'ensure the supplied files are unique.'.\
+            #                      format(PDNames.SOP_UID, key))
+            # else:
+            #     key_list.append(key)
+            # extract the remaining
+            # setattr(self, PDNames.FAILED_DATA_L, no_data_list)
+            ### draw and write figure
+            ecgdrawing()(ecg_inst, wave_type=signal_type, **kwargs_drawing)
+            filename_pdf = re.sub(r"[ ,\-\(\)\{\}]", '_', key) + '.pdf'
+            plt.savefig(os.path.join(target, filename_pdf) **kwargs_savefig)
+            plt.close('all')
+        # #### write failed files, note not compressing these
+        DELIM = '\t'
+        if write_failed == True:
+            # adding the reason for failing
+            total_failures = [
+                (p, PDNames.SKIP_PERMISSIONS) for p in getattr(self, PDNames.FPATH_L)
+            ] + [
+                (p, PDNames.SKIP_DATA) for p in getattr(self, PDNames.FAILED_DATA_L)]
+            # writing to text file
+            with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
+                for p, cause in total_failures:
+                    file.write(p + DELIM + cause + "\n")
+        # #### return
+        return self
+    # /////////////////////////////////////////////////////////////////////////
+    def _internal_write(self, path:str, no_data_list:list[str],
+                        key_list:list[str],
+                        **kwargs,
+                        ) -> tuple[list, list, ECGDICOMReader]:
+        '''
+        An internal function to read ECG dicom data, check whether there these
+        data may have been extracted before (compared to key_list) and record
+        whether some files did not contain waveform_array attributes.
+        
+        Parameters
+        ----------
+        no_data_list : list [`str`]
+            A list of file names without an waveform_array attribute.
+        key_list : list [`str`]
+            A list of dicom UIDs which were processed before.
+        
+        Returns
+        -------
+        tuple :
+            A tuple with `no_data_list`, `key_list`,
+            and an ECGDICOMReader instance.
+        '''
+        if self.verbose == True:
+            print(STDOUT_MSG.PROCESSING_PATH.format(path), file=sys.stdout)
+        # get instance
+        try:
+            ecg_inst = self.ecgdicomreader(path, **kwargs)
+        except AttributeError as AE:
+            if self.skip_missing == PDNames.SKIP_DATA:
+                no_data_list.append(path)
+                # moving to the next path
+                return no_data_list, key_list, 'no_data'
+            else:
+                raise AE
+        # extract unique identifier and check if it has been used before
+        if hasattr(ecg_inst, PDNames.SOP_UID) == False:
+            raise AttributeError(Error_MSG.MISSING_ATTR.format(
+                PDNames.SOP_UID, 'ecg_inst'))
+        key = str(getattr(ecg_inst, PDNames.SOP_UID))
+        if key in key_list:
+            raise IndexError('{0}:{1} was already extracted before. Please '
+                             'ensure the supplied files are unique.'.\
+                             format(PDNames.SOP_UID, key))
+        else:
+            key_list.append(key)
+        # extract the remaining
+        setattr(self, PDNames.FAILED_DATA_L, no_data_list)
+        # return
+        return no_data_list, key_list, ecg_inst
 
 
 

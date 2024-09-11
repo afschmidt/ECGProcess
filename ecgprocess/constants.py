@@ -66,7 +66,7 @@ class ProcessDicomNames(object):
     COL_WAVETYPE          = 'Waveform type'
     WAVETYPE_RHYTHM       = 'rhythm'
     WAVETYPE_MEDIAN       = 'median'
-    WRITE_ECS_PATH        = 'target_path'
+    WRITE_ECG_PATH        = 'target_path'
     PREVIOUS_HEADER       = 'previous_header'
     TABLE_CALLED          = 'table_called'
     ECG_INTERPERTATION    = 'WaveformAnnotationSequence'
@@ -100,6 +100,11 @@ class ProcessDicomNames(object):
     PLOT_FIGSIZE          = 'figsize'
     PLOT_SAMPLING_NUMBER  = 'sampling number'
     ECG_READER            = 'ECG_READER'
+    INFO_TYPE             = 'info_type'
+    INFO_TYPE_ALL         = 'all'
+    INFO_TYPE_RTM         = 'rhythm'
+    INFO_TYPE_MED         = 'median'
+    INFO_TYPE_MET         = 'meta'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass

@@ -592,22 +592,3 @@ class ECGDrawing(object):
         # #### return
         return img_array
 
-import matplotlib.pylab as plt
-from ecgprocess.process_dicoms import (
-    ECGDICOMReader,
-)
-from ecgprocess.example_data.examples import (
-    list_data_paths,
-)
-dicom_file_path = list_data_paths()['example_dicom_2']
-
-ecgdicomreader = ECGDICOMReader()
-ecgreader=ecgdicomreader(path=dicom_file_path)
-layout = [
-    ['I (Einthoven)', 'V1'],
-    ['II', 'V2'],
-    ['III', 'V3'],
-    ['aVR', 'V4'],
-    ['aVL', 'V5'],
-    ['aVF', 'V6'],
-]
