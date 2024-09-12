@@ -72,10 +72,17 @@ class ECGDrawing(object):
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __init__(self) -> None:
+    def __init__(self, update_keys:dict[str,str]|None=None) -> None:
         """
         Initialises a new instance of `ECGDrawing`.
+        
+        Parameters
+        ----------
+        update_keys: dict [`str`, `str`], default `NoneType`
+            A dictionary to remap lead names: [`old`, `new`]
         """
+        # scaling factor for 1/mV to FACTOR/mV
+        setattr(self, 'update_keys', update_keys)
         # scaling factor for 1/mV to FACTOR/mV
         setattr(self, PDNames.WAVE_SCALING, 10)
         # #### set sensible plotting defaults matching an actual ECG printout
@@ -270,6 +277,15 @@ class ECGDrawing(object):
             warnings.warn(WARN2.format(unit))
         # add unit
         setattr(self, PDNames.PLOT_UNIT, unit)
+        # #### optionally updated the lead names
+        if self.update_keys is not None:
+            setattr(self, PDNames.ECG_SIGNAL,
+                    {self.update_keys.get(k, k): v for k, v in\
+                  getattr(self, PDNames.ECG_SIGNAL).items()}
+                    )
+        temp = getattr(self, PDNames.ECG_SIGNAL)
+        print(temp)
+        print(temp.keys())
         # #### create figure
         self._set_canvas(auto_margins=auto_margins, ax=ax)
         if add_grid == True:

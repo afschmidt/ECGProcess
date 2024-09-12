@@ -1060,8 +1060,6 @@ class ECGDICOMTable(object):
                 setattr(self, PREV, None)
         # #### initiate table and map lists
         table = pd.DataFrame()
-        print(lead_list)
-        print(getattr(self, PDNames.KEY_L))
         for w, k in zip(lead_list, getattr(self, PDNames.KEY_L), strict=True):
             # do we need to remap key names
             if update_keys is not None:
@@ -1195,7 +1193,7 @@ class ECGDICOMTable(object):
         key_list, no_data_list = [[] for _ in range(2)]
         # loop over individual dcm files
         for p in getattr(self, PDNames.CPATH_L):
-            no_data_list, key_list, ecg_inst = self._internal_write(
+            no_data_list, key_list, ecg_inst = self._write_internal(
                 path=p, no_data_list=no_data_list, key_list=key_list,
                 **self.kwargs,
                 )
@@ -1364,17 +1362,20 @@ class ECGDICOMTable(object):
         key_list, no_data_list = [[] for _ in range(2)]
         # loop over individual dcm files
         for p in getattr(self, PDNames.CPATH_L):
-            no_data_list, key_list, ecg_inst = self._internal_write(
+            no_data_list, key_list, ecg_inst = self._write_internal(
                 path=p, no_data_list=no_data_list, key_list=key_list,
                 **kwargs_reader,
                 )
             if isinstance(ecg_inst, str):
                 continue
-            ### draw and write figure
+            # #### updated leads
+            # if update_keys is not None:
+            #     w = {update_keys.get(k, k): v for k, v in w.items()}
+            # ##### draw and write figure
             artist = ecgdrawing(ecgreader=ecg_inst, wave_type=signal_type,
                                 **kwargs_drawing)
             filename_pdf = re.sub(r"[ ,\-\(\)\{\}]", '_', key_list[-1]) + '.pdf'
-            plt.savefig(os.path.join(target, filename_pdf) **kwargs_savefig)
+            plt.savefig(fname=os.path.join(target, filename_pdf), **kwargs_savefig)
             plt.close(artist.fig)
         # #### write failed files, note not compressing these
         DELIM = '\t'
@@ -1392,7 +1393,7 @@ class ECGDICOMTable(object):
         # #### return
         return self
     # /////////////////////////////////////////////////////////////////////////
-    def _internal_write(self, path:str, no_data_list:list[str],
+    def _write_internal(self, path:str, no_data_list:list[str],
                         key_list:list[str],
                         **kwargs,
                         ) -> tuple[list, list, ECGDICOMReader|str]:

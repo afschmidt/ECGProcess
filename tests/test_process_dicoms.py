@@ -7,6 +7,9 @@ from ecgprocess.process_dicoms import (
     ECGDICOMReader,
     ECGDICOMTable,
 )
+from ecgprocess.plot_ecgs import (
+    ECGDrawing,
+)
 from ecgprocess.example_data.examples import (
     list_data_paths,
 )
@@ -218,4 +221,18 @@ class TestECGDICOMTable(object):
         ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
         with pytest.raises(KeyError):
             _ = ecgtable().write_ecg(target_path=tmp_path)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_pdf(self, tmp_path):
+        # change current directory
+        os.chdir(tmp_path)
+        # run
+        ecgreader = ECGDICOMReader()
+        ecgdrawing = ECGDrawing(update_keys={'I (Einthoven)': 'I'})
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
+        res = ecgtable().write_pdf(ecgdrawing=ecgdrawing)
+        # get content and read in a table
+        content = os.listdir(getattr(res, PDNames.WRITE_ECG_PATH))
+        pdf_count = sum(1 for it in content if '.pdf' in it.lower())
+        assert len(content) == 3
+        assert pdf_count == 2
 
