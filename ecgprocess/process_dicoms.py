@@ -189,7 +189,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
             Returns the class instance with updated attributes extracted
             from `dcmread`.
         """
-        is_type(path, (pathlib.PosixPath, str), 'path')
+        is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str), 'path')
         is_type(skip_empty, bool, 'skip_empty')
         is_type(verbose, bool, 'verbose')
         # confirm file is readable
@@ -289,7 +289,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         Either supply a path to a dicom file or a DCM_Class instance
         '''
         # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
         is_type(dicom_instance, (type(None), DCM_Class))
         is_type(skip_empty, bool)
         results_dict = {}
@@ -345,7 +345,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         Either supply a path to a dicom file or a DCM_Class instance
         '''
         # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
         is_type(dicom_instance, (type(None), DCM_Class))
         is_type(skip_empty, bool)
         temp_results_dict = {}
@@ -433,7 +433,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         Either supply a path to a dicom file or a DCM_Class instance
         '''
         # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
         is_type(dicom_instance, (type(None), DCM_Class))
         is_type(skip_empty, bool)
         temp_results_dict = {}
@@ -533,7 +533,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         Either supply a path to a dicom file or a DCM_Class instance
         '''
         # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, str))
+        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
         is_type(dicom_instance, (type(None), DCM_Class))
         is_type(skip_empty, bool)
         default_results_dict = {}
@@ -1161,7 +1161,7 @@ class ECGDICOMTable(object):
         self.kwargs = kwargs
         # #### check input and set constants
         is_type(target_tar, (type(None), str), 'target_tar')
-        is_type(target_path, (pathlib.PosixPath, str), 'target_path')
+        is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str), 'target_path')
         is_type(sep, str, 'sep')
         is_type(mode, str, 'mode')
         is_type(compression, str, 'compression')
@@ -1333,7 +1333,7 @@ class ECGDICOMTable(object):
         is_type(kwargs_drawing, (type(None), dict))
         is_type(kwargs_savefig, (type(None), dict))
         is_type(ecgdrawing, ECGDrawing)
-        is_type(target_path, (pathlib.PosixPath, str))
+        is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str))
         is_type(write_failed, bool)
         # check readability
         _check_presence(target_path)

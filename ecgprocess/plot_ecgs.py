@@ -496,7 +496,7 @@ class ECGDrawing(object):
                 # get the signal - for rhythm sample across the xaxis.
                 if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
                     signal_temp =\
-                        getattr(self, PDNames.ECG_SIGNAL)[k][left:right]
+                        getattr(self, PDNames.ECG_SIGNAL)[k][0:chunk_size]
                 else:
                     # for median beats just extract the entire signal
                     signal_temp =\
