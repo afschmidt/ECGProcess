@@ -111,6 +111,7 @@ class ECGDrawing(object):
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, ecgreader:Callable,
                  wave_type:Literal['rhythm', 'median']='rhythm',
+                 start_pos:Literal['first', 'continues']= 'first',
                  add_grid:bool=False, minor_axis:bool=True,
                  image_layout:list[list[str]] | None=None,
                  auto_margins:bool=True,
@@ -128,6 +129,10 @@ class ECGDrawing(object):
             has already been called to process the ECG data.
         wave_type : {'rhythm', 'median'}, default `rhythm`
             The type of ECG signal to plot.
+        start_pos: {`first`, `continues`}, default `first`
+            Whether multiple sequential leads should start at the first
+            time point, or whether the next lead should start at the time
+            the previous lead stopped.
         add_grid : `bool`, default `False`
             Whether to annotate the ECG image with a canonical grid (with small
             squares indicating 0.04 seconds (x-axis) and 0.1 mV (y-axis) and
@@ -203,12 +208,14 @@ class ECGDrawing(object):
                  f'assumes measurements are in {PDNames.MILLIVOLT}.')
         # check input and assign to self
         is_type(verbose, bool)
+        is_type(start_pos, str)
         is_type(wave_type, str)
         is_type(add_grid, bool)
         is_type(minor_axis, bool)
         is_type(ax, (type(None), plt.Axes))
         is_type(image_layout, (type(None), list))
         self.verbose = verbose
+        # confirm wave_type
         setattr(self, PDNames.WAVE_TYPE, wave_type)
         WAVE_TYPE = [PDNames.WAVETYPE_RHYTHM,
                     PDNames.WAVETYPE_MEDIAN,
@@ -216,6 +223,7 @@ class ECGDrawing(object):
         if not getattr(self, PDNames.WAVE_TYPE) in WAVE_TYPE:
             raise ValueError(Error_MSG.CHOICE_PARM.\
                              format('wave_type', ', '.join(WAVE_TYPE)))
+        # set layout if needed
         if image_layout is None:
             image_layout = [
                 ['I', 'aVR', 'V1', 'V4'],
@@ -223,6 +231,11 @@ class ECGDrawing(object):
                 ['III', 'aVF', 'V3', 'V6'],
             ]
         setattr(self, PDNames.PLOT_LAYOUT, image_layout)
+        # confirm start pos
+        START_POS = [PDNames.START_POS_CONT, PDNames.START_POS_FIRST]
+        if not start_pos in START_POS:
+                raise ValueError(Error_MSG.CHOICE_PARM.\
+                                 format('start_pos', ', '.join(START_POS)))
         # #### get ecg data
         # confirm class has been called - result_dict whould always be present
         if not hasattr(ecgreader, PDNames.RESULTS_DICT):
@@ -283,15 +296,14 @@ class ECGDrawing(object):
                     {self.update_keys.get(k, k): v for k, v in\
                   getattr(self, PDNames.ECG_SIGNAL).items()}
                     )
-        temp = getattr(self, PDNames.ECG_SIGNAL)
-        print(temp)
-        print(temp.keys())
         # #### create figure
         self._set_canvas(auto_margins=auto_margins, ax=ax)
         if add_grid == True:
             self._draw_grid(minor_axis=minor_axis)
         # #### draw ecg signal
-        self._draw_signal(layout=getattr(self, PDNames.PLOT_LAYOUT))
+        self._draw_signal(layout=getattr(self, PDNames.PLOT_LAYOUT),
+                          start_pos=start_pos,
+                          )
         # #### return self
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -429,6 +441,8 @@ class ECGDrawing(object):
     # /////////////////////////////////////////////////////////////////////////
     def _draw_signal(self, layout:list[list[str]],
                      figsize:tuple[float, float] | None=None,
+                     wave_type:Literal['rhythm', 'media'] | None=None,
+                     start_pos:Literal['first', 'continues']= 'first',
                      kwargs_signal:dict[Any, Any] | None=None,
                      kwargs_text:dict[Any, Any] | None=None,
                      ) -> None:
@@ -439,19 +453,41 @@ class ECGDrawing(object):
         ----------
         layout : `list` [`list` [`str`]]
             A nested lists organising the image by ECG lead names.
-        figsize : `tuple` (`floa`, `float`), default `NoneType`
+        figsize : `tuple` (`float`, `float`), default `NoneType`
             The width by height figure size in inches. If `NoneType` it will
             use the self.paper_h and self_paper_w attributes which are
             defined in millimetres divided by self.inch_mm.
+        start_pos: {`first`, `continues`}, default `first`
+            Whether multiple sequential leads should start at the first
+            time point, or whether the next lead should start at the time
+            the previous lead stopped.
+        wave_type : {'rhythm', 'median'}, default `rhythm`
+            The type of signal to plot, will update the `wave_type` attribute.
         kwargs_*_dict : `dict` [`any`, `any`], default `NoneType`
             Optional arguments supplied to the various plotting functions:
                 kwargs_signal        --> ax.plot
                 kwargs_text          --> ax.text
         '''
         # #### check input
+        is_type(start_pos, str)
+        is_type(wave_type, (type(None),str))
         is_type(layout, (type(None), list))
         is_type(figsize, (type(None), tuple))
         setattr(self, PDNames.PLOT_LAYOUT, layout)
+        # set wave type
+        if not wave_type is None:
+            setattr(self, PDNames.WAVE_TYPE, wave_type)
+            WAVE_TYPE = [PDNames.WAVETYPE_RHYTHM,
+                        PDNames.WAVETYPE_MEDIAN,
+                        ]
+            if not getattr(self, PDNames.WAVE_TYPE) in WAVE_TYPE:
+                raise ValueError(Error_MSG.CHOICE_PARM.\
+                                 format('wave_type', ', '.join(WAVE_TYPE)))
+        # confirm start pos
+        START_POS = [PDNames.START_POS_CONT, PDNames.START_POS_FIRST]
+        if not start_pos in START_POS:
+                raise ValueError(Error_MSG.CHOICE_PARM.\
+                                 format('start_pos', ', '.join(START_POS)))
         # check an axis is available
         if hasattr(self, PDNames.PLOT_AXES) == False:
             raise NotCalledError('The `_set_canvas` method has not been '
@@ -493,15 +529,14 @@ class ECGDrawing(object):
             for numcol, k in enumerate(row):
                 left = numcol * chunk_size
                 right = (1 + numcol) * chunk_size
-                # get the signal - for rhythm sample across the xaxis.
-                if getattr(self, PDNames.WAVE_TYPE) == PDNames.WAVETYPE_RHYTHM:
-                    signal_temp =\
-                        getattr(self, PDNames.ECG_SIGNAL)[k][0:chunk_size]
-                else:
-                    # for median beats just extract the entire signal
-                    signal_temp =\
-                        getattr(self, PDNames.ECG_SIGNAL)[k][0:(chunk_size)]
-                # The signal chunk, vertical shifted and
+                sign_start = left
+                sign_stop = right
+                if start_pos == PDNames.START_POS_FIRST:
+                    sign_start = 0
+                    sign_stop = chunk_size
+                # get the signal
+                signal_temp =\
+                    getattr(self, PDNames.ECG_SIGNAL)[k][sign_start:sign_stop]
                 # scaled by mm/mV factor
                 signal = v_delta + getattr(self, PDNames.WAVE_SCALING) *\
                     signal_temp

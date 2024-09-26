@@ -105,6 +105,8 @@ class ProcessDicomNames(object):
     INFO_TYPE_RTM         = 'rhythm'
     INFO_TYPE_MED         = 'median'
     INFO_TYPE_MET         = 'meta'
+    START_POS_FIRST       = 'first'
+    START_POS_CONT        = 'continues'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
