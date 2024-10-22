@@ -1092,9 +1092,10 @@ class ECGDICOMTable(object):
         # #### return
         return long_table
     # /////////////////////////////////////////////////////////////////////////
-    def write_ecg(self, target_tar:Union[None,str]=None, target_path:str='.',
-                  sep:str='\t', mode:str='w:gz', compression:str='gzip',
-                  update_keys:Optional[Dict[str,str]]=None,
+    def write_ecg(self, target_tar: None | str = None, target_path:str='.',
+                  sep:str='\t', mode:str='w:gz',
+                  compression:str | None ='gzip',
+                  update_keys: None | dict[str,str] =None,
                   write_failed:bool=True,
                   **kwargs:Optional[Any],
                   ) -> Self:
@@ -1160,11 +1161,11 @@ class ECGDICOMTable(object):
         '''
         self.kwargs = kwargs
         # #### check input and set constants
-        is_type(target_tar, (type(None), str), 'target_tar')
-        is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str), 'target_path')
-        is_type(sep, str, 'sep')
-        is_type(mode, str, 'mode')
-        is_type(compression, str, 'compression')
+        is_type(target_tar, (type(None), str))
+        is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str))
+        is_type(sep, str)
+        is_type(mode, str)
+        is_type(compression, (type(None), str))
         # check readability
         _check_presence(target_path)
         _check_readable(target_path)

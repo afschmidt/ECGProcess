@@ -203,6 +203,17 @@ class TestECGDICOMTable(object):
         content = list_tar(getattr(res, PDNames.WRITE_ECG_PATH))
         assert set(content) == expect_content
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg_withoutcompression(self, tmp_path):
+        # run
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGDICOMTable(ecgreader, path_list=dicom_path_list)
+        res = ecgtable().write_ecg(update_keys={'I (Einthoven)': 'I'},
+                                   target_path=tmp_path,
+                                   target_tar='dir.tar.gz',
+                                   compression=None,)
+        content = list_tar(getattr(res, PDNames.WRITE_ECG_PATH))
+        assert set(content) == expect_content
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_write_ecg_tar_median(self, tmp_path):
         # run
         ecgreader = ECGDICOMReader()
