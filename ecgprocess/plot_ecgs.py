@@ -420,24 +420,22 @@ class ECGDrawing(object):
         getattr(self, PDNames.PLOT_AXES).yaxis.set_major_locator(
             plt.LinearLocator(int(getattr(self, PDNames.PLOT_HEIGHT)/ 5 + 1))
         )
-        for a in 'x', 'y':
-            for which in 'major', 'minor':
-                getattr(self, PDNames.PLOT_AXES).grid(
-                    which=which,
-                    axis=a,
-                    linestyle='-',
-                    linewidth=self.grid_linewidth[which],
-                    color=self.grid_color[which]
-                )
-                getattr(self, PDNames.PLOT_AXES).tick_params(
-                    which=which,
-                    axis=a,
-                    color=self.grid_color[which],
-                    bottom=False,
-                    top=False,
-                    left=False,
-                    right=False
-                )
+        # set the aesthetics
+        for which in 'major', 'minor':
+            getattr(self, PDNames.PLOT_AXES).grid(
+                which=which,
+                linestyle='-',
+                linewidth=self.grid_linewidth[which],
+                color=self.grid_color[which]
+            )
+            getattr(self, PDNames.PLOT_AXES).tick_params(
+                which=which,
+                color=self.grid_color[which],
+                bottom=False,
+                top=False,
+                left=False,
+                right=False
+            )
     # /////////////////////////////////////////////////////////////////////////
     def _draw_signal(self, layout:list[list[str]],
                      figsize:tuple[float, float] | None=None,

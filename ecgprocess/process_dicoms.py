@@ -3,6 +3,17 @@ A module to extract median beats and raw waveforms from DICOM ECGs wrapping
 pydicom.
 '''
 
+# NOTE implement the following
+# skip_emtpy should be renamed to empty_attribute which should be a literal with
+# options `Error`, `Skip`, `Skip-all`, where the Error should just raise errors
+# and `Skip` should skip empty attributes, while `Skip-all` Should also
+# skip empy wavform files - if you only want metadata.
+
+# NOTE should also rename skip_missing to file_errors usign the same Literals
+# but replacing None by Error. Additionally need to check the AttributeError reported
+# by Stephan when skip_missing is set to `Data` - this should skip AttributeErrors.
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import os
@@ -773,6 +784,15 @@ class ECGDICOMTable(object):
     Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
     and maps these to which can be used in analyses or saved to disk.
     
+    Parameters
+    ----------
+    ecgdicomreader : ECGDICOMReader
+        An instance of the ECGDICOMReader data class.
+    path_list : list [`str`]
+        A list of paths to one or more .dcm files.
+    info_type : {`all`, `rhythm`, `median`, `meta`}
+        Which information should be extracted.
+    
     Attributes
     ----------
     RawPathList : list [`str`]
@@ -802,15 +822,6 @@ class ECGDICOMTable(object):
                  ) -> None:
         """
         Initialises a new instance of `ECGDICOMTable`.
-        
-        Parameters
-        ----------
-        ecgdicomreader : ECGDICOMReader
-            An instance of the ECGDICOMReader data class.
-        path_list : list [`str`]
-            A list of paths to one or more .dcm files.
-        info_type : {`all`, `rhythm`, `median`, `meta`}
-            Which information should be extracted.
         """
         EXP_INFO=[PDNames.INFO_TYPE_ALL, PDNames.INFO_TYPE_RTM,
                   PDNames.INFO_TYPE_MED, PDNames.INFO_TYPE_MET,
