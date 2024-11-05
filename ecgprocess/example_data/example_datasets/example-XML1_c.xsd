@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+    <xs:element name="CardiologyXML">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="ObservationType" type="xs:string"/>
+                <xs:element name="ObservationDateTime">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Hour" type="xs:int"/>
+                            <xs:element name="Minute" type="xs:int"/>
+                            <xs:element name="Second" type="xs:int"/>
+                            <xs:element name="Day" type="xs:int"/>
+                            <xs:element name="Month" type="xs:int"/>
+                            <xs:element name="Year" type="xs:int"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="UID">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="DICOMStudyUID" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- ClinicalInfo and PatientVisit structures -->
+                <xs:element name="PatientInfo">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="PID" type="xs:string"/>
+                            <xs:element name="Name">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="FamilyName" type="xs:string"/>
+                                        <xs:element name="GivenName" type="xs:string"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Age" type="xs:int">
+                                <xs:attribute name="units" type="xs:string" use="required"/>
+                            </xs:element>
+                            <xs:element name="BirthDateTime">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Day" type="xs:int"/>
+                                        <xs:element name="Month" type="xs:int"/>
+                                        <xs:element name="Year" type="xs:int"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Gender" type="xs:string"/>
+                            <xs:element name="Race" type="xs:string"/>
+                            <xs:element name="Height" type="xs:decimal">
+                                <xs:attribute name="units" type="xs:string" use="required"/>
+                            </xs:element>
+                            <xs:element name="Weight" type="xs:decimal">
+                                <xs:attribute name="units" type="xs:string" use="required"/>
+                            </xs:element>
+                            <xs:element name="PaceMaker" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="FilterSetting">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="CubicSpline" type="xs:string"/>
+                            <xs:element name="Filter50Hz" type="xs:string"/>
+                            <xs:element name="Filter60Hz" type="xs:string"/>
+                            <xs:element name="LowPass" type="xs:decimal">
+                                <xs:attribute name="units" type="xs:string" use="required"/>
+                            </xs:element>
+                            <xs:element name="HighPass" type="xs:decimal">
+                                <xs:attribute name="units" type="xs:string" use="required"/>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="Device-Type" type="xs:int"/>
+                <xs:element name="Interpretation">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Diagnosis">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="DiagnosisText" type="xs:string" maxOccurs="unbounded"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Conclusion">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="ConclusionText" type="xs:string" maxOccurs="unbounded"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="RestingECGMeasurements">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="DiagnosisVersion" type="xs:string"/>
+                            <xs:element name="VentricularRate" type="xs:int">
+                                <xs:attribute name="units" type="xs:string" use="required"/>
+                            </xs:element>
+                            <!-- More ECG measurement elements like PQInterval, QRSDuration, etc. -->
+                            <xs:element name="MeasurementTable">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="LeadOrder" type="xs:string"/>
+                                        <xs:element name="QDuration" type="xs:string">
+                                            <xs:attribute name="units" type="xs:string" use="required"/>
+                                        </xs:element>
+                                        <xs:element name="RDuration" type="xs:string">
+                                            <xs:attribute name="units" type="xs:string" use="required"/>
+                                        </xs:element>
+                                        <xs:element name="SDuration" type="xs:string" minOccurs="0">
+                                            <xs:attribute name="units" type="xs:string" use="optional"/>
+                                        </xs:element>
+                                        <!-- Additional amplitude and duration elements -->
+                                    </xs:sequence>
+                                    <xs:attribute name="Creation" type="xs:string" use="required"/>
+                                </xs:complexType>
+                            </xs:element>
+                            <!-- MedianSamples and WaveformData elements for each lead -->
+                            <xs:element name="MedianSamples">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="NumberOfLeads" type="xs:int"/>
+                                        <xs:element name="SampleRate" type="xs:int">
+                                            <xs:attribute name="units" type="xs:string" use="required"/>
+                                        </xs:element>
+                                        <xs:element name="ChannelSampleCountTotal" type="xs:int"/>
+                                        <xs:element name="Resolution" type="xs:decimal">
+                                            <xs:attribute name="units" type="xs:string" use="required"/>
+                                        </xs:element>
+                                        <xs:element name="FirstValid" type="xs:int">
+                                            <xs:attribute name="units" type="xs:string" use="required"/>
+                                        </xs:element>
+                                        <xs:element name="LastValid" type="xs:int">
+                                            <xs:attribute name="units" type="xs:string" use="required"/>
+                                        </xs:element>
+                                        <xs:element name="WaveformData" maxOccurs="12">
+                                            <xs:complexType>
+                                                <xs:simpleContent>
+                                                    <xs:extension base="xs:string">
+                                                        <xs:attribute name="lead" type="xs:string" use="required"/>
+                                                    </xs:extension>
+                                                </xs:simpleContent>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>
+

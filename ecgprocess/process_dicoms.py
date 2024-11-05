@@ -1091,15 +1091,18 @@ class ECGDICOMTable(object):
             setattr(self, PREV, current_keys)
             del current_keys
         # #### formatting to long
-        table[PDNames.SAMPLING_SEQ] = table.groupby(
-            PDNames.SOP_UID).cumcount()
-        long_table = pd.melt(table, id_vars=\
-                             [PDNames.SOP_UID, PDNames.SAMPLING_SEQ],
-                             value_vars=getattr(self, PREV),
-                             var_name=PDNames.COL_LEAD,
-                             value_name=PDNames.COL_VOLTAGE
-                             )
-        long_table[PDNames.COL_WAVETYPE] = wave_type
+        if table.empty == False:
+            table[PDNames.SAMPLING_SEQ] = table.groupby(
+                PDNames.SOP_UID).cumcount()
+            long_table = pd.melt(table, id_vars=\
+                                 [PDNames.SOP_UID, PDNames.SAMPLING_SEQ],
+                                 value_vars=getattr(self, PREV),
+                                 var_name=PDNames.COL_LEAD,
+                                 value_name=PDNames.COL_VOLTAGE
+                                 )
+            long_table[PDNames.COL_WAVETYPE] = wave_type
+        else:
+            long_table = table
         # #### return
         return long_table
     # /////////////////////////////////////////////////////////////////////////
