@@ -4,6 +4,12 @@ Constants used by ECGProcess
 
 from dataclasses import dataclass
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class UtilsGeneralNames(object):
+    '''
+    Names used in the Utils General module.
+    '''
+    LXML_ERROR         = 'expected'
+
 
 class ProcessDicomNames(object):
     '''

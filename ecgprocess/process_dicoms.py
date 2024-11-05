@@ -1,6 +1,6 @@
 '''
-A module to extract median beats and raw waveforms from DICOM ECGs wrapping
-pydicom.
+A module to extract, metadata, median beats and raw waveforms from ECGs DICOM
+wrapping pydicom.
 '''
 
 # NOTE implement the following
@@ -10,8 +10,7 @@ pydicom.
 # skip empy wavform files - if you only want metadata.
 
 # NOTE should also rename skip_missing to file_errors usign the same Literals
-# but replacing None by Error. Additionally need to check the AttributeError reported
-# by Stephan when skip_missing is set to `Data` - this should skip AttributeErrors.
+# but replacing None by Error.
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -279,7 +278,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                      skip_empty:bool=True
                      ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
         '''
-        Takes a dicom file and extracts its metedata
+        Takes a dicom file and extracts its metadata
         
         Parameters
         ----------

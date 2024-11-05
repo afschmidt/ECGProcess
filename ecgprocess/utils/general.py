@@ -4,10 +4,20 @@ The general utils module
 import os
 import shutil
 import tarfile
-from typing import Any, List, Type, Union, Tuple, Callable, Optional, Dict
+import warnings
+import xmltodict
+from lxml import etree
+from pathlib import Path
+from typing import Any, Callable, Optional
 from ecgprocess.errors import (
     is_type,
 )
+from ecgprocess.constants import UtilsGeneralNames as UGNames
+from ecgprocess.errors import XMLValidationError
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# constants
+WARN1 = "XML file is valid (ignoring XML elements not in the supplied XSD)."
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def replace_with_tar(old_dir:str, new_tar:str, mode:str='w:gz'):
@@ -44,7 +54,7 @@ def replace_with_tar(old_dir:str, new_tar:str, mode:str='w:gz'):
     shutil.rmtree(old_dir)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def list_tar(path:str, mode:str='r:gz') -> List[str]:
+def list_tar(path:str, mode:str='r:gz') -> list[str]:
     '''
     Extract the content of a tar file and return this as a list
     
@@ -88,8 +98,8 @@ def getattr_case_insensitive(obj:object, attr_name:str) -> Any:
                          f"'{attr_name}'")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def assign_empty_default(arguments:List[Any], empty_object:Callable[[],Any],
-                         ) -> List[Any]:
+def assign_empty_default(arguments:list[Any], empty_object:Callable[[],Any],
+                         ) -> list[Any]:
     '''
     Takes a list of `arguments`, checks if these are `NoneType` and if so
     asigns them 'empty_object'.
@@ -124,8 +134,8 @@ def assign_empty_default(arguments:List[Any], empty_object:Callable[[],Any],
     return new_args
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def _update_kwargs(update_dict:Dict[Any, Any], **kwargs:Optional[Any],
-            ) -> Dict[Any, Any]:
+def _update_kwargs(update_dict:dict[Any, Any], **kwargs:Optional[Any],
+            ) -> dict[Any, Any]:
     '''
     This function will take any number of `kwargs` and add them to an
     `update_dict`. If there are any duplicate values in the `kwargs` and the
@@ -157,4 +167,65 @@ def _update_kwargs(update_dict:Dict[Any, Any], **kwargs:Optional[Any],
     new_dict = {**kwargs, **update_dict}
     # returns
     return new_dict
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def validate_xml(xml_path:str|Path, xsd_path:str|Path, strict:bool=True,
+                 verbose:bool=True,
+                 ) -> etree._ElementTree:
+    """
+    Validates an XML file against an XSD schema.
+    
+    Parameters
+    ----------
+    xml_path : `str` or `Path`
+        Path to the XML file.
+    xsd_path : `str` or `Path`
+        Path to the XSD file.
+    strict : `bool`, default `True`
+        If False, ignores elements in the XML that are not in the XSD.
+        
+    Returns
+    -------
+        xml : `etree._ElementTree`
+            The parsed XML document.
+    
+    Raises
+    ------
+    XMLValidationError
+        Raised if the XSD and XML are incompatible.
+    """
+    # #### Check input
+    is_type(strict, bool)
+    is_type(verbose, bool)
+    is_type(xml_path, (str, Path))
+    is_type(xsd_path, (str, Path))
+    # #### Load the XSD schema
+    with open(xsd_path, 'rb') as xsd:
+        schema_root = etree.XML(xsd.read())
+    schema = etree.XMLSchema(schema_root)
+    # #### Parse the XML file
+    with open(xml_path, 'rb') as xml:
+        xml_doc = etree.parse(xml)
+    # #### Compare XML against XSD
+    is_valid = schema.validate(xml_doc)
+    # #### Do we want to raise errors when XML elements are absent in the XSD
+    if not is_valid and not strict:
+        # if strict is False remove error relating to missing XSD elements
+        errors = [err.message for err in schema.error_log]
+        filtered_errs = [err for err in schema.error_log if\
+                           not UGNames.LXML_ERROR in err.message]
+        # check if there are any other type of errors
+        is_valid = len(filtered_errs) == 0
+        if is_valid:
+            # Where there any errors to begin with
+            if verbose == True and len(schema.error_log) > 0:
+                warnings.warn(WARN1)
+        else:
+            errors = [err.message for err in filtered_errs]
+            raise XMLValidationError(errors)
+    elif is_valid == False:
+        errors = [err.message for err in schema.error_log]
+        raise XMLValidationError(errors)
+    # return xml_doc
+    return xml_doc
 

@@ -113,7 +113,7 @@
                             <xs:element name="DiaBP" type="xs:string" minOccurs="0">
                                 <xs:attribute name="units" type="xs:string" use="required"/>
                             </xs:element>
-                            <xs:element name="MedicalHistory">
+                            <xs:element name="MedicalHistory" type="xs:string">
                                 <xs:complexType>
                                     <xs:sequence>
                                         <xs:element name="MedicalHistoryText" type="xs:string" minOccurs="0"/>
@@ -133,7 +133,6 @@
                                 <xs:complexType>
                                     <xs:sequence>
                                         <xs:element name="Label" type="xs:string" minOccurs="0">
-                                            <xs:attribute name="Type" type="xs:string" use="required"/>
                                         </xs:element>
                                         <xs:element name="Content" type="xs:string" minOccurs="0"/>
                                     </xs:sequence>
@@ -142,7 +141,6 @@
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>
-                <!-- Additional elements like PatientInfo, FilterSetting, Device-Type, Interpretation, and RestingECGMeasurements would follow similar structure -->
             </xs:sequence>
         </xs:complexType>
     </xs:element>

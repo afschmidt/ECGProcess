@@ -1,6 +1,5 @@
-#pandas>=2.1.1
-#numpy>=1.26
-#scipy>=1.7
+lxml>=5
+xmltodict>=0.14
 pydicom>=2.0
 pytest>=6
 pytest-mock>=3.0

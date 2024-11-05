@@ -7,7 +7,7 @@ import warnings
 import pandas as pd
 # import numpy as np
 from packaging import version
-from typing import Any, List, Type, Union, Tuple, Callable
+from typing import Any, Type, Union
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -26,7 +26,7 @@ def get_param_name(param:Any) -> str | None:
     return param_names[0] if param_names else None
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def is_type(param: Any, types: Union[Tuple[Type], Type],
+def is_type(param: Any, types: Union[tuple[Type], Type],
             param_name: Union[str, None]=None) -> bool:
     """
     Checks if a given parameter matches any of the supplied types
@@ -74,7 +74,7 @@ def is_df(df: Any) -> bool:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def is_series_type(column: Union[pd.Series, pd.DataFrame],
-                   types: Union[Tuple[Type], Type],
+                   types: Union[tuple[Type], Type],
                    ) -> bool:
     """
     Checks if a pd.DataFrame or pd.Series contest has the supplied type.
@@ -108,7 +108,7 @@ def is_series_type(column: Union[pd.Series, pd.DataFrame],
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def same_len(object1: Any, object2: Any,
-             object_names:Union[List[str], None]=None,
+             object_names:Union[list[str], None]=None,
              ) -> bool:
     """
     Check if two object's have the same length, and otherwise raise
@@ -143,7 +143,7 @@ def same_len(object1: Any, object2: Any,
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def are_columns_in_df(
-    df: pd.DataFrame, expected_columns: Union[List[str], str],
+    df: pd.DataFrame, expected_columns: Union[list[str], str],
     warning: bool=False
 ) -> bool:
     """
@@ -184,7 +184,7 @@ def are_columns_in_df(
     return res
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def string_to_list(object:Any) -> Union[Any, List[str]]:
+def string_to_list(object:Any) -> Union[Any, list[str]]:
     '''
     Checks if `object` is a string and wraps this in a list, returns the
     original object if it is not a string.
@@ -264,5 +264,13 @@ class NotCalledError(Exception):
         self.message = message
         super().__init__(self.message)
 
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class XMLValidationError(Exception):
+    '''
+    Expection raised when the XML and XSD file are incompatible.
+    '''
+    def __init__(self, errors: list[str]):
+        message = ("XML validation failed with the following issues:\n"
+                   "\n".join(errors))
+        super().__init__(message)
 

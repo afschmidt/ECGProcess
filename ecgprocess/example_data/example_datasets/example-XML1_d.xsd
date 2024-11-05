@@ -1,0 +1,162 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <!-- Define re-usable Types -->
+    <xs:complexType name="DoctorType">
+        <xs:sequence>
+            <xs:element name="FamilyName" type="xs:string" minOccurs="1" nillable="true"/>
+            <xs:element name="GivenName" type="xs:string" minOccurs="1" nillable="true"/>
+            <xs:element name="PersonID" type="xs:string" minOccurs="1" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <!-- End re-usable Types -->
+    <xs:element name="CardiologyXML">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="ObservationType" type="xs:string"/>
+
+                <!-- ObservationDateTime with nested elements -->
+                <xs:element name="ObservationDateTime">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Hour" type="xs:integer"/>
+                            <xs:element name="Minute" type="xs:integer"/>
+                            <xs:element name="Second" type="xs:integer"/>
+                            <xs:element name="Day" type="xs:integer"/>
+                            <xs:element name="Month" type="xs:integer"/>
+                            <xs:element name="Year" type="xs:integer"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+                <!-- UID with nested element -->
+                <xs:element name="UID">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="DICOMStudyUID" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+                <!-- ClinicalInfo section -->
+                <xs:element name="ClinicalInfo">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="ReasonForStudy" type="xs:string" minOccurs="0"/>
+                            <xs:element name="Technician">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="FamilyName" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="GivenName" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="PersonID" type="xs:string" minOccurs="0"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="ObservationComment" type="xs:string" minOccurs="0"/>
+                            <xs:element name="DeviceInfo">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Desc" type="xs:string"/>
+                                        <xs:element name="SoftwareVer" type="xs:string"/>
+                                        <xs:element name="AnalysisVer" type="xs:string"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+                <!-- PatientVisit section -->
+                <xs:element name="PatientVisit">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="PatientClass" type="xs:string"/>
+                            <xs:element name="AssignedPatientLocation">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Facility" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="LocationNumber" type="xs:integer"/>
+                                        <xs:element name="LocationName" type="xs:string"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="PatientRoom" type="xs:string" minOccurs="0"/>
+                            <xs:element name="AdmissionType" type="xs:string"/>
+                            <xs:element name="OrderingProvider">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="FamilyName" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="GivenName" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="PersonID" type="xs:string" minOccurs="0"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="AttendingDoctor" type="DoctorType"/>
+                            <xs:element name="ReferringDoctor" type="DoctorType"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+                <!-- PatientInfo section -->
+                <xs:element name="PatientInfo">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="PID" type="xs:string"/>
+                            <xs:element name="Name">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="FamilyName" type="xs:string"/>
+                                        <xs:element name="GivenName" type="xs:string"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Age">
+                                <xs:complexType>
+                                    <xs:simpleContent>
+                                        <xs:extension base="xs:integer">
+                                            <xs:attribute name="units"
+                                            type="xs:string" use="required"/>
+                                        </xs:extension>
+                                    </xs:simpleContent>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="BirthDateTime">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Day" type="xs:integer"/>
+                                        <xs:element name="Month" type="xs:integer"/>
+                                        <xs:element name="Year" type="xs:integer"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Gender" type="xs:string"/>
+                            <xs:element name="Race" type="xs:string"/>
+                            <xs:element name="Height">
+                                <xs:complexType>
+                                    <xs:simpleContent>
+                                        <xs:extension base="xs:integer">
+                                            <xs:attribute name="units"
+                                            type="xs:string" use="required"/>
+                                        </xs:extension>
+                                    </xs:simpleContent>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Weight">
+                                <xs:complexType>
+                                    <xs:simpleContent>
+                                        <xs:extension base="xs:float">
+                                            <xs:attribute name="units"
+                                            type="xs:string" use="required"/>
+                                        </xs:extension>
+                                    </xs:simpleContent>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="PaceMaker" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+                <!-- Continue with other elements as needed based on XML structure -->
+
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>
