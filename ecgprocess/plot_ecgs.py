@@ -553,7 +553,8 @@ class ECGDrawing(object):
                     **new_kwargs_signal,
                     )
                 # update kwargs
-                new_kwargs_text = _update_kwargs( update_dict=kwargs_text,
+                new_kwargs_text = _update_kwargs(
+                    update_dict=kwargs_text,
                     zorder=3,
                     fontsize=8,
                 )

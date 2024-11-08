@@ -104,10 +104,6 @@ def assign_empty_default(arguments:list[Any], empty_object:Callable[[],Any],
     Takes a list of `arguments`, checks if these are `NoneType` and if so
     asigns them 'empty_object'.
     
-    This function helps deal with the pitfall of assigning an empty mutable
-    object as a default function argument, which would persist through multiple
-    function calls, leading to unexpected/undesired behaviours.
-    
     Parameters
     ----------
     arguments: list of arguments
@@ -124,10 +120,16 @@ def assign_empty_default(arguments:list[Any], empty_object:Callable[[],Any],
     --------
     >>> assign_empty_default(['hi', None, 'hello'], empty_object=list)
     ['hi', [], 'hello']
+    
+    Notes
+    -----
+    This function helps deal with the pitfall of assigning an empty mutable
+    object as a default function argument, which would persist through multiple
+    function calls, leading to unexpected/undesired behaviours.
     '''
     # check input
-    is_type(arguments, list, 'arguments')
-    is_type(empty_object, type, 'empty_object')
+    is_type(arguments, list)
+    is_type(empty_object, type)
     # loop over arguments
     new_args = [empty_object() if arg is None else arg for arg in arguments]
     # return
@@ -254,3 +256,83 @@ def xml_to_dict(xml_doc:etree._ElementTree, encoding:str='utf-8',
     xml_dict = xmltodict.parse(xml_str)
     # returning stuf.
     return xml_dict
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# d = nested_dict_fixture
+def flatten_dict(d:dict[str, Any], parent_prefix:str='', sep:str='.',
+                 skip_root:bool=True,
+                 ) -> dict[str, Any]:
+    """
+    Recursively flatten a nested dictionary, optionally skipping the root
+    element.
+    
+    Parameters
+    ----------
+    d : dict
+        The dictionary to flatten.
+    parent_prefix : str, default ''
+        The base string added as a prefix to all keys during recursion.
+        Useful for maintaining context or indicating a higher-level structure.
+    sep : str, default '.'
+        The key separator
+    skip_root : bool, default True
+        If True, skips the first level (root) key.
+    
+    Returns
+    -------
+    dict
+        A flattened dictionary where nested keys are concatenated into a single
+        key.
+    
+    Examples
+    --------
+    >>> nested_dict = {
+    ...     'a': {
+    ...         'b': 1,
+    ...         'c': {
+    ...             'd': 2
+    ...         }
+    ...     }
+    ... }
+    >>> flatten_dict(nested_dict)
+    {'b': 1, 'c.d': 2}
+    
+    >>> flatten_dict(nested_dict, skip_root=False)
+    {'a.b': 1, 'a.c.d': 2}
+    
+    >>> flatten_dict(nested_dict, sep='_', skip_root=False)
+    {'a_b': 1, 'a_c_d': 2}
+    """
+    # check input
+    is_type(d, dict)
+    is_type(parent_prefix, str)
+    is_type(sep, str)
+    is_type(skip_root, bool)
+    # initiate empty results
+    res = []
+    # If skipping the root, adjust d to be the first nested dictionary level
+    if skip_root and isinstance(d, dict) and len(d) == 1:
+        _, d = next(iter(d.items()))
+    # loop over the remaining keys and values
+    for k, v in d.items():
+        new_key = f"{parent_prefix}{sep}{k}" if parent_prefix else k
+        # if v is dict, unpack
+        if isinstance(v, dict):
+            res.extend(flatten_dict(v, new_key, sep=sep, skip_root=False).items())
+        # if v is list, unpack
+        elif isinstance(v, list):
+            for i, item in enumerate(v):
+                # flatten lists
+                if item is not None and isinstance(item, dict):
+                    res.extend(flatten_dict(item, f"{new_key}_{i}",
+                                            sep=sep, skip_root=False).\
+                                 items())
+                # otherwise add non-dict and None types
+                else:
+                    res.append((f"{new_key}_{i}", item))
+        # otherwise simply assign
+        else:
+            res.append((new_key, v))
+    return dict(res)
+
+

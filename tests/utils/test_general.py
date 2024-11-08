@@ -18,6 +18,23 @@ STRICT_XSD_PATH = "strict_schema.xsd"
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @pytest.fixture
+def nested_dict_fixture():
+    return {
+        'a': {
+            'b': 1,
+            'c': {
+                'd': 2
+            },
+            'e': [
+                {'f': 3},
+                4,
+                None
+            ]
+        }
+    }
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@pytest.fixture
 def test_directory(tmp_path):
     # Create a temporary directory with some files
     test_dir = tmp_path / "test_dir"
@@ -252,3 +269,45 @@ class TestXMLFunctions(object):
         result = gen_utils.xml_to_dict(tree)
         assert isinstance(result, dict)
         assert 'UnexpectedElement' in result['RootTag']
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_flatten_dict(self, nested_dict_fixture):
+        # Test case when skip_root is True (default)
+        expected = {'b': 1, 'c.d': 2, 'e_0.f': 3, 'e_1': 4, 'e_2': None}
+        result = gen_utils.flatten_dict(nested_dict_fixture)
+        assert result == expected
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_flatten_dict_skip_root(self, nested_dict_fixture):
+        # Test case when skip_root is False
+        expected = {'a.b': 1, 'a.c.d': 2, 'a.e_0.f': 3, 'a.e_1': 4,
+                    'a.e_2': None}
+        result = gen_utils.flatten_dict(nested_dict_fixture, skip_root=False)
+        assert result == expected
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_flatten_dict_separator(self, nested_dict_fixture):
+        # Test case when using a custom separator
+        expected = {'a_b': 1, 'a_c_d': 2, 'a_e_0_f': 3, 'a_e_1': 4,
+                    'a_e_2': None}
+        result = gen_utils.flatten_dict(nested_dict_fixture, sep='_',
+                                        skip_root=False)
+        assert result == expected
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def test_assign_empty():
+    result1 = gen_utils.assign_empty_default(['hello', None, 'world'],
+                                             empty_object=list)
+    result2 = gen_utils.assign_empty_default(['hello', 'world'], empty_object=list)
+    result3 = gen_utils.assign_empty_default([None, 42, 'test', None],
+                                             empty_object=dict)
+    assert result1 == ['hello', [], 'world']
+    assert result2 == ['hello', 'world']
+    assert result3 == [{}, 42, 'test', {}]
+    with pytest.raises(InputValidationError):
+        _ = gen_utils.assign_empty_default('not a list', empty_object=list)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Pytest test case for _update_kwargs
+def test_update_kwargs_with_overlapping_keys():
+    update_dict = {'c': 'black'}
+    result = gen_utils._update_kwargs(update_dict, c='red', alpha=0.5)
+    assert result == {'c': 'black', 'alpha': 0.5}
+
