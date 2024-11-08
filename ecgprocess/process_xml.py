@@ -93,9 +93,9 @@ def flatten_dict(d, parent_key='', sep='.', skip_root=False):
         root_key, d = next(iter(d.items()))
     
     for k, v in d.items():
-        print(k)
+        # print(k)
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        print(new_key)
+        # print(new_key)
         if isinstance(v, dict):
             # Only recurse if v is a dictionary and not None
             if v is not None:
@@ -117,8 +117,14 @@ def flatten_dict(d, parent_key='', sep='.', skip_root=False):
 
 # Strict mode: True for strict validation, False to ignore unexpected elements
 validated_doc = validate_xml(xml_file, xsd_file, strict=False)
-xml_data_dict = xml_to_dict(validated_doc)
-flattened_dict = flatten_dict(xml_data_dict)
+# xml_data_dict = xml_to_dict(validated_doc)
+# flattened_dict = flatten_dict(xml_data_dict)
+# NOTE the validation in validate_xml is optional.
+# can also simply call
+    # # Parse the XML file
+    # with open(xml_file, 'rb') as xml:
+    #     xml_doc = etree.parse(xml)
+flattened_dict['CardiologyXML.RestingECGMeasurements.PQInterval.#text']
 
 # xml_data_dict['CardiologyXML']['RestingECGMeasurements']
 

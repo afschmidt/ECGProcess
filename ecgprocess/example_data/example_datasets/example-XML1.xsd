@@ -1,0 +1,217 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <!-- Define re-usable Types -->
+    <xs:complexType name="PersonType">
+        <xs:sequence>
+            <xs:element name="FamilyName" type="xs:string" minOccurs="1" nillable="true"/>
+            <xs:element name="GivenName" type="xs:string" minOccurs="1" nillable="true"/>
+            <xs:element name="PersonID" type="xs:string" minOccurs="1" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="MeasurementType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="units" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- End re-usable Types -->
+    <xs:element name="CardiologyXML">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="ObservationType" type="xs:string"/>
+                <!-- ObservationDateTime with nested elements -->
+                <xs:element name="ObservationDateTime">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Hour" type="xs:integer"/>
+                            <xs:element name="Minute" type="xs:integer"/>
+                            <xs:element name="Second" type="xs:integer"/>
+                            <xs:element name="Day" type="xs:integer"/>
+                            <xs:element name="Month" type="xs:integer"/>
+                            <xs:element name="Year" type="xs:integer"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- UID with nested element -->
+                <xs:element name="UID">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="DICOMStudyUID" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- ClinicalInfo section -->
+                <xs:element name="ClinicalInfo">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="ReasonForStudy" type="xs:string"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="Technician" type="PersonType"/>
+                            <xs:element name="ObservationComment" type="xs:string"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="DeviceInfo">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Desc" type="xs:string"/>
+                                        <xs:element name="SoftwareVer" type="xs:string"/>
+                                        <xs:element name="AnalysisVer" type="xs:string"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- PatientVisit section -->
+                <xs:element name="PatientVisit">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="PatientClass" type="xs:string"/>
+                            <xs:element name="AssignedPatientLocation">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Facility" type="xs:string"
+                                        minOccurs="0"/>
+                                        <xs:element name="LocationNumber" type="xs:integer"/>
+                                        <xs:element name="LocationName" type="xs:string"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="PatientRoom" type="xs:string" minOccurs="0"/>
+                            <xs:element name="AdmissionType" type="xs:string"/>
+                            <xs:element name="OrderingProvider" type="PersonType"/>
+                            <xs:element name="AttendingDoctor" type="PersonType"/>
+                            <xs:element name="ReferringDoctor" type="PersonType"/>
+                            <xs:element name="ServicingFacility">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Name" type="xs:string"
+                                        minOccurs="1" nillable="true"/>
+                                        <xs:element name="Address">
+                                            <xs:complexType>
+                                                <xs:sequence>
+                                                    <xs:element name="Street1" type="xs:string"
+                                                    minOccurs="1" nillable="true"/>
+                                                    <xs:element name="City" type="xs:string"
+                                                    minOccurs="1" nillable="true"/>
+                                                </xs:sequence>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="SysBP" type="MeasurementType" nillable="true"/>
+                            <xs:element name="DiaBP" type="MeasurementType" nillable="true"/>
+                            <xs:element name="MedicalHistory">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="MedicalHistoryText"
+                                        type="xs:string" minOccurs="0" nillable="true"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="OrderNumber" type="xs:string" minOccurs="0" 
+                            nillable="true"/>
+                            <xs:element name="Medications">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Drug" type="xs:string"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="Dosage" type="xs:string"
+                                        minOccurs="0" nillable="true"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <!-- Can handle any number of Extra Questions -->
+                            <xs:element name="ExtraQuestions">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:choice maxOccurs="unbounded">
+                                            <xs:sequence>
+                                                <xs:element name="Label" minOccurs="1">
+                                                    <xs:complexType>
+                                                        <xs:simpleContent>
+                                                            <xs:extension base="xs:string">
+                                                                <xs:attribute name="Type" type="xs:string" use="required"/>
+                                                            </xs:extension>
+                                                        </xs:simpleContent>
+                                                    </xs:complexType>
+                                                </xs:element>
+                                                <xs:element name="Content" type="xs:string" minOccurs="1" nillable="true"/>
+                                            </xs:sequence>
+                                        </xs:choice>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+                <!-- PatientInfo section -->
+                <xs:element name="PatientInfo">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="PID" type="xs:string"/>
+                            <xs:element name="Name">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="FamilyName" type="xs:string"/>
+                                        <xs:element name="GivenName" type="xs:string"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Age" type="MeasurementType" nillable="true"/>
+                            <xs:element name="BirthDateTime">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Day" type="xs:integer"/>
+                                        <xs:element name="Month" type="xs:integer"/>
+                                        <xs:element name="Year" type="xs:integer"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Gender" type="xs:string"/>
+                            <xs:element name="Race" type="xs:string"/>
+                            <xs:element name="Height" type="MeasurementType" nillable="true"/>
+                            <xs:element name="Weight" type="MeasurementType" nillable="true"/>
+                            <xs:element name="PaceMaker" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="FilterSetting">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="CubicSpline" type="xs:string" minOccurs="1"/>
+                            <xs:element name="Filter50Hz" type="xs:string" minOccurs="1"/>
+                            <xs:element name="Filter60Hz" type="xs:string" minOccurs="1"/>
+                            <xs:element name="LowPass" type="MeasurementType" nillable="true"/>
+                            <xs:element name="HighPass" type="MeasurementType" nillable="true"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="Device-Type" type="xs:int"/>
+                <xs:element name="Interpretation">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Diagnosis">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="DiagnosisText" type="xs:string" maxOccurs="unbounded"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Conclusion">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="ConclusionText" type="xs:string" maxOccurs="unbounded"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- Continue with other elements as needed based on XML structure -->
+
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>
