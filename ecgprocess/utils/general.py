@@ -64,7 +64,7 @@ def list_tar(path:str, mode:str='r:gz') -> list[str]:
         The path to the tar file.
     mode : str, default `r:gz`
         The tarfile open mode.
-
+    
     Returns
     -------
     files : list [`str`]
@@ -81,21 +81,21 @@ def list_tar(path:str, mode:str='r:gz') -> list[str]:
     # return
     return files
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def getattr_case_insensitive(obj:object, attr_name:str) -> Any:
-    '''
-    A case insensitive version of getattr. Use this when extracting data from
-    a dataclass instance which may have not been sufficiently standardised.
-    '''
-    # Get all attributes of the object
-    all_attrs = dir(obj)
-    # Find the attribute with a case-insensitive match
-    for attr in all_attrs:
-        if attr.lower() == attr_name.lower():
-            return getattr(obj, attr)
-    # Raise an AttributeError if no match is found
-    raise AttributeError(f"'{type(obj).__name__}' object has no attribute "
-                         f"'{attr_name}'")
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# def getattr_case_insensitive(obj:object, attr_name:str) -> Any:
+#     '''
+#     A case insensitive version of getattr. Use this when extracting data from
+#     a dataclass instance which may have not been sufficiently standardised.
+#     '''
+#     # Get all attributes of the object
+#     all_attrs = dir(obj)
+#     # Find the attribute with a case-insensitive match
+#     for attr in all_attrs:
+#         if attr.lower() == attr_name.lower():
+#             return getattr(obj, attr)
+#     # Raise an AttributeError if no match is found
+#     raise AttributeError(f"'{type(obj).__name__}' object has no attribute "
+#                          f"'{attr_name}'")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def assign_empty_default(arguments:list[Any], empty_object:Callable[[],Any],
@@ -229,3 +229,28 @@ def validate_xml(xml_path:str|Path, xsd_path:str|Path, strict:bool=True,
     # return xml_doc
     return xml_doc
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def xml_to_dict(xml_doc:etree._ElementTree, encoding:str='utf-8',
+                ) -> dict[str, Any]:
+    """
+    Converts an lxml ElementTree document to a dictionary.
+    
+    Parameters
+    ----------
+    xml_doc : `etree._ElementTree`
+        A validated XML document.
+    encoding : `str`, default `utf-8`
+        
+    Returns
+    -------
+    res : `dict` [`str`, `any`]
+        A dictionary representation of the XML data.
+    """
+    is_type(encoding,str)
+    is_type(xml_doc, etree._ElementTree)
+    # convert to string
+    xml_str = etree.tostring(xml_doc, encoding=encoding)
+    # parste to dict
+    xml_dict = xmltodict.parse(xml_str)
+    # returning stuf.
+    return xml_dict

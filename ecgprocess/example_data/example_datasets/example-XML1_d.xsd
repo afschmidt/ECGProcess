@@ -12,7 +12,6 @@
         <xs:complexType>
             <xs:sequence>
                 <xs:element name="ObservationType" type="xs:string"/>
-
                 <!-- ObservationDateTime with nested elements -->
                 <xs:element name="ObservationDateTime">
                     <xs:complexType>
@@ -26,7 +25,6 @@
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>
-
                 <!-- UID with nested element -->
                 <xs:element name="UID">
                     <xs:complexType>
@@ -35,22 +33,15 @@
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>
-
                 <!-- ClinicalInfo section -->
                 <xs:element name="ClinicalInfo">
                     <xs:complexType>
                         <xs:sequence>
-                            <xs:element name="ReasonForStudy" type="xs:string" minOccurs="0"/>
-                            <xs:element name="Technician">
-                                <xs:complexType>
-                                    <xs:sequence>
-                                        <xs:element name="FamilyName" type="xs:string" minOccurs="0"/>
-                                        <xs:element name="GivenName" type="xs:string" minOccurs="0"/>
-                                        <xs:element name="PersonID" type="xs:string" minOccurs="0"/>
-                                    </xs:sequence>
-                                </xs:complexType>
-                            </xs:element>
-                            <xs:element name="ObservationComment" type="xs:string" minOccurs="0"/>
+                            <xs:element name="ReasonForStudy" type="xs:string"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="Technician" type="DoctorType"/>
+                            <xs:element name="ObservationComment" type="xs:string"
+                            minOccurs="0" nillable="true"/>
                             <xs:element name="DeviceInfo">
                                 <xs:complexType>
                                     <xs:sequence>
@@ -63,7 +54,6 @@
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>
-
                 <!-- PatientVisit section -->
                 <xs:element name="PatientVisit">
                     <xs:complexType>

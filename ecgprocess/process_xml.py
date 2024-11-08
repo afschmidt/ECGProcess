@@ -5,8 +5,8 @@ A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 import xmltodict
 from lxml import etree
 
-xml_path='example_data/example_datasets/example-XML1.xml'
-xsd_path='example_data/example_datasets/example-XML1_d.xsd'
+xml_file='example_data/example_datasets/example-XML1.xml'
+xsd_file='example_data/example_datasets/example-XML1_d.xsd'
 strict=False
 verbose=True
 
@@ -112,35 +112,15 @@ def flatten_dict(d, parent_key='', sep='.', skip_root=False):
             items.append((new_key, v))
     return dict(items)
 
-# Example usage:
-xml_data_dict = {
-    "RootTag": {  # This is the root tag you want to skip
-        "Person": {
-            "Name": "John",
-            "Address": {
-                "Street": "Main St",
-                "City": "Sampleville"
-            },
-            "PhoneNumbers": {
-                "PhoneNumber": ["123-456-7890", "098-765-4321"]
-            }
-        }
-    }
-}
-
-flattened_dict = flatten_dict(xml_data_dict, skip_root=True)
-print(flattened_dict)
-
-
 
 # Strict mode: True for strict validation, False to ignore unexpected elements
 validated_doc = validate_xml(xml_file, xsd_file, strict=False)
-xml_data_dict = xml_to_dict(validated_doc)
-flattened_dict = flatten_dict(xml_data_dict)
+# xml_data_dict = xml_to_dict(validated_doc)
+# flattened_dict = flatten_dict(xml_data_dict)
 
-xml_data_dict['CardiologyXML']['RestingECGMeasurements']
+# xml_data_dict['CardiologyXML']['RestingECGMeasurements']
 
-if validated_doc:
-    # If valid, you can parse or manipulate the XML as needed
-    root = validated_doc.getroot()
-    print("Root element:", root.tag)
+# if validated_doc:
+#     # If valid, you can parse or manipulate the XML as needed
+#     root = validated_doc.getroot()
+#     print("Root element:", root.tag)
