@@ -7,10 +7,27 @@
             <xs:element name="PersonID" type="xs:string" minOccurs="1" nillable="true"/>
         </xs:sequence>
     </xs:complexType>
+    
     <xs:complexType name="MeasurementType">
         <xs:simpleContent>
             <xs:extension base="xs:string">
                 <xs:attribute name="units" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <xs:complexType name="MeasurementListType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="units" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+
+    <xs:complexType name="VectorLoopType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="Lead" type="xs:string" use="optional"/>
             </xs:extension>
         </xs:simpleContent>
     </xs:complexType>
@@ -195,22 +212,194 @@
                             <xs:element name="Diagnosis">
                                 <xs:complexType>
                                     <xs:sequence>
-                                        <xs:element name="DiagnosisText" type="xs:string" maxOccurs="unbounded"/>
+                                        <xs:element name="DiagnosisText" type="xs:string"
+                                        maxOccurs="unbounded"/>
                                     </xs:sequence>
                                 </xs:complexType>
                             </xs:element>
                             <xs:element name="Conclusion">
                                 <xs:complexType>
                                     <xs:sequence>
-                                        <xs:element name="ConclusionText" type="xs:string" maxOccurs="unbounded"/>
+                                        <xs:element name="ConclusionText" type="xs:string"
+                                        maxOccurs="unbounded"/>
                                     </xs:sequence>
                                 </xs:complexType>
                             </xs:element>
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>
-                <!-- Continue with other elements as needed based on XML structure -->
-
+                <!-- Resting ECG -->
+                <xs:element name="RestingECGMeasurements">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="DiagnosisVersion" type="xs:string" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="VentricularRate" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="PQInterval" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="PDuration" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QRSDuration" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QTInterval" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QTCInterval" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="RRInterval" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="PPInterval" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="SokolovLVHIndex" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="PAxis" type="MeasurementType" 
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="RAxis" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="TAxis" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QTDispersion" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QTDispersionBazett" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QRSNum" type="xs:int"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="MeasurementTable">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="LeadOrder" type="xs:string"/>
+                                        <xs:element name="QDuration" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="RDuration" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="SDuration" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="RpDuration" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="PAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="QAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="RAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="SAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="R1Amplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="S1Amplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="JAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="JXAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="TAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="JXSlope" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="R1Duration" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="P1Amplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="JXEAmplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                        <xs:element name="T1Amplitude" type="MeasurementListType"
+                                        minOccurs="0" nillable="true"/>
+                                    </xs:sequence>
+                                    <xs:attribute name="Creation" type="xs:string" use="required"/>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="POnset" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="POffset" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QOnset" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="QOffset" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="TOffset" type="MeasurementType"
+                            minOccurs="0" nillable="true"/>
+                            <xs:element name="MedianSamples">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="NumberOfLeads" type="xs:int"/>
+                                        <xs:element name="SampleRate" type="MeasurementType"/>
+                                        <xs:element name="ChannelSampleCountTotal" type="xs:int"/>
+                                        <xs:element name="Resolution" type="MeasurementType"/>
+                                        <xs:element name="FirstValid" type="MeasurementType"/>
+                                        <xs:element name="LastValid" type="MeasurementType"/>
+                                        <xs:element name="WaveformData" maxOccurs="12">
+                                            <xs:complexType>
+                                                <xs:simpleContent>
+                                                    <xs:extension base="xs:string">
+                                                        <xs:attribute name="lead"
+                                                        type="xs:string" use="required"/>
+                                                    </xs:extension>
+                                                </xs:simpleContent>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- Vectorloops -->
+                <xs:element name="VectorLoops">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Resolution" type="MeasurementType"/>
+                            <xs:element name="ChannelSampleCountTotal" type="xs:int"/>
+                            <xs:element name="POnset" type="MeasurementType"/>
+                            <xs:element name="POffset" type="MeasurementType"/>
+                            <xs:element name="QOnset" type="MeasurementType"/>
+                            <xs:element name="QOffset" type="MeasurementType"/>
+                            <xs:element name="TOffset" type="MeasurementType"/>
+                            <xs:choice maxOccurs="3">
+                                <xs:element name="Frontal" type="VectorLoopType"
+                                maxOccurs="unbounded"/>
+                                <xs:element name="Horizontal" type="VectorLoopType"
+                                maxOccurs="unbounded"/>
+                                <xs:element name="Sagittal" type="VectorLoopType"
+                                maxOccurs="unbounded"/>
+                            </xs:choice>
+                        </xs:sequence>
+                        <xs:attribute name="Creation" type="xs:string" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+                <!-- StripData -->
+                <xs:element name="StripData">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="NumberOfLeads" type="xs:int"/>
+                            <xs:element name="SampleRate" type="MeasurementType"/>
+                            <xs:element name="ChannelSampleCountTotal" type="xs:int"/>
+                            <xs:element name="Resolution" type="MeasurementType"/>
+                            <xs:element name="WaveformData" maxOccurs="12">
+                                <xs:complexType>
+                                    <xs:simpleContent>
+                                        <xs:extension base="xs:string">
+                                            <xs:attribute name="lead" type="xs:string"
+                                            use="required"/>
+                                        </xs:extension>
+                                    </xs:simpleContent>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="ArrhythmiaResults">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:choice maxOccurs="unbounded">
+                                            <xs:element name="Time" type="MeasurementType"
+                                            maxOccurs="unbounded"/>
+                                            <xs:element name="BeatClass" type="xs:string" 
+                                            maxOccurs="unbounded"/>
+                                        </xs:choice>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- FullDisclosure -->
             </xs:sequence>
         </xs:complexType>
     </xs:element>

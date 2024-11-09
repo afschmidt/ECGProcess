@@ -6,7 +6,7 @@ import xmltodict
 from lxml import etree
 
 xml_file='example_data/example_datasets/example-XML1.xml'
-xsd_file='example_data/example_datasets/example-XML1_d.xsd'
+xsd_file='example_data/example_datasets/example-XML1.xsd'
 strict=False
 verbose=True
 
@@ -116,7 +116,7 @@ def flatten_dict(d, parent_key='', sep='.', skip_root=False):
 
 
 # Strict mode: True for strict validation, False to ignore unexpected elements
-validated_doc = validate_xml(xml_file, xsd_file, strict=False)
+validated_doc = validate_xml(xml_file, xsd_file, strict=True)
 # xml_data_dict = xml_to_dict(validated_doc)
 # flattened_dict = flatten_dict(xml_data_dict)
 # NOTE the validation in validate_xml is optional.
@@ -124,7 +124,7 @@ validated_doc = validate_xml(xml_file, xsd_file, strict=False)
     # # Parse the XML file
     # with open(xml_file, 'rb') as xml:
     #     xml_doc = etree.parse(xml)
-flattened_dict['CardiologyXML.RestingECGMeasurements.PQInterval.#text']
+# flattened_dict['CardiologyXML.RestingECGMeasurements.PQInterval.#text']
 
 # xml_data_dict['CardiologyXML']['RestingECGMeasurements']
 
