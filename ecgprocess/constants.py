@@ -32,7 +32,6 @@ class ProcessDicomNames(object):
     SAMPLING_NUMBER       = 'NumberOfWaveformSamples'
     SAMPLING_NUMBER_M     = 'NumberOfWaveformSamples (MEDIAN)'
     SF_ORIGINAL           = 'SamplingFrequencyOriginal'
-    SF                    = 'sf'
     DURATION              = 'Duration'
     UNIT                  = 'Unit free'
     LEAD                  = 'Lead'
@@ -42,7 +41,7 @@ class ProcessDicomNames(object):
     LEAD_aVR              = 'aVR'
     LEAD_aVL              = 'aVL'
     LEAD_aVF              = 'aVF'
-    OVERSAMPLED           = 'oversampled'
+    OVERSAMPLED           = 'resampled'
     ORIG_DCMREAD_INST     = 'DMCReadInstance'
     SOP_UID               = 'SOPinstanceUID'
     # INFO_L                = 'GeneralInfoList'
@@ -174,7 +173,6 @@ class DICOMTags(object):
         'FilterLowFrequency'              : 'FilterLowFrequency',
         'FilterHighFrequency'             : 'FilterHighFrequency',
         'NotchFilterFrequency'            : 'NotchFilterFrequency',
-        ProcessDicomNames.SF              : 'SamplingFrequency',
         ProcessDicomNames.SF_ORIGINAL     : 'SamplingFrequency',
     }
     # objects which cannot be extracted in a loop
