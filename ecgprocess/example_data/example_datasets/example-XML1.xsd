@@ -400,6 +400,65 @@
                     </xs:complexType>
                 </xs:element>
                 <!-- FullDisclosure -->
+                <xs:element name="FullDisclosure">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="NumberOfChannels" type="xs:int"/>
+                            <xs:element name="SampleRate" type="MeasurementType"/>
+                            <xs:element name="Resolution" type="MeasurementType"/>
+                            <xs:element name="LeadOrder" type="xs:string"/>
+                            <xs:element name="FullDisclosureData">
+                                <xs:complexType mixed="true">
+                                    <xs:sequence>
+                                        <xs:element name="SampleCountTotal" type="xs:int"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="EventList">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:choice maxOccurs="unbounded">
+                                            <xs:element name="Event" type="xs:string"/>
+                                            <xs:element name="Time">
+                                                <xs:complexType>
+                                                    <xs:sequence>
+                                                        <xs:element name="Minute" type="xs:int"/>
+                                                        <xs:element name="Second" 
+                                                        type="xs:decimal"/>
+                                                    </xs:sequence>
+                                                </xs:complexType>
+                                            </xs:element>
+                                        </xs:choice>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="ArrhythmiaResults">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="QRS" type="xs:int"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <!-- Other -->
+                <xs:element name="Export">
+                    <xs:complexType mixed="true">
+                        <xs:sequence/>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="CSWeb">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="a">
+                                <xs:complexType>
+                                    <xs:attribute name="href" type="xs:string" use="required"/>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
             </xs:sequence>
         </xs:complexType>
     </xs:element>
