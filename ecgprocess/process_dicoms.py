@@ -39,6 +39,7 @@ from ecgprocess.errors import (
     is_type,
     MissingDICOMTagError,
     Error_MSG,
+    Warn_MSG,
     STDOUT_MSG,
     _check_readable,
     _check_presence,
@@ -578,10 +579,19 @@ class ECGDICOMReader(BaseECGDICOMReader):
                         ecg_trait = getattr(ecg_int, PDNames.CODE_MEANING)
                         # find matching element - using lower case again
                         if ecg_trait.lower() in ECG_CMPR_LWR:
-                            # get the measurement and set to float
-                            temp_results_dict[ecg_trait.lower()] = float(
-                                        getattr(w, PDNames.ECG_TRAIT_VALUE)
-                                    )
+                            # get the measurement and set to float, will
+                            # skip float conversion if None type.
+                            try:
+                                temp_results_dict[ecg_trait.lower()] = float(
+                                            getattr(w, PDNames.ECG_TRAIT_VALUE)
+                                        )
+                            except TypeError:
+                                temp_results_dict[ecg_trait.lower()] = \
+                                    getattr(w, PDNames.ECG_TRAIT_VALUE)
+                                # see if we need to warn
+                                if self.verbose == True:
+                                    warnings.warn(Warn_MSG.NUMB_IS_NONE.\
+                                                  format(w))
                             # get the unit
                             try:
                                 temp_unit_dict[
