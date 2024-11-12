@@ -80,6 +80,7 @@ class ProcessDicomNames(object):
     REFERENCED_POS        = 'ReferencedSamplePositions'
     PACEMAKER_SPIKE       = 'Pacemaker Spike'
     FREE_TEXT             = 'UnformattedTextValue'
+    ANNOTATION_GROUP      = 'AnnotationGroupNumber'
     SKIP_PERMISSIONS      = 'Permissions'
     SKIP_DATA             = 'Data'
     SKIP_NONE             = 'None'

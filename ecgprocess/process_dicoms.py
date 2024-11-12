@@ -569,11 +569,12 @@ class ECGDICOMReader(BaseECGDICOMReader):
         # next see if we can extract some interpretations.
         if hasattr(ECG, PDNames.ECG_INTERPERTATION):
             free_text = ''
+            default_results_dict[PDNames.PACEMAKER_SPIKE] = ''
             # get the values lower-case strings (which are lists)
             ECG_CMPR_LWR = [it.lower() for sl\
                             in self.ECG_TRAIT_DICT.values() for it in sl]
             for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
-                if hasattr(w, PDNames.ECG_CONCEPTNAME):
+                if hasattr(w, PDNames.ECG_CONCEPTNAME) and hasattr(w, PDNames.ANNOTATION_GROUP) and getattr(w, PDNames.ANNOTATION_GROUP) >0:
                     ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
                     try:
                         ecg_trait = getattr(ecg_int, PDNames.CODE_MEANING)
@@ -601,18 +602,26 @@ class ECGDICOMReader(BaseECGDICOMReader):
                                         PDNames.CODE_MEANING)
                             except (AttributeError, IndexError):
                                 pass
+                        # #### ancillary info
+                        # see if there is a PaceMakerSpike
+                        if ecg_trait.lower() == PDNames.PACEMAKER_SPIKE.lower():
+                            try:
+                                if default_results_dict[PDNames.PACEMAKER_SPIKE] == '': 
+                                    default_results_dict[PDNames.PACEMAKER_SPIKE]=\
+                                        str(getattr(w, PDNames.REFERENCED_POS))
+                                else: 
+                                    default_results_dict[PDNames.PACEMAKER_SPIKE]=\
+                                        "%s, %s" % (
+                                            default_results_dict[PDNames.PACEMAKER_SPIKE],
+                                            getattr(w, PDNames.REFERENCED_POS)
+                                        )
+                            except AttributeError:
+                                pass   
                     except AttributeError:
                         pass
-                    # #### ancillary info
-                    # see if there is a PaceMakerSpike
-                    if ecg_trait.lower() == PDNames.PACEMAKER_SPIKE.lower():
-                        try:
-                            default_results_dict[PDNames.PACEMAKER_SPIKE]=\
-                                getattr(w, PDNames.REFERENCED_POS)
-                        except AttributeError:
-                            pass
-                    # get free text
-                    if ecg_trait.lower() == PDNames.FREE_TEXT.lower():
+                # get free text
+                if hasattr(w, PDNames.ANNOTATION_GROUP) and getattr(w, PDNames.ANNOTATION_GROUP) == 0:
+                    if hasattr(w, PDNames.FREE_TEXT):
                         try:
                             free_text = "%s\n%s" % (
                                 free_text,
