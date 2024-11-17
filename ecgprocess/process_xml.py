@@ -2,133 +2,157 @@
 '''
 A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 '''
-import xmltodict
-from lxml import etree
 
-xml_file='example_data/example_datasets/example-XML1.xml'
-xsd_file='example_data/example_datasets/example-XML1.xsd'
-strict=False
-verbose=True
+from dataclasses import dataclass
+from typing import (
+    Self, Any, Literal,
+)
+from ecgprocess.process_dicoms import (
+    BaseECGDICOMReader,
+)
+from ecgprocess.utils.general import(
+    validate_xml,
+)
+from ecgprocess.errors import (
+    is_type,
+    _check_readable,
+    _check_presence,
+    Error_MSG,
+)
 
-def validate_xml(xml_file, xsd_file, strict=True):
+from ecgprocess.constants import (
+    ProcessDicomNames as PDNames,
+)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The extraction class to process an config file
+@dataclass
+class ExtractionBase:
+    table1: str = "default_value1"
+    table2: str = "default_value2"
+    table3: str = "default_value3"
+
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            # Add or update attributes dynamically
+            setattr(self, key, value)
+
+# Create a subclass where default values can be set again
+@dataclass
+class ExtractionConfig(ExtractionBase):
+    table1: str = "new_default_value1"
+    table2: str = "new_default_value2"
+    # Optionally add new attributes if needed
+    table4: str = "additional_default_value"
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@dataclass
+class ECGXMLReader(BaseECGDICOMReader):
     """
-    Validates an XML file against an XSD schema.
+    Processes an XML file containing ECG data and extracts the metadata,
+    median beats (if available), and raw waveforms.
     
-    Parameters:
-        xml_file (str): Path to the XML file.
-        xsd_file (str): Path to the XSD file.
-        strict (bool): If False, ignores elements in the XML that are not in the XSD.
+    Parameters
+    ----------
+    augment_leads : `bool`, default `False`
+        Whether the augmented leads should be calculated if these are not
+        already available in the source file.
+    resample : `bool`, default `True`
+        Whether to resample the ECG to a frequency of 500 Hertz.
+    retain_raw : `bool`, default `False`
+        Whether the raw parsed XML tree should be retained.  Set to `False` to
+        decrease memory usage. Set to `True` to explore the parsed document.
+        For example, use this one a few files to identify none-standard
+        information to extract.
+    
+    Attributes
+    ----------
+    augment_leads : `bool`
+        Whether the augmented leads were calculated if these were unavailable.
+    resample : `bool`
+        Whether the ECG was resampled to a 500 Hertz frequency.
+    retain_raw : `bool`
+        Whether the raw data was retained.
+    
+    Methods
+    -------
+    TODO
+    
+    Notes
+    -----
+    The waveforms are stored using `__slots__` to decrease memory usage, which
+    is further improved by setting `retain_raw` to `False` - the default
+    behaviour.
+    """
+    # #### parameters, with defaults
+    augment_leads: bool=False
+    resample_500:bool=True
+    retain_raw:bool=False
+    # #### check input
+    is_type(augment_leads, bool)
+    is_type(resample_500, bool)
+    # #### Error MSG
+    __MSG1=('Please supply either `path` or `xml_tree` but not both.')
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __call__(self, path:str, extractor:ExtractionConfig,
+                 validate:Literal['Full', 'Partial', 'Skip']='Full',
+                 skip_empty:bool=True, verbose:bool=False,
+                 ) -> Self:
+        """
+        Reads a `.xml` file containing ECG readings and extracts  metadata,
+        raw waveforms, and median beats data, with the exact naming based on the
+        `extractor` instance.
         
-    Returns:
-        xml_doc (etree._ElementTree or None): The parsed XML document if valid, else None.
-    """
-    # Load the XSD schema
-    with open(xsd_file, 'rb') as xsd:
-        schema_root = etree.XML(xsd.read())
-    schema = etree.XMLSchema(schema_root)
-    
-    # Parse the XML file
-    with open(xml_file, 'rb') as xml:
-        xml_doc = etree.parse(xml)
-    
-    # Try validating the XML file against the XSD schema
-    is_valid = schema.validate(xml_doc)
-    
-    # If strict mode is off, filter out unexpected element errors
-    if not is_valid and not strict:
-        filtered_errors = [error for error in schema.error_log if "expected" not in error.message]
-        is_valid = len(filtered_errors) == 0
-        if is_valid:
-            print("XML file is valid (ignoring unexpected elements).")
-        else:
-            print("XML file is invalid.")
-            for error in filtered_errors:
-                print(error.message)
-    elif is_valid:
-        print("XML file is valid.")
-    else:
-        print("XML file is invalid.")
-        # Print validation errors
-        for error in schema.error_log:
-            print(error.message)
-                
-    return xml_doc if is_valid else None
-
-
-def xml_to_dict(xml_doc):
-    """
-    Converts an lxml ElementTree document to a Python dictionary.
-    
-    Parameters:
-        xml_doc (etree._ElementTree): The validated XML document.
+        Parameters
+        ----------
+        path : `str`
+            The path to the .xml file.
+        extract : `ExtractionConfig`
+            The class instance mapping the parsed XML content to attribute names.
+        validate : `str`, default `Full`
+            Whether the xml file should be validated based in a supplied `.xsd`
+            scheme supplied to the `extract` instance. `Full` will perform a full
+            validation. `Partial` will filer out issues with elements in the xml
+            file which are omitted in the schema.
+        skip_empty : `bool`, default `True`
+            Whether empty tags should be skipped or throw an error.
+        verbose : `bool`, default `False`
+            Prints missing tags if skip_empty is set to `True`.
         
-    Returns:
-        dict: A dictionary representation of the XML data.
-    """
-    # Convert the ElementTree document to a string
-    xml_str = etree.tostring(xml_doc, encoding='utf-8')
-    
-    # Parse the XML string to a dictionary
-    xml_dict = xmltodict.parse(xml_str)
-    
-    return xml_dict
-
-def flatten_dict(d, parent_key='', sep='.', skip_root=False):
-    """
-    Recursively flattens a nested dictionary, optionally skipping the root element.
-    
-    Parameters:
-        d (dict): The dictionary to flatten.
-        parent_key (str): The base key string for recursion (used for nested keys).
-        sep (str): The separator to use for the keys.
-        skip_root (bool): If True, skips the first level (root) key.
+        Attributes
+        ----------
+        GeneralInfo : `list` [`str`]
+            A list of extracted attributes.
+        Waveforms : `dict` [`str`, `np.array`]
+            The lead specific ECG waveforms.
+        MedianWaveforms : `dict` [`str`, `np.array`]
+            The lead specific ECG median beats.
         
-    Returns:
-        dict: A flattened dictionary.
-    """
-    items = []
-    
-    # If skipping the root, adjust d to be the first nested dictionary level
-    if skip_root and isinstance(d, dict) and len(d) == 1:
-        root_key, d = next(iter(d.items()))
-    
-    for k, v in d.items():
-        # print(k)
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        # print(new_key)
-        if isinstance(v, dict):
-            # Only recurse if v is a dictionary and not None
-            if v is not None:
-                items.extend(flatten_dict(v, new_key, sep=sep).items())
-        elif isinstance(v, list):
-            # Iterate over list items, flattening each with an index
-            for i, item in enumerate(v):
-                # Only recurse if item is not None
-                if item is not None and isinstance(item, dict):
-                    items.extend(flatten_dict(item, f"{new_key}[{i}]", sep=sep).items())
-                else:
-                    # Directly add non-dictionary list items
-                    items.append((f"{new_key}[{i}]", item))
-        else:
-            # Add simple values (str, int, etc.) directly
-            items.append((new_key, v))
-    return dict(items)
-
-
-# Strict mode: True for strict validation, False to ignore unexpected elements
-validated_doc = validate_xml(xml_file, xsd_file, strict=True)
-# xml_data_dict = xml_to_dict(validated_doc)
-# flattened_dict = flatten_dict(xml_data_dict)
-# NOTE the validation in validate_xml is optional.
-# can also simply call
-    # # Parse the XML file
-    # with open(xml_file, 'rb') as xml:
-    #     xml_doc = etree.parse(xml)
-# flattened_dict['CardiologyXML.RestingECGMeasurements.PQInterval.#text']
-
-# xml_data_dict['CardiologyXML']['RestingECGMeasurements']
-
-# if validated_doc:
-#     # If valid, you can parse or manipulate the XML as needed
-#     root = validated_doc.getroot()
-#     print("Root element:", root.tag)
+        Returns
+        -------
+        self : `ECGXMLReader` instance
+            Returns the class instance with updated attributes containign the
+            extracted XML data.
+        
+        Notes
+        -----
+        TODO add explanations on the extractor instance.
+        """
+        # #### check input
+        is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str))
+        is_type(skip_empty, bool)
+        is_type(verbose, bool)
+        is_type(extractor, ExtractionConfig)
+        is_type(validate, str)
+        # assign to self
+        self.verbose = verbose
+        # #### confirm file is readable
+        _check_readable(path)
+        # #### validate XML
+        VALIDATE_CHOICES = [PDNames.XML_VAL_FULL,
+                            PDNames.XML_VAL_PART,
+                            PDNames.XML_VAL_SKIP,
+                            ]
+        if not validate in VALIDATE_CHOICES:
+            raise ValueError(Error_MSG.CHOICE_PARM.\
+                             format('validate', ', '.join(VALIDATE_CHOICES)))
+        # NOTE add the validation step here, need to define extractor first

@@ -796,7 +796,7 @@ class ECGDICOMTable(object):
     ----------
     RawPathList : list [`str`]
         A list of dcm file paths.
-    info_type : str
+    info_type : `str`, default `all`
         The type of information one wants to extract from the dicom files.
     
     Methods

@@ -113,6 +113,10 @@ class ProcessDicomNames(object):
     INFO_TYPE_MET         = 'meta'
     START_POS_FIRST       = 'first'
     START_POS_CONT        = 'continues'
+    XML_VAL_FULL          = 'Full'
+    XML_VAL_PART          = 'Partial'
+    XML_VAL_SKIP          = 'Skip'
+    
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass

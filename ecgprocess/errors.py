@@ -234,9 +234,10 @@ class Error_MSG(object):
     A collection of error messages.
     '''
     MISSING_DICOM = '`{}` not found in DICOM file.'
+    MISSING_XML = '`{}` not found in XML file.'
     MISSING_KEY = 'key `{}` not found in object `{}`.'
     MISSING_ATTR = 'attribute `{}` not found in object `{}`.'
-    CHOICE_PARM = '`{}` is contrainted to `{}`.'
+    CHOICE_PARM = '`{}` is constrained to `{}`.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages
