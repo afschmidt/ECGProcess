@@ -204,6 +204,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str), 'path')
         is_type(skip_empty, bool, 'skip_empty')
         is_type(verbose, bool, 'verbose')
+        self.verbose=verbose
         # confirm file is readable
         _check_readable(path)
         # #### Read DICOM
@@ -592,7 +593,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
                                 # see if we need to warn
                                 if self.verbose == True:
                                     warnings.warn(Warn_MSG.NUMB_IS_NONE.\
-                                                  format(w))
+                                                  format(ecg_trait.lower()))
                             # get the unit
                             try:
                                 temp_unit_dict[

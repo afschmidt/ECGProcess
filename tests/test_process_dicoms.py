@@ -1,6 +1,7 @@
 import os
 import pytest
 import pandas as pd
+import warnings
 from ecgprocess.constants import ProcessDicomNames as PDNames
 from ecgprocess.errors import MissingDICOMTagError
 from ecgprocess.process_dicoms import (
@@ -30,6 +31,7 @@ expect_content = set([PDNames.FAILED_FILE, PDNames.INFO_FILE,
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ECGDICOMReader
@@ -103,6 +105,32 @@ class TestECGDICOMReader(object):
         ECG_DCM = ECGDICOMReader()
         with pytest.raises(PermissionError):
             ECG_DCM(path='wrong', skip_empty=False)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_ecg_trait_value_conversion_with_null(self):
+        """
+        Test ECG trait value extraction when the `ECG_TRAIT_VALUE` is set to
+        None.
+        """
+        # Load the DICOM file
+        ECG_DCM = ECGDICOMReader(retain_raw=True)
+        ecg_instance = ECG_DCM(path=dicom_path_list[0])
+        # turn on verbose
+        ecg_instance.verbose = True
+        # get raw ECG
+        ECG = ecg_instance.DMCReadInstance
+        # Simulate setting the specific attribute to None
+        for waveform_annotation in getattr(ECG, PDNames.ECG_INTERPERTATION):
+            if hasattr(waveform_annotation, PDNames.ECG_TRAIT_VALUE):
+                setattr(waveform_annotation, PDNames.ECG_TRAIT_VALUE, None)
+        # make sure we get warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _, traits, miss  = ecg_instance._get_waveform_annotation(
+                dicom_instance=ECG, skip_empty=True,
+            )
+        # Confirm warnings were raised and there are missing
+        assert len(w) > 0
+        assert len(miss) > 0
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestECGDICOMTable(object):
