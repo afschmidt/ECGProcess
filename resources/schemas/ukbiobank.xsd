@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
     <!-- Define re-usable Types -->
     <xs:complexType name="PersonType">
@@ -31,7 +32,7 @@
             </xs:extension>
         </xs:simpleContent>
     </xs:complexType>
-    <!-- End re-usable Types -->
+    <!-- End re-usable Types, Start XSD schema -->
     <xs:element name="CardiologyXML">
         <xs:complexType>
             <xs:sequence>
