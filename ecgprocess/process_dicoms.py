@@ -570,12 +570,26 @@ class ECGDICOMReader(BaseECGDICOMReader):
         # next see if we can extract some interpretations.
         if hasattr(ECG, PDNames.ECG_INTERPERTATION):
             free_text = ''
+            # NOTE this seem unnecessary it is already set to NAN which
+            # is preferred rather than an empty string.
             default_results_dict[PDNames.PACEMAKER_SPIKE] = ''
             # get the values lower-case strings (which are lists)
             ECG_CMPR_LWR = [it.lower() for sl\
                             in self.ECG_TRAIT_DICT.values() for it in sl]
             for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
-                if hasattr(w, PDNames.ECG_CONCEPTNAME) and hasattr(w, PDNames.ANNOTATION_GROUP) and getattr(w, PDNames.ANNOTATION_GROUP) >0:
+                # confirm annot group is there and more than zero
+                try:
+                    annot_g = getattr(w, PDNames.ANNOTATION_GROUP)
+                    if annot_g > 0:
+                        annot_gt = True
+                    else:
+                        annot_gt = False
+                    # recording annotation group it is present
+                    annot_g = True
+                except AttributeError:
+                    annot_g = False
+                    annot_gt = False
+                if hasattr(w, PDNames.ECG_CONCEPTNAME) and annot_gt == True:
                     ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
                     try:
                         ecg_trait = getattr(ecg_int, PDNames.CODE_MEANING)
@@ -607,21 +621,26 @@ class ECGDICOMReader(BaseECGDICOMReader):
                         # see if there is a PaceMakerSpike
                         if ecg_trait.lower() == PDNames.PACEMAKER_SPIKE.lower():
                             try:
-                                if default_results_dict[PDNames.PACEMAKER_SPIKE] == '': 
+                                # NOTE do not understand why there is a need
+                                # to check for an empty string this will be
+                                # always an empty string because for loop
+                                # would not be initiated.
+                                if default_results_dict[
+                                        PDNames.PACEMAKER_SPIKE] == '':
                                     default_results_dict[PDNames.PACEMAKER_SPIKE]=\
                                         str(getattr(w, PDNames.REFERENCED_POS))
-                                else: 
+                                else:
                                     default_results_dict[PDNames.PACEMAKER_SPIKE]=\
                                         "%s, %s" % (
                                             default_results_dict[PDNames.PACEMAKER_SPIKE],
                                             getattr(w, PDNames.REFERENCED_POS)
                                         )
                             except AttributeError:
-                                pass   
+                                pass
                     except AttributeError:
                         pass
                 # get free text
-                if hasattr(w, PDNames.ANNOTATION_GROUP) and getattr(w, PDNames.ANNOTATION_GROUP) == 0:
+                if annot_g == True and annot_gt False:
                     if hasattr(w, PDNames.FREE_TEXT):
                         try:
                             free_text = "%s\n%s" % (
