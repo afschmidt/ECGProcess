@@ -51,6 +51,7 @@ from ecgprocess.constants import (
 from ecgprocess.utils.general import (
     replace_with_tar,
     assign_empty_default,
+    string_concat,
 )
 from ecgprocess.plot_ecgs import (
     ECGDrawing,
@@ -565,31 +566,20 @@ class ECGDICOMReader(BaseECGDICOMReader):
         for e in self.ECG_TRAIT_DICT:
            default_results_dict[e] = np.nan
            default_results_dict[e+PDNames.ECG_UNIT_STRING] = np.nan
-           free_text = np.nan
+           default_results_dict[PDNames.FREE_TEXT] = np.nan
            default_results_dict[PDNames.PACEMAKER_SPIKE]=np.nan
         # next see if we can extract some interpretations.
         if hasattr(ECG, PDNames.ECG_INTERPERTATION):
-            free_text = ''
-            # NOTE this seem unnecessary it is already set to NAN which
-            # is preferred rather than an empty string.
-            default_results_dict[PDNames.PACEMAKER_SPIKE] = ''
             # get the values lower-case strings (which are lists)
             ECG_CMPR_LWR = [it.lower() for sl\
                             in self.ECG_TRAIT_DICT.values() for it in sl]
             for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
-                # confirm annot group is there and more than zero
-                try:
-                    annot_g = getattr(w, PDNames.ANNOTATION_GROUP)
-                    if annot_g > 0:
-                        annot_gt = True
-                    else:
-                        annot_gt = False
-                    # recording annotation group it is present
-                    annot_g = True
-                except AttributeError:
-                    annot_g = False
-                    annot_gt = False
-                if hasattr(w, PDNames.ECG_CONCEPTNAME) and annot_gt == True:
+                # set annot_count to -1 if not there
+                # ANNOT GROUP  of > 0 represents annotations (1), arrythmia
+                # markers (2), or pacemaker spikes (3).
+                # group 0 will be the free text.
+                annot_count = getattr(w, PDNames.ANNOTATION_GROUP, -1)
+                if hasattr(w, PDNames.ECG_CONCEPTNAME) and annot_count > 0:
                     ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
                     try:
                         ecg_trait = getattr(ecg_int, PDNames.CODE_MEANING)
@@ -621,36 +611,28 @@ class ECGDICOMReader(BaseECGDICOMReader):
                         # see if there is a PaceMakerSpike
                         if ecg_trait.lower() == PDNames.PACEMAKER_SPIKE.lower():
                             try:
-                                # NOTE do not understand why there is a need
-                                # to check for an empty string this will be
-                                # always an empty string because for loop
-                                # would not be initiated.
-                                if default_results_dict[
-                                        PDNames.PACEMAKER_SPIKE] == '':
-                                    default_results_dict[PDNames.PACEMAKER_SPIKE]=\
-                                        str(getattr(w, PDNames.REFERENCED_POS))
-                                else:
-                                    default_results_dict[PDNames.PACEMAKER_SPIKE]=\
-                                        "%s, %s" % (
-                                            default_results_dict[PDNames.PACEMAKER_SPIKE],
-                                            getattr(w, PDNames.REFERENCED_POS)
-                                        )
+                                v = default_results_dict[
+                                    PDNames.PACEMAKER_SPIKE]
+                                nv = str(getattr(w, PDNames.REFERENCED_POS))
+                                default_results_dict[
+                                    PDNames.PACEMAKER_SPIKE] = string_concat(
+                                        v, nv, sep=', ')
+                                del v, nv
                             except AttributeError:
                                 pass
                     except AttributeError:
                         pass
                 # get free text
-                if annot_g == True and annot_gt False:
+                if annot_count == 0:
                     if hasattr(w, PDNames.FREE_TEXT):
                         try:
-                            free_text = "%s\n%s" % (
-                                free_text,
-                                getattr(w, PDNames.FREE_TEXT)
-                            )
+                            v = default_results_dict[PDNames.FREE_TEXT]
+                            nv = getattr(w, PDNames.FREE_TEXT)
+                            default_results_dict[PDNames.FREE_TEXT] =\
+                                string_concat(old=v, new=nv, sep='\n')
+                            del v, nv
                         except AttributeError:
                             pass
-        # assing the final free_text object
-        default_results_dict[PDNames.FREE_TEXT]=free_text
         # now assign temp_results_dict todefault_results_dict dealing with
         # keys with more than one matching string.
         if len(temp_results_dict) > 0:

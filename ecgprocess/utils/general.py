@@ -158,3 +158,39 @@ def _update_kwargs(update_dict:Dict[Any, Any], **kwargs:Optional[Any],
     # returns
     return new_dict
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def string_concat(old:str , new: str, sep:str=', ') -> list[str]:
+    '''
+    Concatenates two strings, checking if the `old` string might be `NaN`.
+    
+    Parameters
+    ----------
+    old : `str` or `np.nan`,
+        The original string.
+    new : `str`
+        A new string.
+    sep : `str`, default `, `
+        The string separator.
+        
+    Returns
+    -------
+    str :
+        A concatenated string
+    '''
+    # #### check input.
+    # np.nan is a float, so testing for float
+    is_type(old, (str, float))
+    is_type(new, str)
+    # #### checking for nan
+    if np.isnan(old):
+        res = new
+    else:
+        res = f"{old}{sep}{new}"
+    # #### return
+    return res
+    
+    
+    
+
+
+    
