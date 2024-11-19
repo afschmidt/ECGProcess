@@ -4,6 +4,7 @@ The general utils module
 import os
 import shutil
 import tarfile
+import numpy as np
 from typing import Any, List, Type, Union, Tuple, Callable, Optional, Dict
 from ecgprocess.errors import (
     is_type,
@@ -182,9 +183,13 @@ def string_concat(old:str , new: str, sep:str=', ') -> list[str]:
     is_type(old, (str, float))
     is_type(new, str)
     # #### checking for nan
-    if np.isnan(old):
-        res = new
-    else:
+    try:
+        if np.isnan(old):
+            res = new
+        else:
+            # will be run when old is a float
+            res = f"{old}{sep}{new}"
+    except TypeError:
         res = f"{old}{sep}{new}"
     # #### return
     return res
