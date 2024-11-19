@@ -574,12 +574,13 @@ class ECGDICOMReader(BaseECGDICOMReader):
             ECG_CMPR_LWR = [it.lower() for sl\
                             in self.ECG_TRAIT_DICT.values() for it in sl]
             for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
-                # set annot_count to -1 if not there
-                # ANNOT GROUP  of > 0 represents annotations (1), arrythmia
-                # markers (2), or pacemaker spikes (3).
-                # group 0 will be the free text.
-                annot_count = getattr(w, PDNames.ANNOTATION_GROUP, -1)
-                if hasattr(w, PDNames.ECG_CONCEPTNAME) and annot_count > 0:
+                # # set annot_count to -1 if not there
+                # # ANNOT GROUP  of > 0 represents annotations (1), arrythmia
+                # # markers (2), or pacemaker spikes (3).
+                # # group 0 will be the free text.
+                # annot_count = getattr(w, PDNames.ANNOTATION_GROUP, -1)
+                # if hasattr(w, PDNames.ECG_CONCEPTNAME) and annot_count > 0:
+                if hasattr(w, PDNames.ECG_CONCEPTNAME):
                     ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
                     try:
                         ecg_trait = getattr(ecg_int, PDNames.CODE_MEANING)
@@ -623,16 +624,16 @@ class ECGDICOMReader(BaseECGDICOMReader):
                     except AttributeError:
                         pass
                 # get free text
-                if annot_count == 0:
-                    if hasattr(w, PDNames.FREE_TEXT):
-                        try:
-                            v = default_results_dict[PDNames.FREE_TEXT]
-                            nv = getattr(w, PDNames.FREE_TEXT)
-                            default_results_dict[PDNames.FREE_TEXT] =\
-                                string_concat(old=v, new=nv, sep='\n')
-                            del v, nv
-                        except AttributeError:
-                            pass
+                # if annot_count == 0:
+                if hasattr(w, PDNames.FREE_TEXT):
+                    try:
+                        v = default_results_dict[PDNames.FREE_TEXT]
+                        nv = getattr(w, PDNames.FREE_TEXT)
+                        default_results_dict[PDNames.FREE_TEXT] =\
+                            string_concat(old=v, new=nv, sep='\n')
+                        del v, nv
+                    except AttributeError:
+                        pass
         # now assign temp_results_dict todefault_results_dict dealing with
         # keys with more than one matching string.
         if len(temp_results_dict) > 0:
