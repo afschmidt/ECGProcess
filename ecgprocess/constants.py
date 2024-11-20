@@ -10,6 +10,46 @@ class UtilsGeneralNames(object):
     '''
     LXML_ERROR         = 'expected'
 
+class UtilsConfigData(object):
+    '''
+    Names used in the Utils Cofig Data module
+    '''
+    METADATA   = 'MetaData'
+    OTHERDATA  = 'OtherData'
+
+class CoreData(object):
+    '''
+    Core variable names which are used internally by various modules in
+    `ECGProcess`.
+    
+    Notes
+    -----
+    The suffix _D indicates the default values which are typically based on
+    dicom attribute names - which are more standardised than XML tags.
+    '''
+    WaveForms   = 'WaveForms'
+    MedianBeats = 'MedianBeats'
+    MetaData    = 'MetaData'
+    OtherData   = 'OtherData'
+    # The required meta data
+    MD_SF       = 'sampling frequency (original)'
+    MD_SF_D     = 'SamplingFrequency'
+    MD_SN       = 'sampling number (waveforms)'
+    MD_SN_D     = 'NumberOfWaveformSamples'
+    MD_SNM      = 'sampling number (medianbeats)'
+    MD_SNM_D    = 'NumberOfWaveformSamples'
+    MD_AT       = 'acquisition date'
+    MD_AT_D     = 'AcquisitionDateTime'
+    MD_SD       = 'study date'
+    MD_SD_D     = 'StudyDate'
+    MD_UID      = 'unique identifier'
+    MD_UID_D    = 'SOPInstanceUID'
+    MD_CN       = 'channel number'
+    MD_CN_D     = 'NumberOfWaveformChannels'
+    MD_WU       = 'units (waveforms)'
+    MD_WU_D     = 'WaveformUnits'
+    MD_MU       = 'units (medianbeats)'
+    MD_MU_D     = 'MedianWaveformUnits'
 
 class ProcessDicomNames(object):
     '''
@@ -17,8 +57,6 @@ class ProcessDicomNames(object):
     '''
     MEDIAN_PRESENT        = 'MedianWaveformPresent'
     WAVE_ARRAY            = 'Raw_Waveforms'
-    LEAD_UNITS            = 'WaveformUnits'
-    LEAD_UNITS2           = 'MedianWaveformUnits'
     MEDIAN_ARRAY          = 'Raw_MedianWaveforms'
     LEAD_VOLTAGES         = 'Waveforms'
     LEAD_VOLTAGES2        = 'MedianWaveforms'
@@ -30,15 +68,8 @@ class ProcessDicomNames(object):
     CHANNEL_CODE_MEANING  = 'CodeMeaning'
     CHANNEL_SENS          = 'ChannelSensitivity'
     CHANNEL_SENS_UNIT     = 'ChannelSensitivityUnitsSequence'
-    STUDY_DATE            = 'StudyDate'
     STUDY_TIME            = 'StudyTime'
-    ACQUISITION_DATE      = 'AcquisitionDateTime'
     RESULTS_DICT          = 'GeneralInfo'
-    SAMPLING_FREQ         = 'SamplingFrequency'
-    SAMPLING_NUMBER       = 'NumberOfWaveformSamples'
-    SAMPLING_NUMBER_M     = 'NumberOfWaveformSamples (MEDIAN)'
-    SF_ORIGINAL           = 'SamplingFrequencyOriginal'
-    SF                    = 'sf'
     DURATION              = 'Duration'
     UNIT                  = 'Unit free'
     LEAD                  = 'Lead'
@@ -50,10 +81,6 @@ class ProcessDicomNames(object):
     LEAD_aVF              = 'aVF'
     OVERSAMPLED           = 'oversampled'
     ORIG_DCMREAD_INST     = 'DMCReadInstance'
-    SOP_UID               = 'SOPinstanceUID'
-    # INFO_L                = 'GeneralInfoList'
-    # WAVE_L                = 'WaveformsList'
-    # MEDIAN_L              = 'MedianWaveformsList'
     KEY_L                 = 'IndexList'
     FAILED_DATA_L         = 'NoDataList'
     INFO_T                = 'GeneralInfoTable'
@@ -104,7 +131,6 @@ class ProcessDicomNames(object):
     PLOT_AXES             = 'ax'
     PLOT_FIG              = 'fig'
     PLOT_FIGSIZE          = 'figsize'
-    PLOT_SAMPLING_NUMBER  = 'sampling number'
     ECG_READER            = 'ECG_READER'
     INFO_TYPE             = 'info_type'
     INFO_TYPE_ALL         = 'all'
@@ -116,7 +142,19 @@ class ProcessDicomNames(object):
     XML_VAL_FULL          = 'Full'
     XML_VAL_PART          = 'Partial'
     XML_VAL_SKIP          = 'Skip'
-    
+    PLOT_SAMPLING_NUMBER  = 'sampling number'
+    # Need to be removed after updating process_dicoms
+    ACQUISITION_DATE      = 'AcquisitionDateTime'
+    SAMPLING_NUMBER       = 'NumberOfWaveformSamples'
+    SAMPLING_NUMBER_M     = 'NumberOfWaveformSamples (MEDIAN)'
+    SAMPLING_FREQ         = 'SamplingFrequency'
+    SF_ORIGINAL           = 'SamplingFrequencyOriginal'
+    SF                    = 'sf'
+    STUDY_DATE            = 'StudyDate'
+    SOP_UID               = 'SOPinstanceUID'
+    LEAD_UNITS            = 'WaveformUnits'
+    LEAD_UNITS2           = 'MedianWaveformUnits'
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass

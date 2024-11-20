@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 '''
 A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 '''
@@ -23,26 +22,6 @@ from ecgprocess.errors import (
 from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
 )
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The extraction class to process an config file
-@dataclass
-class ExtractionBase:
-    table1: str = "default_value1"
-    table2: str = "default_value2"
-    table3: str = "default_value3"
-
-    def update(self, **kwargs):
-        for key, value in kwargs.items():
-            # Add or update attributes dynamically
-            setattr(self, key, value)
-
-# Create a subclass where default values can be set again
-@dataclass
-class ExtractionConfig(ExtractionBase):
-    table1: str = "new_default_value1"
-    table2: str = "new_default_value2"
-    # Optionally add new attributes if needed
-    table4: str = "additional_default_value"
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
