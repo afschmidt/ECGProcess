@@ -1,5 +1,5 @@
 import pytest
-import ecgprocess.utils.config_data as config
+import ecgprocess.utils.config_tools as config
 from ecgprocess.constants import (
     CoreData as CDNames,
 )

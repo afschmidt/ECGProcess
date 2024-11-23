@@ -282,3 +282,36 @@ def list_data_paths():
     # return
     return paths_dict
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@dataset
+def data_configuration(path=None) -> str:
+    """
+    Returns a toy example of a data configuration file as string.
+    
+    Parameters
+    ----------
+    path : str, default None
+        An optional path to write the text to disk.
+
+    Return
+    str :
+        The formatted configuration file.
+    """
+    text = (
+        "[WaveForms]\n"
+        "Attribute1\n"
+        "[MedianBeats]\n"
+        "Attribute2\n"
+        "[MetaData]\n"
+        "sampling frequency (original)\tSamplingFrequency\n"
+        "sampling number (waveforms)\tNumberOfWaveformSamples\n"
+        "Birthdate\tPatientBirthDate\n"
+        "[OtherData]\n"
+        "ChannelSampleSkew\tChannelSampleSkew"
+    )
+    # If a file path is provided, write the text to the file
+    if path:
+        with open(path, "w", encoding="utf-8") as file:
+            file.write(text)
+    
+    return text

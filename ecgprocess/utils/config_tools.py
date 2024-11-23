@@ -252,6 +252,60 @@ class DataMap(object):
                 pass
         return result
 
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# TO DO
+class AttributeParser:
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.data = {
+            "WaveForms": [],
+            "MedianBeats": [],
+            "MetaData": [],
+            "OtherData": []
+        }
+
+    def read_and_parse(self):
+        current_section = None
+        with open(self.file_path, "r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
+                if line.startswith("[") and line.endswith("]"):
+                    # Set the current section
+                    section_name = line.strip("[]")
+                    if section_name in self.data:
+                        current_section = section_name
+                    else:
+                        current_section = None
+                elif current_section and line:
+                    # Add attributes to the current section
+                    self.data[current_section].append(line)
+
+    def get_section(self, section_name):
+        """Get attributes for a specific section."""
+        return self.data.get(section_name, [])
+
+    def __str__(self):
+        """String representation of the parsed data."""
+        result = []
+        for section, attributes in self.data.items():
+            result.append(f"[{section}]")
+            result.extend(attributes)
+            result.append("")  # Blank line between sections
+        return "\n".join(result)
+
+
+# Example Usage
+# Assuming the file 'output.txt' contains the provided formatted text
+parser = AttributeParser("output.txt")
+parser.read_and_parse()
+
+# Print the parsed content
+print(parser)
+
+# Access specific section data
+print("WaveForms:", parser.get_section("WaveForms"))
+print("MetaData:", parser.get_section("MetaData"))
 # # Example Usage:
 
 # # Define OtherData configuration
