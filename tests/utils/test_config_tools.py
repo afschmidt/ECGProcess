@@ -8,8 +8,7 @@ from ecgprocess.constants import (
 class TestBaseExtraction(object):
     """
     Testing classses related to Extraction.
-    """
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """ # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_required_data(self):
         required = config.RequiredData()
         default = required.to_dict()
@@ -51,10 +50,8 @@ class TestBaseExtraction(object):
             'key1': 'value1',
             'key2': 'value2',
         }
-        other = config.OtherData(data=other_dict)
+        other = config.OtherData()
+        other.update_values(**other_dict)
         # verify the keys
         assert other.keys() == list(other_dict.keys())
         assert other.to_dict() == other_dict
-        # confirm error
-        with pytest.raises(NotImplementedError):
-            other.update_values()

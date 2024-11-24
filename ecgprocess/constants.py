@@ -4,19 +4,6 @@ Constants used by ECGProcess
 
 from dataclasses import dataclass
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-class UtilsGeneralNames(object):
-    '''
-    Names used in the Utils General module.
-    '''
-    LXML_ERROR         = 'expected'
-
-class UtilsConfigData(object):
-    '''
-    Names used in the Utils Cofig Data module
-    '''
-    METADATA   = 'MetaData'
-    OTHERDATA  = 'OtherData'
-
 class CoreData(object):
     '''
     Core variable names which are used internally by various modules in
@@ -50,6 +37,21 @@ class CoreData(object):
     MD_WU_D     = 'WaveformUnits'
     MD_MU       = 'units (medianbeats)'
     MD_MU_D     = 'MedianWaveformUnits'
+
+class UtilsGeneralNames(object):
+    '''
+    Names used in the Utils General module.
+    '''
+    LXML_ERROR         = 'expected'
+
+class UtilsConfigData(object):
+    '''
+    Names used in the Utils Cofig Data module
+    '''
+    MetaData    = CoreData.MetaData
+    OtherData   = CoreData.OtherData
+    WaveForms   = CoreData.WaveForms
+    MedianBeats = CoreData.MedianBeats
 
 class ProcessDicomNames(object):
     '''
