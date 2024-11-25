@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, Any
+from typing import Optional, Any, Self
 from ecgprocess.constants import (
     CoreData as CDNames,
     UtilsConfigData as ConfigNames,
@@ -12,12 +12,8 @@ from ecgprocess.errors import (
 )
 
 """
-Classes describing the XML/DICOM tags/attributes which should be extracted from
-the source files. The attributes are seperated by required and immutable
-WaveForms, MedianBeats, and MetaData, as well as optional OtherData classes.
-
-Includes functionallity to update the extraction instances based on a flat
-config file.
+Classes to handle and parse configuration files describing how the XML/DICOM
+tags should be assigned to dataclass attributes.
 """
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -158,7 +154,7 @@ class DataMap(object):
     
     Methods
     -------
-    get_attributes()
+    get_attributes(all_)
         Returns the names of attributes with non-None values.
     keys(attr_name)
         Returns the keys of the specified dictionary ('MetaData' or
@@ -178,6 +174,13 @@ class DataMap(object):
     MetaData: dict = field(default_factory=lambda: RequiredData().to_dict())
     OtherData: dict | None = None
     _VALIDATE_ATTR = (ConfigNames.MetaData, ConfigNames.OtherData)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __post_init__(self):
+        """Validating inputs."""
+        is_type(self.WaveForms, str, 'WaveForms')
+        is_type(self.MedianBeats, str, 'MedianBeats')
+        is_type(self.MetaData, dict, 'MetaData')
+        is_type(self.OtherData, (type(None), dict), 'OtherData')
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @property
     def VALIDATE_ATTR(self) -> tuple:
@@ -274,21 +277,45 @@ class DataMap(object):
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ConfigParser(object):
     """
-    TODO
+    Parses configuration files into structured data and optionally assigns this
+    to a user supplied mapper instance.
+    
+    Parameters
+    ----------
+    path : str
+        Path to the configuration file to be parsed.
     """
     def __init__(self, path:str):
         '''
-        TODO
+        Initialize the ConfigParser instance.
         '''
         self._path = path
         self.__data = {}
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def __call__(self):
-        '''
-        TODO
-        '''
+    @property
+    def path(self) -> str:
+        """
+        Exposes _path as a read-only property.
+        """
+        return self._path
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @property
+    def data(self) -> str:
+        """
+        Exposes _data as a read-only property.
+        """
+        return self.__data
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __call__(self) -> Self:
+        """
+        Parse the configuration file.
+        
+        This method reads the configuration file specified during
+        initialization, validates its structure, and stores the data in a
+        dictionary. It supports sections with key-value pairs or single values.
+        """
         current = None
-        with open(self.path, "r", encoding="utf-8") as file:
+        with open(self._path, "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if line.startswith("[") and line.endswith("]"):
@@ -323,6 +350,7 @@ class ConfigParser(object):
                                 "ensure a single values has been set for data "
                                 "type."
                             )
+        return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def map(self, mapper:DataMap) -> DataMap:
         """
@@ -359,9 +387,8 @@ class ConfigParser(object):
         req_keys = meta_data_req.keys()
         meta_data_other = OtherData()
         other_data = OtherData()
-        for key, d in self.__data().items():
-            # NOTE just in case the dictionary is empty
-            if len(d) <= 1:
+        for key, d in self.__data.items():
+            if key in [ConfigNames.MedianBeats, ConfigNames.WaveForms]:
                 try:
                     setattr(mapper, key, list(d.values())[0])
                 except IndexError:
@@ -369,7 +396,7 @@ class ConfigParser(object):
                 # moving to the next key
                 continue
             for k, v in d.items():
-                if k == ConfigNames.MetaData:
+                if key == ConfigNames.MetaData:
                     # identify the required keys
                     if k in req_keys:
                         meta_data_req.update_values(**{k:v})
@@ -378,7 +405,7 @@ class ConfigParser(object):
                 else:
                     # the non-meta data
                     other_data.update_values(**{k:v})
-            # NOTE this will only be triggered if len(d) > 1
+            # NOTE this will only be triggered for meta/other data
             if key == ConfigNames.MetaData:
                 # set meta-data and other data
                 setattr(mapper, key,
@@ -391,106 +418,49 @@ class ConfigParser(object):
         return mapper
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def get_section(self, section_name):
-        """Get content for a specific section."""
+        """
+        Retrieve the parsed data for a specific section of the configuration
+        file.
+        
+        Parameters
+        ----------
+        section_name : `str`
+            Name of the section to retrieve.
+        
+        Returns
+        -------
+        dict
+            A dictionary of key-value pairs for the requested section, or an
+            empty dictionary if the section does not exist.
+        """
         return self.__data.get(section_name, {})
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):
         """String representation of the parsed data."""
-        result = [f"{self.__class__.__name__} Data:"]
-        for section, attributes in self.__data.items():
-            result.append(f"[{section}]")
-            for key, value in attributes.items():
-                    result.append(f"  {key}: {value}")
-            result.append("")
-        return "\n".join(result)
+        result = [f"{self.__class__.__name__}"]
+        if not self.__data:
+            j = ""
+            result.append(f"path={self._path}")
+        else:
+            j = "\n"
+            for section, attributes in self.__data.items():
+                result.append(f"[{section}]")
+                for key, value in attributes.items():
+                        result.append(f"  {key}  {value}")
+                result.append("")
+        return j.join(result)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self):
         """Developer-friendly representation of the parsed data."""
         result = [f"{self.__class__.__name__}("]
-        for section, attributes in self.__data.items():
-            result.append(f"  [{section}]")
-            for key, value in attributes.items():
-                result.append(f"    {key}: {value}")
+        if not self.__data:
+            j = ""
+            result.append(f"path={self._path}")
+        else:
+            j = "\n"
+            for section, attributes in self.__data.items():
+                result.append(f"  [{section}]")
+                for key, value in attributes.items():
+                    result.append(f"    {key}  {value}")
         result.append(")")
-        return "\n".join(result)
-
-# # Example Usage
-# # Assuming the file 'output.txt' contains the provided formatted text
-# parser = AttributeParser("output.txt")
-# parser.read_and_parse()
-
-# # Print the parsed content
-# print(parser)
-
-# # Access specific section data
-# print("WaveForms:", parser.get_section("WaveForms"))
-# print("MetaData:", parser.get_section("MetaData"))
-
-# # Example Usage
-# # Assuming the file 'output.txt' contains the provided formatted text
-# parser = AttributeParser("output.txt")
-# parser.read_and_parse()
-
-# # Print the parsed content
-# print(parser)
-
-# # Access specific section data
-# print("WaveForms:", parser.get_section("WaveForms"))
-# print("MetaData:", parser.get_section("MetaData"))
-# # # Example Usage:
-
-# # # Define OtherData configuration
-# # other_data = OtherData(optional_attributes={
-# #     "TechnicianName": "TechnicianNameTag",
-# #     "DeviceModel": "DeviceModelTag"
-# # })
-
-# # # Create the ExtractionConfig instance
-# # config = ExtractionConfig(OtherData=other_data)
-
-# # # Update WaveForms and MedianBeats to custom values
-# # config.update(WaveForms="custom_waveforms_tag", MedianBeats="custom_median_beats_tag")
-
-# # # Update MetaData values
-# # config.MetaData.update_values(PatientName="CustomPatientTag")
-
-# # # Simulate source data for OtherData extraction
-# # source_data = {
-# #     "0010,0010": "John Doe",          # Patient Name
-# #     "0010,0020": "12345",             # Patient ID
-# #     "0008,0020": "2024-11-19",        # Study Date
-# #     "TechnicianNameTag": "Jane Smith",
-# #     "DeviceModelTag": "ECG-X100"
-# # }
-
-# # # Extract data using MetaData and OtherData
-# # meta_dict = config.MetaData.to_dict()
-# # other_dict = config.OtherData.to_dict(source_data) if config.OtherData else {}
-
-# # # Output results
-# # print("WaveForms:", config.WaveForms)  # Output: custom_waveforms_tag
-# # print("MedianBeats:", config.MedianBeats)  # Output: custom_median_beats_tag
-# # print("MetaData Extracted:", meta_dict)
-# # # Output: {'PatientName': 'CustomPatientTag', 'PatientID': '0010,0020', 'StudyDate': '0008,0020'}
-# # print("OtherData Extracted:", other_dict)
-# # # Output: {'TechnicianName': 'Jane Smith', 'DeviceModel': 'ECG-X100'}
-# # @dataclass
-# # class ExtractionBase:
-# #     table1: str = "default_value1"
-# #     table2: str = "default_value2"
-# #     table3: str = "default_value3"
-
-# #     def update(self, **kwargs):
-# #         for key, value in kwargs.items():
-# #             # Add or update attributes dynamically
-# #             setattr(self, key, value)
-
-# # # Create a subclass where default values can be set again
-# # @dataclass
-# # class ExtractionConfig(ExtractionBase):
-# #     table1: str = "new_default_value1"
-# #     table2: str = "new_default_value2"
-# #     # Optionally add new attributes if needed
-# #     table4: str = "additional_default_value"
-
-
+        return j.join(result)

@@ -284,34 +284,66 @@ def list_data_paths():
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataset
-def data_configuration(path=None) -> str:
+def config_file(path=None, text:None | dict[str, list[str]]=None) -> str:
     """
-    Returns a toy example of a data configuration file as string.
+    Returns a toy example of a data configuration file as a string or uses
+    user-supplied text if provided in dictionary format.
     
     Parameters
     ----------
-    path : str, default None
-        An optional path to write the text to disk.
-
-    Return
-    str :
+    path : `str`, default None
+        An optional path to write the text to disk. Uses utf-8 file encoding.
+    user_text : `dict` [`str`, `list` [`str`]], default None
+        Configuration content specified as a dictionary. Each key represents a
+        header (enclosed in square brackets in the output), and the
+        corresponding value is a list of attributes or entries. Tab characters
+        in list items are preserved, enabling target-source assignments in the
+        generated file.
+    
+    Returns
+    -------
+    str
         The formatted configuration file.
+    
+    Examples
+    --------
+        >>> custom_text = {
+        ...     "CustomSection1": ["CustomAttribute1", "CustomAttribute2"],
+        ...     "MetaData": ["CustomData\tCustomValue"],
+        ...     "AdditionalInfo": ["Info1", "Info2"],
+        ... }
+        >>> print(data_configuration(user_text=custom_text))
+        [CustomSection1]
+        CustomAttribute1
+        CustomAttribute2
+        [MetaData]
+        CustomData	CustomValue
+        [AdditionalInfo]
+        Info1
+        Info2
     """
-    text = (
-        "[WaveForms]\n"
-        "Attribute1\n"
-        "[MedianBeats]\n"
-        "Attribute2\n"
-        "[MetaData]\n"
-        "sampling frequency (original)\tSamplingFrequency\n"
-        "sampling number (waveforms)\tNumberOfWaveformSamples\n"
-        "Birthdate\tPatientBirthDate\n"
-        "[OtherData]\n"
-        "ChannelSampleSkew\tChannelSampleSkew"
-    )
+    # Default configuration
+    default_text = {
+        "WaveForms": ["Attribute1"],
+        "MedianBeats": ["Attribute2"],
+        "MetaData": [
+            "sampling frequency (original)\tSamplingFrequency",
+            "sampling number (waveforms)\tNumberOfWaveformSamples",
+            "Birthdate\tPatientBirthDate",
+        ],
+        "OtherData": ["ChannelSampleSkew\tChannelSampleSkew"],
+    }
+    # Use default text if user_text is not provided
+    config = text or default_text
+    # Generate the formatted text
+    text_lines = []
+    for header, attributes in config.items():
+        text_lines.append(f"[{header}]")
+        text_lines.extend(attributes)
+    text = "\n".join(text_lines)
     # If a file path is provided, write the text to the file
     if path:
         with open(path, "w", encoding="utf-8") as file:
             file.write(text)
-    
     return text
+

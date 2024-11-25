@@ -2,7 +2,14 @@ import pytest
 import ecgprocess.utils.config_tools as config
 from ecgprocess.constants import (
     CoreData as CDNames,
+    UtilsConfigData as ConfigNames,
 )
+from ecgprocess.errors import InputValidationError
+from ecgprocess.example_data.examples import config_file
+from tempfile import NamedTemporaryFile
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# fixtures
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class TestBaseExtraction(object):
@@ -55,3 +62,40 @@ class TestBaseExtraction(object):
         # verify the keys
         assert other.keys() == list(other_dict.keys())
         assert other.to_dict() == other_dict
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_datamap_default(self):
+        mapper = config.DataMap()
+        attr = [ConfigNames.WaveForms, ConfigNames.MedianBeats,
+                ConfigNames.MetaData, ConfigNames.OtherData]
+        assert mapper.get_attributes() == attr[:-1]
+        assert mapper.get_attributes(all_=True) == attr
+        assert len(mapper.keys(ConfigNames.MetaData)) > 0
+        assert len(mapper.items(ConfigNames.MetaData)) > 0
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_datamap_supplied_data(self):
+        ot_d = {'b': 'a'}
+        mapper = config.DataMap(WaveForms='test1', MedianBeats='test2',
+                                MetaData={'a': 'b'}, OtherData=ot_d)
+        attr = [ConfigNames.WaveForms, ConfigNames.MedianBeats,
+                ConfigNames.MetaData, ConfigNames.OtherData]
+        assert mapper.get_attributes() == attr
+        assert mapper.get_attributes(all_=True) == attr
+        assert mapper.keys(ConfigNames.OtherData) == ['b']
+        assert mapper.items(ConfigNames.OtherData) == ot_d
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_datamap_errors(self):
+        with pytest.raises(InputValidationError):
+            config.DataMap(1)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_config_parers(self):
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name)
+            parser = config.ConfigParser(tmp_file.name)()
+        assert len(parser.data) > 0
+        assert len(parser.get_section('WaveForms')) == 1
+        # add mapper
+        mapped = parser.map(mapper=config.DataMap())
+        meta = getattr(mapped, ConfigNames.MetaData)
+        assert sum(1 for value in meta.values() if value is not None) == 3
+
+

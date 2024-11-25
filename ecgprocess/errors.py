@@ -46,11 +46,6 @@ def is_type(param: Any, types: Union[tuple[Type], Type],
     if not isinstance(param, types):
         if param_name is None:
             param_name = get_param_name(param)
-        else:
-            warnings.warn('`param_name` will be depricated.',
-                          DeprecationWarning,
-                          stacklevel=2,
-                          )
         raise InputValidationError(
             f"Expected any of [{types}], "
             f"got {type(param)}; Please see parameter: `{param_name}`."
