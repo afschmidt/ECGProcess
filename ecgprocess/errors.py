@@ -228,11 +228,12 @@ class Error_MSG(object):
     '''
     A collection of error messages.
     '''
-    MISSING_DICOM = '`{}` not found in DICOM file.'
-    MISSING_XML = '`{}` not found in XML file.'
-    MISSING_KEY = 'key `{}` not found in object `{}`.'
-    MISSING_ATTR = 'attribute `{}` not found in object `{}`.'
-    CHOICE_PARM = '`{}` is constrained to `{}`.'
+    MISSING_DICOM='`{}` not found in DICOM file.'
+    MISSING_XML='`{}` not found in XML file.'
+    MISSING_KEY='key `{}` not found in object `{}`.'
+    MISSING_ATTR='attribute `{}` not found in object `{}`.'
+    CHOICE_PARM='`{}` is constrained to `{}`.'
+    MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

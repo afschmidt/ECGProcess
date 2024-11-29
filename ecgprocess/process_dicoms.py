@@ -63,17 +63,17 @@ class BaseECGDICOMReader:
     the waveform arrays, while still retaining __dict__ dynamic attribute
     creation.
     '''
-    __slots__ = (PDNames.LEAD_VOLTAGES, PDNames.LEAD_VOLTAGES2,
-                 PDNames.RESULTS_DICT)
+    __slots__ = (PDNames.WaveForms, PDNames.MedianBeats,
+                 PDNames.MetaData)
     # /////////////////////////////////////////////////////////////////////////
-    def __init__(self, lead_voltages=None, lead_voltages2=None,
-                 results_dict=None):
+    def __init__(self, waveforms=None, medianbeats=None,
+                 metadata=None):
         '''
         Initialises slots entries to `None`.
         '''
-        setattr(self, PDNames.LEAD_VOLTAGES, lead_voltages)
-        setattr(self, PDNames.LEAD_VOLTAGES2, lead_voltages2)
-        setattr(self, PDNames.RESULTS_DICT, results_dict)
+        setattr(self, PDNames.WaveForms, waveforms)
+        setattr(self, PDNames.MedianBeats,medianbeats)
+        setattr(self, PDNames.MetaData,metadata)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
@@ -84,12 +84,12 @@ class ECGDICOMReader(BaseECGDICOMReader):
     
     Parameters
     ----------
-    augment_leads : bool, default `False`
+    augment_leads : `bool`, default `False`
         Whether the augmented leads are available in the DICOM, if not
         these are calculated.
-    resample : bool, default `True`
+    resample : `bool`, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz.
-    retain_raw : bool, default `False`
+    retain_raw : `bool`, default `False`
         Whether the raw pydicom instance and raw waveforms should be retained.
         Set to `False` to decrease memory usage. Set to `True` to explore the
         orignal pydicom instance. For example, use this one a few files to
@@ -97,17 +97,17 @@ class ECGDICOMReader(BaseECGDICOMReader):
     
     Attributes
     ----------
-    augment_leads : bool
+    augment_leads : `bool`
         Whether the augmented leads were calculated if these were unavailable.
-    resample : bool
+    resample : `bool`
         Whether the ECG was resampled to a 500 Hertz frequency.
-    retain_raw : bool
+    retain_raw : `bool`
         Whether the raw pydicom data was retained.
-    METADATA : dict [`str`, `str`]
+    METADATA : `dict` [`str`, `str`]
         A dictionary describing the metadata one wants to extract from a
         DICOM. The dictionary keys represents the `target` (new) name and the
         dictionary values the `source` (old) names.
-    ECG_TRAIT_DICT : dict [`str`, `list[str]`]
+    ECG_TRAIT_DICT : `dict` [`str`, `list[str]`]
         A dictionary with the keys reflecting the desired name of the ECG trait.
         Each key will have a list of strings as a value. These strings will be
         compared to the names in `WaveformAnnotationSequence` attribute.
@@ -116,16 +116,16 @@ class ECGDICOMReader(BaseECGDICOMReader):
         values are all the same, if not multiple entries will be returned for
         the user to decide what to do next. The extracted ECG traits will be
         included with the extracted METADATA.
-    STUDY_DATE_SOURCE : str
+    STUDY_DATE_SOURCE : `str`
         The study date format of the source DICOM.  This will be used in
         `datetime.strptime` as format argument.
-    STUDY_DATE_TARGET : str
+    STUDY_DATE_TARGET : `str`
         The target formatting of the study date.  This will be used in
         `datetime.strptime` as format argument.
-    ACQUISITION_DATE_SOURCE : str
+    ACQUISITION_DATE_SOURCE : `str`
         The acquisition date and time format of the source DICOM.  This will be
         used in `datetime.strptime` as format argument.
-    ACQUISITION_DATE_TARGET : str
+    ACQUISITION_DATE_TARGET : `str`
         The target formatting of the acquisition date and time.  This will be
         used in `datetime.strptime` as format argument.
     
@@ -164,7 +164,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
     ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
     ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
     # #### Error MSG
-    __MSG1=('Please supply either `path` or `dicom_instance` but not both.')
+    __MSG1=Error_MSG.MISSING_PATH_INSTANCE.format('dicom_instance')
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, path:str, skip_empty:bool=True, verbose:bool=False,
                  ) -> Self:
@@ -177,20 +177,20 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        path : str
+        path : `str`
             The path to the .dcm file.
-        skip_empty : bool, default `True`
+        skip_empty : `bool`, default `True`
             Whether empty tags should be skipped or throw an error.
-        verbose : bool, default `False`
+        verbose : `bool`, default `False`
             Prints missing tags if skip_empty is set to `True`.
         
         Attributes
         ----------
-        GeneralInfo : list [`str`]
+        GeneralInfo : `list` [`str`]
             A list of dcmread extracted attributes.
-        Waveforms : dict [`str`, `np.array`]
+        Waveforms : `dict` [`str`, `np.array`]
             The lead specific ECG waveforms.
-        MedianWaveforms : dict [`str`, `np.array`]
+        MedianWaveforms : `dict` [`str`, `np.array`]
             The lead specific ECG median beats.
         
         Returns
@@ -274,7 +274,8 @@ class ECGDICOMReader(BaseECGDICOMReader):
         # #### return stuff
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_metadata(self, path:str|None=None, dicom_instance: DCM_Class|None=None,
+    def get_metadata(self, path:str|None=None,
+                     dicom_instance:DCM_Class|None=None,
                      skip_empty:bool=True
                      ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
         '''
@@ -282,14 +283,14 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        path : str, default `NoneType`.
+        path : `str`, default `NoneType`.
             The path to the .dcm file.
-        dicom_instance : DCM_Class, default `NoneType`.
+        dicom_instance : `DCM_Class`, default `NoneType`.
             A DCM_Class instance.
         
         Returns
         -------
-        results : dict,DCM_Class
+        dict,DCM_Class
             - A `DCM_Class` instance.
             - A dictionary with extracted metadata.
             - A list of missing `DCM_Class` attribute names.
@@ -338,9 +339,9 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        path : str, default `NoneType`.
+        path : `str`, default `NoneType`.
             The path to the .dcm file.
-        dicom_instance : DCM_Class, default `NoneType`.
+        dicom_instance : `DCM_Class`, default `NoneType`.
             A DCM_Class instance.
         
         Returns
@@ -426,9 +427,9 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        path : str, default `NoneType`.
+        path : `str`, default `NoneType`.
             The path to the .dcm file.
-        dicom_instance : DCM_Class, default `NoneType`.
+        dicom_instance : `DCM_Class`, default `NoneType`.
             A DCM_Class instance.
         
         Returns
@@ -526,9 +527,9 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        path : str, default `NoneType`.
+        path : `str`, default `NoneType`.
             The path to the .dcm file.
-        dicom_instance : DCM_Class, default `NoneType`.
+        dicom_instance : `DCM_Class`, default `NoneType`.
             A DCM_Class instance.
         
         Returns
@@ -667,18 +668,17 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        channel_seq : DCM_Class
+        channel_seq : `DCM_Class`
             A `pydicom.sequence.Sequence` instance.
         
         Returns
         -------
-        tuple of a dict and a string:
-                
-                - leadnames : dict [`int`, `str`]
-                    A dictionary with numerical (interval) keys and the lead names as
-                    values.
-                - leadunit : str
-                    The measurment unit of the ECG leads.
+        `tuple` ['dict', `str`]:
+            - leadnames : dict [`int`, `str`]
+                A dictionary with numerical (interval) keys and the lead names
+                as values.
+            - leadunit : str
+                The measurment unit of the ECG leads.
         """
         # #### extracting the lead names
         leadnames = {}
@@ -716,18 +716,18 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        waveform_array : np.ndarray
+        waveform_array : `np.ndarray`
             An array with the waveforms.
-        lead_info: dict [`int`, `str`]
+        lead_info: `dict` [`int`, `str`]
             A dictionary where the keys match the `waveform_array` rows and
             the dictionary values contain the lead name strings.
-        augment_leads : bool
+        augment_leads : `bool`
             Whether to calculate the additional augmented leads. Will only work
             if there are exactly 8 leads available.
         
         Returns
         -------
-        leads: dict [`str`, `np.ndarray`]
+        leads: `dict` [`str`, `np.ndarray`]
             A dictionary with the lead name string as keys and leads as
             np.ndarray values.
         """
@@ -757,7 +757,7 @@ class ECGDICOMReader(BaseECGDICOMReader):
         
         Parameters
         ----------
-        frequency : int or float
+        frequency : `int` or `float`
             The original sampling frequency. Will simply check that this is
             not 500 and if not proceed with the resampling.
         

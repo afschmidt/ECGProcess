@@ -8,7 +8,7 @@ from ecgprocess.plot_ecgs import (
     ECGDrawing,
 )
 from ecgprocess.example_data.examples import (
-    list_data_paths,
+    list_dicom_paths as list_data_paths,
 )
 import matplotlib.lines as mlines
 import matplotlib.text as mtext

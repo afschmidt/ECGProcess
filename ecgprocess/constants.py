@@ -38,12 +38,14 @@ class CoreData(object):
     MD_MU       = 'units (medianbeats)'
     MD_MU_D     = 'MedianWaveformUnits'
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsGeneralNames(object):
     '''
     Names used in the Utils General module.
     '''
     LXML_ERROR         = 'expected'
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsConfigData(object):
     '''
     Names used in the Utils Cofig Data module
@@ -53,15 +55,25 @@ class UtilsConfigData(object):
     WaveForms   = CoreData.WaveForms
     MedianBeats = CoreData.MedianBeats
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class ProcessXMLNames(object):
+    '''
+    Names used in the process_xml module.
+    '''
+    XML_DICT = 'xml_dict'
+    XML_TAGS = 'xml_tags'
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class ProcessDicomNames(object):
     '''
     Names used in the process_dicom module.
     '''
+    MetaData              = CoreData.MetaData
+    WaveForms             = CoreData.WaveForms
+    MedianBeats           = CoreData.MedianBeats
     MEDIAN_PRESENT        = 'MedianWaveformPresent'
     WAVE_ARRAY            = 'Raw_Waveforms'
     MEDIAN_ARRAY          = 'Raw_MedianWaveforms'
-    LEAD_VOLTAGES         = 'Waveforms'
-    LEAD_VOLTAGES2        = 'MedianWaveforms'
     LEAD_INFO             = 'lead_info_final'
     WAVE_FORM_SEQ         = 'WaveformSequence'
     CHANNEL_DEF_SEQ       = 'ChannelDefinitionSequence'
@@ -71,7 +83,6 @@ class ProcessDicomNames(object):
     CHANNEL_SENS          = 'ChannelSensitivity'
     CHANNEL_SENS_UNIT     = 'ChannelSensitivityUnitsSequence'
     STUDY_TIME            = 'StudyTime'
-    RESULTS_DICT          = 'GeneralInfo'
     DURATION              = 'Duration'
     UNIT                  = 'Unit free'
     LEAD                  = 'Lead'
@@ -156,7 +167,9 @@ class ProcessDicomNames(object):
     SOP_UID               = 'SOPinstanceUID'
     LEAD_UNITS            = 'WaveformUnits'
     LEAD_UNITS2           = 'MedianWaveformUnits'
-
+    RESULTS_DICT          = CoreData.MetaData
+    LEAD_VOLTAGES         = CoreData.WaveForms
+    LEAD_VOLTAGES2        = CoreData.MedianBeats
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass

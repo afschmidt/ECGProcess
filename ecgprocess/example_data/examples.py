@@ -263,9 +263,9 @@ def dummy_load_data():
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataset
-def list_data_paths():
+def list_dicom_paths():
     """
-    Returns the paths to the available example datasets.
+    Returns the paths to the available DICOM example datasets.
     
     Returns
     -------
@@ -278,6 +278,28 @@ def list_data_paths():
             _ROOT_DATASETS_DIR, 'example-DICOM1.dcm'),
         'example_dicom_2': os.path.join(
             _ROOT_DATASETS_DIR, 'example-DICOM2.dcm'),
+    }
+    # return
+    return paths_dict
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@dataset
+def list_xml_paths():
+    """
+    Returns the paths to available XML and XSD schema paths.
+    
+    Returns
+    -------
+    paths: dict
+        The data names (keys) and paths (values) available in ECGProcess.
+    """
+    FILENAME='example-XML1'
+    # paths dictionary
+    paths_dict = {
+        'example_1': os.path.join(
+            _ROOT_DATASETS_DIR, FILENAME+'.xml'),
+        'example_1_shema': os.path.join(
+            _ROOT_DATASETS_DIR, FILENAME+'.xsd'),
     }
     # return
     return paths_dict

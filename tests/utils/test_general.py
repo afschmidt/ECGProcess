@@ -311,3 +311,26 @@ def test_update_kwargs_with_overlapping_keys():
     result = gen_utils._update_kwargs(update_dict, c='red', alpha=0.5)
     assert result == {'c': 'black', 'alpha': 0.5}
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def test_property_factor():
+    val1 = 20
+    val2 = 20.0
+    class TestClass:
+        prop = gen_utils.property_factory('prop')
+        prop2 = gen_utils.property_factory('prop2', int)
+        prop3 = gen_utils.property_factory('prop3', int, once=True)
+    obj = TestClass()
+    obj.prop = val1
+    # make sure the getter worked.
+    assert obj.prop == val1
+    # make sure an error is raised
+    with pytest.raises(InputValidationError):
+        obj.prop2 = val2
+    # confirm the value has not been set
+    assert obj.prop2 is None
+    # confirm the setter is remove after the first use
+    obj.prop3 = val1
+    obj.prop3 == val1
+    with pytest.raises(AttributeError):
+        obj.prop3 = 10
+    

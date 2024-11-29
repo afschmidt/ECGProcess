@@ -10,6 +10,7 @@ from ecgprocess.errors import (
     Error_MSG,
     NotCalledError,
 )
+from ecgprocess.utils.general import property_factory as prop_fac
 
 """
 Classes to handle and parse configuration files describing how the XML/DICOM
@@ -285,26 +286,16 @@ class ConfigParser(object):
     path : str
         Path to the configuration file to be parsed.
     """
+    # properties
+    path = prop_fac('path', once=True)
+    data = prop_fac('data', once=True)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, path:str):
         '''
         Initialize the ConfigParser instance.
         '''
-        self._path = path
-        self.__data = {}
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @property
-    def path(self) -> str:
-        """
-        Exposes _path as a read-only property.
-        """
-        return self._path
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @property
-    def data(self) -> str:
-        """
-        Exposes _data as a read-only property.
-        """
-        return self.__data
+        self.path = path
+        self.data = {}
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(self) -> Self:
         """
@@ -315,7 +306,7 @@ class ConfigParser(object):
         dictionary. It supports sections with key-value pairs or single values.
         """
         current = None
-        with open(self._path, "r", encoding="utf-8") as file:
+        with open(self.path, "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if line.startswith("[") and line.endswith("]"):
@@ -328,25 +319,25 @@ class ConfigParser(object):
                             f"input: `{current}`. Ensure the file format is "
                             "correct and all sections are properly defined."
                         )
-                    # confirm this is not already in __data - fine if it is,
+                    # confirm this is not already in data - fine if it is,
                     # but no need to create a new key and subdict.
-                    if current not in self.__data:
-                        self.__data[current] = {}
+                    if current not in self.data:
+                        self.data[current] = {}
                 elif current and line:
                     # Process the line
                     if "\t" in line:
                         # Split into key-value pairs
                         k, v = line.split("\t", 1)
-                        self.__data[current][k.strip()] = v.strip()
+                        self.data[current][k.strip()] = v.strip()
                     else:
                         # in this case this should be a WaveForm or MedianBeat
                         # attribute
-                        if len(self.__data[current]) == 0:
-                            self.__data[current][current] = line.strip()
+                        if len(self.data[current]) == 0:
+                            self.data[current][current] = line.strip()
                         else:
                             raise InputValidationError(
                                 f"`{current}` has already been set: "
-                                f"{self.__data[current][current]}. Please "
+                                f"{self.data[current][current]}. Please "
                                 "ensure a single values has been set for data "
                                 "type."
                             )
@@ -371,10 +362,10 @@ class ConfigParser(object):
             updated to include the parsed data.
         """
         # ### make sure the instance was called
-        if len(self.__data) == 0:
+        if len(self.data) == 0:
             raise NotCalledError
         # ### check input
-        missing = [a for a in self.__data.keys() if not hasattr(mapper, a)]
+        missing = [a for a in self.data.keys() if not hasattr(mapper, a)]
         if len(missing) > 0:
             raise AttributeError(
                 f"The following parsed data types are not defined as "
@@ -387,7 +378,7 @@ class ConfigParser(object):
         req_keys = meta_data_req.keys()
         meta_data_other = OtherData()
         other_data = OtherData()
-        for key, d in self.__data.items():
+        for key, d in self.data.items():
             if key in [ConfigNames.MedianBeats, ConfigNames.WaveForms]:
                 try:
                     setattr(mapper, key, list(d.values())[0])
@@ -433,17 +424,17 @@ class ConfigParser(object):
             A dictionary of key-value pairs for the requested section, or an
             empty dictionary if the section does not exist.
         """
-        return self.__data.get(section_name, {})
+        return self.data.get(section_name, {})
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):
         """String representation of the parsed data."""
         result = [f"{self.__class__.__name__}"]
-        if not self.__data:
+        if not self.data:
             j = ""
-            result.append(f"path={self._path}")
+            result.append(f"path={self.path}")
         else:
             j = "\n"
-            for section, attributes in self.__data.items():
+            for section, attributes in self.data.items():
                 result.append(f"[{section}]")
                 for key, value in attributes.items():
                         result.append(f"  {key}  {value}")
@@ -453,12 +444,12 @@ class ConfigParser(object):
     def __repr__(self):
         """Developer-friendly representation of the parsed data."""
         result = [f"{self.__class__.__name__}("]
-        if not self.__data:
+        if not self.data:
             j = ""
-            result.append(f"path={self._path}")
+            result.append(f"path={self.path}")
         else:
             j = "\n"
-            for section, attributes in self.__data.items():
+            for section, attributes in self.data.items():
                 result.append(f"  [{section}]")
                 for key, value in attributes.items():
                     result.append(f"    {key}  {value}")

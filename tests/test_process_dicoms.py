@@ -11,7 +11,7 @@ from ecgprocess.plot_ecgs import (
     ECGDrawing,
 )
 from ecgprocess.example_data.examples import (
-    list_data_paths,
+    list_dicom_paths as list_data_paths,
 )
 from ecgprocess.utils.general import (
     list_tar,

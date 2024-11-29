@@ -8,7 +8,7 @@ import warnings
 import xmltodict
 from lxml import etree
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Type
 from ecgprocess.errors import (
     is_type,
 )
@@ -188,8 +188,8 @@ def validate_xml(xml_path:str|Path, xsd_path:str|Path, strict:bool=True,
         
     Returns
     -------
-        xml : `etree._ElementTree`
-            The parsed XML document.
+    etree._ElementTree
+        The parsed XML document.
     
     Raises
     ------
@@ -258,7 +258,6 @@ def xml_to_dict(xml_doc:etree._ElementTree, encoding:str='utf-8',
     return xml_dict
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# d = nested_dict_fixture
 def flatten_dict(d:dict[str, Any], parent_prefix:str='', sep:str='.',
                  skip_root:bool=True,
                  ) -> dict[str, Any]:
@@ -335,4 +334,43 @@ def flatten_dict(d:dict[str, Any], parent_prefix:str='', sep:str='.',
             res.append((new_key, v))
     return dict(res)
 
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def property_factory(name:str, types:tuple[Type] | Type | None = None,
+                     once:bool=False) -> property:
+    """
+    A generic property factory defining setters and getters, with optional
+    type validation.
+    
+    Parameters
+    ----------
+    name : `str`
+        The name of the setters and getters
+    types: `Type`, default `NoneType`
+        Either a single type, or a tuple of types to test against.
+    once : `bool`, default `False`
+        Should the setter be removed after setting the attribute the first time.
+        Essentially turns this into a getter only attribute.
+    
+    Returns:
+    -------
+    property
+        A property object with getter and setter.
+    """
+    is_type(once, bool)
+    is_type(name, str)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def prop_getter(instance):
+        """The getter"""
+        return instance.__dict__.get(name)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def prop_setter(instance, value):
+        """The setter"""
+        if types:
+            is_type(value, types)
+        instance.__dict__[name] = value
+        # remove after setting
+        if once:
+            delattr(instance.__class__, name)
+            setattr(instance.__class__, name, property(prop_getter))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    return property(prop_getter, prop_setter)

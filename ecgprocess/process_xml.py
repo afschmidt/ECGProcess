@@ -2,15 +2,22 @@
 A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 '''
 
-from dataclasses import dataclass
+from lxml import etree
+from dataclasses import dataclass, field
 from typing import (
-    Self, Any, Literal,
+    Optional, Self, Any, Literal,
 )
 from ecgprocess.process_dicoms import (
     BaseECGDICOMReader,
 )
 from ecgprocess.utils.general import(
     validate_xml,
+    xml_to_dict,
+    flatten_dict,
+    property_factory as prop_fac,
+)
+from ecgprocess.utils.config_tools import(
+    ConfigParser,
 )
 from ecgprocess.errors import (
     is_type,
@@ -20,8 +27,17 @@ from ecgprocess.errors import (
 )
 
 from ecgprocess.constants import (
-    ProcessDicomNames as PDNames,
+    ProcessXMLNames as PXMLNam,
+    CoreData as Core,
 )
+
+# NOTE REMOVE THIS
+from ecgprocess.example_data.examples import (
+    list_xml_paths
+)
+path = list_xml_paths()['example_1']
+validate = list_xml_paths()['example_1_shema']
+verbose=True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
@@ -51,6 +67,18 @@ class ECGXMLReader(BaseECGDICOMReader):
         Whether the ECG was resampled to a 500 Hertz frequency.
     retain_raw : `bool`
         Whether the raw data was retained.
+    STUDY_DATE_SOURCE : str
+        The study date format of the source DICOM.  This will be used in
+        `datetime.strptime` as format argument.
+    STUDY_DATE_TARGET : str
+        The target formatting of the study date.  This will be used in
+        `datetime.strptime` as format argument.
+    ACQUISITION_DATE_SOURCE : str
+        The acquisition date and time format of the source DICOM.  This will be
+        used in `datetime.strptime` as format argument.
+    ACQUISITION_DATE_TARGET : str
+        The target formatting of the acquisition date and time.  This will be
+        used in `datetime.strptime` as format argument.
     
     Methods
     -------
@@ -62,48 +90,61 @@ class ECGXMLReader(BaseECGDICOMReader):
     is further improved by setting `retain_raw` to `False` - the default
     behaviour.
     """
+    # #### properties
+    # NOTE add these to the docstring
+    xml_tags = prop_fac(PXMLNam.XML_TAGS, once=True)
     # #### parameters, with defaults
-    augment_leads: bool=False
-    resample_500:bool=True
-    retain_raw:bool=False
-    # #### check input
-    is_type(augment_leads, bool)
-    is_type(resample_500, bool)
+    augment_leads:bool = field(default=False)
+    resample_500:bool = field(default=True)
+    retain_raw:bool = field(default=False)
+    # #### default dates to extract and format
+    STUDY_DATE_SOURCE = "%Y%m%d"
+    STUDY_DATE_TARGET = "%Y-%m-%d"
+    ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
+    ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
     # #### Error MSG
-    __MSG1=('Please supply either `path` or `xml_tree` but not both.')
+    __MSG1=Error_MSG.MISSING_PATH_INSTANCE.format('xml_tree')
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, path:str, extractor:ExtractionConfig,
-                 validate:Literal['Full', 'Partial', 'Skip']='Full',
-                 skip_empty:bool=True, verbose:bool=False,
+    def __post_init__(self):
+        """Validating inputs."""
+        is_type(self.augment_leads, bool)
+        is_type(self.resample_500, bool)
+        is_type(self.retain_raw, bool)
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def __call__(self, path:str, validate:str | None = None,
+                 skip_empty:bool=True,
+                 verbose:bool=False,
+                 **kwargs:Optional[Any],
                  ) -> Self:
         """
-        Reads a `.xml` file containing ECG readings and extracts  metadata,
-        raw waveforms, and median beats data, with the exact naming based on the
-        `extractor` instance.
+        Reads an `.xml` file containing ECG readings and extracts  metadata,
+        raw waveforms, and median beats data, based on a parsed configuration
+        file mapping XML tags to class attributes.
         
         Parameters
         ----------
         path : `str`
             The path to the .xml file.
-        extract : `ExtractionConfig`
-            The class instance mapping the parsed XML content to attribute names.
-        validate : `str`, default `Full`
-            Whether the xml file should be validated based in a supplied `.xsd`
-            scheme supplied to the `extract` instance. `Full` will perform a full
-            validation. `Partial` will filer out issues with elements in the xml
-            file which are omitted in the schema.
+        config : `ConfigParser`
+            A class instance of a parsed configuration file, mapping the XML
+            content to class attributes.
+        validate : `str`, default `NoneType`
+            A path to an XML schema which will be used to valudate the XML file
+            against.
         skip_empty : `bool`, default `True`
             Whether empty tags should be skipped or throw an error.
         verbose : `bool`, default `False`
             Prints missing tags if skip_empty is set to `True`.
+        **kwargs : any
+            keyword arguments passed to flatten_dict.
         
         Attributes
         ----------
-        GeneralInfo : `list` [`str`]
-            A list of extracted attributes.
+        MetaData : `dict` [`str`, `any`]
+            ECG metadata.
         Waveforms : `dict` [`str`, `np.array`]
             The lead specific ECG waveforms.
-        MedianWaveforms : `dict` [`str`, `np.array`]
+        MedianBeats : `dict` [`str`, `np.array`]
             The lead specific ECG median beats.
         
         Returns
@@ -118,20 +159,41 @@ class ECGXMLReader(BaseECGDICOMReader):
         """
         # #### check input
         is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str))
+        is_type(validate, (type(None), pathlib.PosixPath, pathlib.WindowsPath,
+                           str))
         is_type(skip_empty, bool)
         is_type(verbose, bool)
-        is_type(extractor, ExtractionConfig)
-        is_type(validate, str)
-        # assign to self
+        # #### assign to self
         self.verbose = verbose
         # #### confirm file is readable
         _check_readable(path)
         # #### validate XML
-        VALIDATE_CHOICES = [PDNames.XML_VAL_FULL,
-                            PDNames.XML_VAL_PART,
-                            PDNames.XML_VAL_SKIP,
-                            ]
-        if not validate in VALIDATE_CHOICES:
-            raise ValueError(Error_MSG.CHOICE_PARM.\
-                             format('validate', ', '.join(VALIDATE_CHOICES)))
-        # NOTE add the validation step here, need to define extractor first
+        if not validate is None:
+            _check_readable(validate)
+            parsed_xml = validate_xml(xml_path=path, xsd_path=validate,
+                                      verbose=verbose)
+        else:
+            with open(path, 'rb') as xml:
+                parsed_xml = etree.parse(xml)
+        # map to flatten_dict
+        xml_dict = flatten_dict(xml_to_dict(parsed_xml), **kwargs)
+        xml_dict = flatten_dict(xml_to_dict(parsed_xml))
+        # ### store keys
+        setattr(self, PXMLNam.XML_DICT, xml_dict)
+        setattr(self, PXMLNam.XML_TAGS, list(xml_dict.keys()))
+        # ### return
+        return self
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def extract(config:ConfigParser):
+        """
+        TODO
+        
+        Parameters
+        ----------
+        config : `ConfigParser`
+            A class instance of a parsed configuration file, mapping the XML
+            content to class attributes.
+        """
+        is_type(config, ConfigParser)
+
+
