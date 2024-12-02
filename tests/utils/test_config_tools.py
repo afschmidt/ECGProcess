@@ -65,6 +65,7 @@ class TestBaseExtraction(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_datamap_default(self):
         mapper = config.DataMap()
+        mapper.items()
         attr = [ConfigNames.WaveForms, ConfigNames.MedianBeats,
                 ConfigNames.MetaData, ConfigNames.OtherData]
         assert mapper.get_attributes() == attr[:-1]
@@ -74,14 +75,14 @@ class TestBaseExtraction(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_datamap_supplied_data(self):
         ot_d = {'b': 'a'}
-        mapper = config.DataMap(WaveForms='test1', MedianBeats='test2',
+        mapper = config.DataMap(WaveForms={'test1':1}, MedianBeats={'test2':2},
                                 MetaData={'a': 'b'}, OtherData=ot_d)
         attr = [ConfigNames.WaveForms, ConfigNames.MedianBeats,
                 ConfigNames.MetaData, ConfigNames.OtherData]
         assert mapper.get_attributes() == attr
         assert mapper.get_attributes(all_=True) == attr
         assert mapper.keys(ConfigNames.OtherData) == ['b']
-        assert mapper.items(ConfigNames.OtherData) == ot_d
+        assert mapper.items(ConfigNames.OtherData) == {'OtherData': ot_d}
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_datamap_errors(self):
         with pytest.raises(InputValidationError):
@@ -91,7 +92,7 @@ class TestBaseExtraction(object):
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name)
             parser = config.ConfigParser(tmp_file.name)()
-        assert len(parser.data) > 0
+        assert len(parser._data) > 0
         assert len(parser.get_section('WaveForms')) == 1
         # add mapper
         mapped = parser.map(mapper=config.DataMap())

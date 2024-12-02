@@ -10,7 +10,7 @@ from ecgprocess.errors import (
     Error_MSG,
     NotCalledError,
 )
-from ecgprocess.utils.general import property_factory as prop_fac
+from ecgprocess.utils.general import ManagedProperty
 
 """
 Classes to handle and parse configuration files describing how the XML/DICOM
@@ -144,10 +144,10 @@ class DataMap(object):
     
     Attributes
     ----------
-    WaveForms : `str`
-        A tag or identifier for waveform data.
-    MedianBeats : `str`
-        A tag or identifier for median beats data.
+    WaveForms : `dict` [`str`, `str`]
+        A config dict mapping the twelve ECG leads.
+    MedianBeats : `dict` [`str`, `str`]
+        A config dict mapping the twelve ECG leads.
     MetaData : `dict` [`str`, `str`]
         A dictionary containing metadata attributes and their values.
     OtherData : `dict` [`str`, `str`], default `NoneType`
@@ -170,16 +170,28 @@ class DataMap(object):
     >>> data_map.get_attributes()
     ['WaveForms', 'MedianBeats', 'MetaData']
     """
-    WaveForms: str = field(default=CDNames.WaveForms)
-    MedianBeats: str = field(default=CDNames.MedianBeats)
+    # setting attributes
+    WaveForms: dict = field(default_factory=lambda: RequiredData(
+        _data=DataMap.get_leads()).to_dict())
+    MedianBeats: dict = field(default_factory=lambda: RequiredData(
+        _data=DataMap.get_leads()).to_dict())
     MetaData: dict = field(default_factory=lambda: RequiredData().to_dict())
     OtherData: dict | None = None
-    _VALIDATE_ATTR = (ConfigNames.MetaData, ConfigNames.OtherData)
+    _VALIDATE_ATTR = (
+        ConfigNames.WaveForms, ConfigNames.MedianBeats,
+        ConfigNames.MetaData, ConfigNames.OtherData
+    )
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @staticmethod
+    def get_leads():
+        """Initialising the leads names to None"""
+        lead_attr = [attr for attr in dir(CDNames) if attr.startswith('lead_')]
+        return {getattr(CDNames, l): None for l in lead_attr}
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __post_init__(self):
         """Validating inputs."""
-        is_type(self.WaveForms, str, 'WaveForms')
-        is_type(self.MedianBeats, str, 'MedianBeats')
+        is_type(self.WaveForms, dict, 'WaveForms')
+        is_type(self.MedianBeats, dict, 'MedianBeats')
         is_type(self.MetaData, dict, 'MetaData')
         is_type(self.OtherData, (type(None), dict), 'OtherData')
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -213,13 +225,15 @@ class DataMap(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def keys(self, attr_name: str | None = None,) -> list[str]:
         """
-        Return the keys for MetaData, OtherData, or both dictionaries.
+        Return the keys for WaveForms, MedianBeats, MetaData, OtherData, or
+        all dictionaries.
         
         Parameters
         ----------
         attr_name : `str`, default `NoneType`
-            Specify 'MetaData' or 'OtherData' to limit the result to that
-            dictionary.  If None, keys for both dictionaries are returned.
+            Specify attribute name to limit the result to that dictionary. If
+            None, keys for all dictionaries are returned, without attempting
+            to unique these.
         
         Returns
         -------
@@ -242,20 +256,20 @@ class DataMap(object):
                 pass
         return result
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def items(self, attr_name: str|None = None) -> dict[str, str]:
+    def items(self, attr_name: str|None = None) -> dict[str, dict[str, str]]:
         """
-        Return the key-value pairs for MetaData, OtherData, or both
-        dictionaries.
+        Return the key-value pairs forWaveForms, MedianBeats, MetaData,
+        OtherData, or all dictionaries.
         
         Parameters
         ----------
         attr_name : `str`, default `NoneType`
-            Specify 'MetaData' or 'OtherData' to limit the result to that
-            dictionary.  If None, items for both dictionaries are returned.
+            Specify the type of attribute to limit the result to that
+            dictionary.  If None, items for all dictionaries are returned.
         
         Returns
         -------
-        `dict` [`str`, `str`]
+        `dict` [`str`, `dict`  [`str`, `str`]
             A dictionary where keys are attribute names and values are the
             key-value pairs of the dictionary.
         """
@@ -266,11 +280,11 @@ class DataMap(object):
                              format('attr_name', ', '.join(self._VALIDATE_ATTR)))
         # find keys
         attributes = self._VALIDATE_ATTR if attr_name is None else [attr_name]
-        result = {}
+        result = {attr:{} for attr in attributes}
         for attr in attributes:
-            attribute = getattr(self, attr, None)
+            attr_sub = getattr(self, attr, None)
             try:
-                result.update(attribute.items())
+                result[attr].update(attr_sub.items())
             except (AttributeError, TypeError):
                 pass
         return result
@@ -287,15 +301,16 @@ class ConfigParser(object):
         Path to the configuration file to be parsed.
     """
     # properties
-    path = prop_fac('path', once=True)
-    data = prop_fac('data', once=True)
+    path = ManagedProperty(ConfigNames.path)
+    _data = ManagedProperty(ConfigNames.data, dict)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, path:str):
         '''
         Initialize the ConfigParser instance.
         '''
-        self.path = path
-        self.data = {}
+        # making sure the setter is only used during _init_
+        getattr(type(self),ConfigNames.path).set_with_setter(self, path)
+        getattr(type(self),ConfigNames.data).set_with_setter(self, {})
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(self) -> Self:
         """
@@ -306,7 +321,7 @@ class ConfigParser(object):
         dictionary. It supports sections with key-value pairs or single values.
         """
         current = None
-        with open(self.path, "r", encoding="utf-8") as file:
+        with open(getattr(self, ConfigNames.path), "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if line.startswith("[") and line.endswith("]"):
@@ -321,25 +336,27 @@ class ConfigParser(object):
                         )
                     # confirm this is not already in data - fine if it is,
                     # but no need to create a new key and subdict.
-                    if current not in self.data:
-                        self.data[current] = {}
+                    if current not in getattr(self, ConfigNames.data):
+                        getattr(self, ConfigNames.data)[current] = {}
                 elif current and line:
                     # Process the line
                     if "\t" in line:
                         # Split into key-value pairs
                         k, v = line.split("\t", 1)
-                        self.data[current][k.strip()] = v.strip()
+                        getattr(self, ConfigNames.data)[current][k.strip()]=\
+                            v.strip()
                     else:
                         # in this case this should be a WaveForm or MedianBeat
                         # attribute
-                        if len(self.data[current]) == 0:
-                            self.data[current][current] = line.strip()
+                        if len(getattr(self, ConfigNames.data)[current]) == 0:
+                            getattr(self, ConfigNames.data)[current][current]=\
+                                line.strip()
                         else:
                             raise InputValidationError(
                                 f"`{current}` has already been set: "
-                                f"{self.data[current][current]}. Please "
-                                "ensure a single values has been set for data "
-                                "type."
+                                f"{getattr(self, ConfigNames.data)[current][current]}. "
+                                "Please ensure a single values has been set for "
+                                "data type."
                             )
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -362,10 +379,11 @@ class ConfigParser(object):
             updated to include the parsed data.
         """
         # ### make sure the instance was called
-        if len(self.data) == 0:
+        if len(getattr(self, ConfigNames.data)) == 0:
             raise NotCalledError
         # ### check input
-        missing = [a for a in self.data.keys() if not hasattr(mapper, a)]
+        missing = [a for a in getattr(self, ConfigNames.data).keys() if\
+                   not hasattr(mapper, a)]
         if len(missing) > 0:
             raise AttributeError(
                 f"The following parsed data types are not defined as "
@@ -378,7 +396,7 @@ class ConfigParser(object):
         req_keys = meta_data_req.keys()
         meta_data_other = OtherData()
         other_data = OtherData()
-        for key, d in self.data.items():
+        for key, d in getattr(self, ConfigNames.data).items():
             if key in [ConfigNames.MedianBeats, ConfigNames.WaveForms]:
                 try:
                     setattr(mapper, key, list(d.values())[0])
@@ -408,7 +426,7 @@ class ConfigParser(object):
         # return stuff
         return mapper
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def get_section(self, section_name):
+    def get_section(self, section_name) -> dict[str, str]:
         """
         Retrieve the parsed data for a specific section of the configuration
         file.
@@ -421,20 +439,19 @@ class ConfigParser(object):
         Returns
         -------
         dict
-            A dictionary of key-value pairs for the requested section, or an
-            empty dictionary if the section does not exist.
+            A dictionary of key-value pairs for the requested section.
         """
-        return self.data.get(section_name, {})
+        return getattr(self, ConfigNames.data).get(section_name, KeyError)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):
         """String representation of the parsed data."""
         result = [f"{self.__class__.__name__}"]
-        if not self.data:
+        if not getattr(self, ConfigNames.data):
             j = ""
-            result.append(f"path={self.path}")
+            result.append(f"path={getattr(self,ConfigNames.path)}")
         else:
             j = "\n"
-            for section, attributes in self.data.items():
+            for section, attributes in getattr(self, ConfigNames.data).items():
                 result.append(f"[{section}]")
                 for key, value in attributes.items():
                         result.append(f"  {key}  {value}")
@@ -444,12 +461,12 @@ class ConfigParser(object):
     def __repr__(self):
         """Developer-friendly representation of the parsed data."""
         result = [f"{self.__class__.__name__}("]
-        if not self.data:
+        if not getattr(self, ConfigNames.data):
             j = ""
-            result.append(f"path={self.path}")
+            result.append(f"path={getattr(self, ConfigNames.path)}")
         else:
             j = "\n"
-            for section, attributes in self.data.items():
+            for section, attributes in getattr(self, ConfigNames.data).items():
                 result.append(f"  [{section}]")
                 for key, value in attributes.items():
                     result.append(f"    {key}  {value}")

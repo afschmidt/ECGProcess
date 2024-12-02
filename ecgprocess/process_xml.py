@@ -1,7 +1,7 @@
 '''
 A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 '''
-
+import pathlib
 from lxml import etree
 from dataclasses import dataclass, field
 from typing import (
@@ -15,6 +15,8 @@ from ecgprocess.utils.general import(
     xml_to_dict,
     flatten_dict,
     property_factory as prop_fac,
+    ManagedProperty,
+
 )
 from ecgprocess.utils.config_tools import(
     ConfigParser,
@@ -25,7 +27,6 @@ from ecgprocess.errors import (
     _check_presence,
     Error_MSG,
 )
-
 from ecgprocess.constants import (
     ProcessXMLNames as PXMLNam,
     CoreData as Core,
@@ -40,6 +41,311 @@ validate = list_xml_paths()['example_1_shema']
 verbose=True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ecgxml_reader = ECGXMLReader()
+parsed_xml = ecgxml_reader(path=path, validate=validate, verbose=True)
+parsed_xml.temp
+parsed_xml.temp['CardiologyXML']['RestingECGMeasurements']
+temp_l = parsed_xml.temp['CardiologyXML']['RestingECGMeasurements']['MedianSamples']['WaveformData']
+# already \n\t\t here
+temp_l[0]['#text']
+# NOTE array data in flatten_dict output contains  \n\t\t see where these
+# should be addressed either in flatted_dict or xml_to_dict
+parsed_xml.xml_dict['RestingECGMeasurements.MedianSamples.WaveformData_11.#text']
+parsed_xml.xml_dict['StripData.WaveformData_0.#text']
+parsed_xml.xml_dict['StripData.WaveformData_0.@lead']
+
+print(*parsed_xml.xml_tags, sep='\n')
+# >>> print(*parsed_xml.xml_tags, sep='\n')
+# ObservationType
+# ObservationDateTime.Hour
+# ObservationDateTime.Minute
+# ObservationDateTime.Second
+# ObservationDateTime.Day
+# ObservationDateTime.Month
+# ObservationDateTime.Year
+# UID.DICOMStudyUID
+# ClinicalInfo.ReasonForStudy
+# ClinicalInfo.Technician.FamilyName
+# ClinicalInfo.Technician.GivenName
+# ClinicalInfo.Technician.PersonID
+# ClinicalInfo.ObservationComment
+# ClinicalInfo.DeviceInfo.Desc
+# ClinicalInfo.DeviceInfo.SoftwareVer
+# ClinicalInfo.DeviceInfo.AnalysisVer
+# PatientVisit.PatientClass
+# PatientVisit.AssignedPatientLocation.Facility
+# PatientVisit.AssignedPatientLocation.LocationNumber
+# PatientVisit.AssignedPatientLocation.LocationName
+# PatientVisit.PatientRoom
+# PatientVisit.AdmissionType
+# PatientVisit.OrderingProvider.FamilyName
+# PatientVisit.OrderingProvider.GivenName
+# PatientVisit.OrderingProvider.PersonID
+# PatientVisit.AttendingDoctor.FamilyName
+# PatientVisit.AttendingDoctor.GivenName
+# PatientVisit.AttendingDoctor.PersonID
+# PatientVisit.ReferringDoctor.FamilyName
+# PatientVisit.ReferringDoctor.GivenName
+# PatientVisit.ReferringDoctor.PersonID
+# PatientVisit.ServicingFacility.Name
+# PatientVisit.ServicingFacility.Address.Street1
+# PatientVisit.ServicingFacility.Address.City
+# PatientVisit.SysBP.@units
+# PatientVisit.DiaBP.@units
+# PatientVisit.MedicalHistory.MedicalHistoryText
+# PatientVisit.OrderNumber
+# PatientVisit.Medications.Drug
+# PatientVisit.Medications.Dosage
+# PatientVisit.ExtraQuestions.Label_0.@Type
+# PatientVisit.ExtraQuestions.Label_1.@Type
+# PatientVisit.ExtraQuestions.Content_0
+# PatientVisit.ExtraQuestions.Content_1
+# PatientInfo.PID
+# PatientInfo.Name.FamilyName
+# PatientInfo.Name.GivenName
+# PatientInfo.Age.@units
+# PatientInfo.Age.#text
+# PatientInfo.BirthDateTime.Day
+# PatientInfo.BirthDateTime.Month
+# PatientInfo.BirthDateTime.Year
+# PatientInfo.Gender
+# PatientInfo.Race
+# PatientInfo.Height.@units
+# PatientInfo.Height.#text
+# PatientInfo.Weight.@units
+# PatientInfo.Weight.#text
+# PatientInfo.PaceMaker
+# FilterSetting.CubicSpline
+# FilterSetting.Filter50Hz
+# FilterSetting.Filter60Hz
+# FilterSetting.LowPass.@units
+# FilterSetting.LowPass.#text
+# FilterSetting.HighPass.@units
+# FilterSetting.HighPass.#text
+# Device-Type
+# Interpretation.Diagnosis.DiagnosisText_0
+# Interpretation.Diagnosis.DiagnosisText_1
+# Interpretation.Diagnosis.DiagnosisText_2
+# Interpretation.Diagnosis.DiagnosisText_3
+# Interpretation.Diagnosis.DiagnosisText_4
+# Interpretation.Conclusion.ConclusionText_0
+# Interpretation.Conclusion.ConclusionText_1
+# Interpretation.Conclusion.ConclusionText_2
+# Interpretation.Conclusion.ConclusionText_3
+# Interpretation.Conclusion.ConclusionText_4
+# RestingECGMeasurements.DiagnosisVersion
+# RestingECGMeasurements.VentricularRate.@units
+# RestingECGMeasurements.VentricularRate.#text
+# RestingECGMeasurements.PQInterval.@units
+# RestingECGMeasurements.PQInterval.#text
+# RestingECGMeasurements.PDuration.@units
+# RestingECGMeasurements.PDuration.#text
+# RestingECGMeasurements.QRSDuration.@units
+# RestingECGMeasurements.QRSDuration.#text
+# RestingECGMeasurements.QTInterval.@units
+# RestingECGMeasurements.QTInterval.#text
+# RestingECGMeasurements.QTCInterval.@units
+# RestingECGMeasurements.QTCInterval.#text
+# RestingECGMeasurements.RRInterval.@units
+# RestingECGMeasurements.RRInterval.#text
+# RestingECGMeasurements.PPInterval.@units
+# RestingECGMeasurements.PPInterval.#text
+# RestingECGMeasurements.SokolovLVHIndex.@units
+# RestingECGMeasurements.PAxis.@units
+# RestingECGMeasurements.PAxis.#text
+# RestingECGMeasurements.RAxis.@units
+# RestingECGMeasurements.RAxis.#text
+# RestingECGMeasurements.TAxis.@units
+# RestingECGMeasurements.TAxis.#text
+# RestingECGMeasurements.QTDispersion.@units
+# RestingECGMeasurements.QTDispersionBazett.@units
+# RestingECGMeasurements.QRSNum
+# RestingECGMeasurements.MeasurementTable.@Creation
+# RestingECGMeasurements.MeasurementTable.LeadOrder
+# RestingECGMeasurements.MeasurementTable.QDuration.@units
+# RestingECGMeasurements.MeasurementTable.QDuration.#text
+# RestingECGMeasurements.MeasurementTable.RDuration.@units
+# RestingECGMeasurements.MeasurementTable.RDuration.#text
+# RestingECGMeasurements.MeasurementTable.SDuration.@units
+# RestingECGMeasurements.MeasurementTable.SDuration.#text
+# RestingECGMeasurements.MeasurementTable.RpDuration.@units
+# RestingECGMeasurements.MeasurementTable.RpDuration.#text
+# RestingECGMeasurements.MeasurementTable.PAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.PAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.QAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.QAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.RAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.RAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.SAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.SAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.R1Amplitude.@units
+# RestingECGMeasurements.MeasurementTable.R1Amplitude.#text
+# RestingECGMeasurements.MeasurementTable.S1Amplitude.@units
+# RestingECGMeasurements.MeasurementTable.S1Amplitude.#text
+# RestingECGMeasurements.MeasurementTable.JAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.JAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.JXAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.JXAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.TAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.TAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.JXSlope.@units
+# RestingECGMeasurements.MeasurementTable.JXSlope.#text
+# RestingECGMeasurements.MeasurementTable.R1Duration.@units
+# RestingECGMeasurements.MeasurementTable.R1Duration.#text
+# RestingECGMeasurements.MeasurementTable.P1Amplitude.@units
+# RestingECGMeasurements.MeasurementTable.P1Amplitude.#text
+# RestingECGMeasurements.MeasurementTable.JXEAmplitude.@units
+# RestingECGMeasurements.MeasurementTable.JXEAmplitude.#text
+# RestingECGMeasurements.MeasurementTable.T1Amplitude.@units
+# RestingECGMeasurements.MeasurementTable.T1Amplitude.#text
+# RestingECGMeasurements.POnset.@units
+# RestingECGMeasurements.POnset.#text
+# RestingECGMeasurements.POffset.@units
+# RestingECGMeasurements.POffset.#text
+# RestingECGMeasurements.QOnset.@units
+# RestingECGMeasurements.QOnset.#text
+# RestingECGMeasurements.QOffset.@units
+# RestingECGMeasurements.QOffset.#text
+# RestingECGMeasurements.TOffset.@units
+# RestingECGMeasurements.TOffset.#text
+# RestingECGMeasurements.MedianSamples.NumberOfLeads
+# RestingECGMeasurements.MedianSamples.SampleRate.@units
+# RestingECGMeasurements.MedianSamples.SampleRate.#text
+# RestingECGMeasurements.MedianSamples.ChannelSampleCountTotal
+# RestingECGMeasurements.MedianSamples.Resolution.@units
+# RestingECGMeasurements.MedianSamples.Resolution.#text
+# RestingECGMeasurements.MedianSamples.FirstValid.@units
+# RestingECGMeasurements.MedianSamples.FirstValid.#text
+# RestingECGMeasurements.MedianSamples.LastValid.@units
+# RestingECGMeasurements.MedianSamples.LastValid.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_0.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_0.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_1.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_1.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_2.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_2.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_3.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_3.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_4.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_4.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_5.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_5.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_6.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_6.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_7.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_7.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_8.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_8.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_9.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_9.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_10.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_10.#text
+# RestingECGMeasurements.MedianSamples.WaveformData_11.@lead
+# RestingECGMeasurements.MedianSamples.WaveformData_11.#text
+# VectorLoops.@Creation
+# VectorLoops.Resolution.@units
+# VectorLoops.Resolution.#text
+# VectorLoops.ChannelSampleCountTotal
+# VectorLoops.POnset.@units
+# VectorLoops.POnset.#text
+# VectorLoops.POffset.@units
+# VectorLoops.POffset.#text
+# VectorLoops.QOnset.@units
+# VectorLoops.QOnset.#text
+# VectorLoops.QOffset.@units
+# VectorLoops.QOffset.#text
+# VectorLoops.TOffset.@units
+# VectorLoops.TOffset.#text
+# VectorLoops.Frontal_0.@Lead
+# VectorLoops.Frontal_0.#text
+# VectorLoops.Frontal_1.@Lead
+# VectorLoops.Frontal_1.#text
+# VectorLoops.Horizontal_0.@Lead
+# VectorLoops.Horizontal_0.#text
+# VectorLoops.Horizontal_1.@Lead
+# VectorLoops.Horizontal_1.#text
+# VectorLoops.Sagittal_0.@Lead
+# VectorLoops.Sagittal_0.#text
+# VectorLoops.Sagittal_1.@Lead
+# VectorLoops.Sagittal_1.#text
+# StripData.NumberOfLeads
+# StripData.SampleRate.@units
+# StripData.SampleRate.#text
+# StripData.ChannelSampleCountTotal
+# StripData.Resolution.@units
+# StripData.Resolution.#text
+# StripData.WaveformData_0.@lead
+# StripData.WaveformData_0.#text
+# StripData.WaveformData_1.@lead
+# StripData.WaveformData_1.#text
+# StripData.WaveformData_2.@lead
+# StripData.WaveformData_2.#text
+# StripData.WaveformData_3.@lead
+# StripData.WaveformData_3.#text
+# StripData.WaveformData_4.@lead
+# StripData.WaveformData_4.#text
+# StripData.WaveformData_5.@lead
+# StripData.WaveformData_5.#text
+# StripData.WaveformData_6.@lead
+# StripData.WaveformData_6.#text
+# StripData.WaveformData_7.@lead
+# StripData.WaveformData_7.#text
+# StripData.WaveformData_8.@lead
+# StripData.WaveformData_8.#text
+# StripData.WaveformData_9.@lead
+# StripData.WaveformData_9.#text
+# StripData.WaveformData_10.@lead
+# StripData.WaveformData_10.#text
+# StripData.WaveformData_11.@lead
+# StripData.WaveformData_11.#text
+# StripData.ArrhythmiaResults.Time_0.@units
+# StripData.ArrhythmiaResults.Time_0.#text
+# StripData.ArrhythmiaResults.Time_1.@units
+# StripData.ArrhythmiaResults.Time_1.#text
+# StripData.ArrhythmiaResults.Time_2.@units
+# StripData.ArrhythmiaResults.Time_2.#text
+# StripData.ArrhythmiaResults.Time_3.@units
+# StripData.ArrhythmiaResults.Time_3.#text
+# StripData.ArrhythmiaResults.Time_4.@units
+# StripData.ArrhythmiaResults.Time_4.#text
+# StripData.ArrhythmiaResults.Time_5.@units
+# StripData.ArrhythmiaResults.Time_5.#text
+# StripData.ArrhythmiaResults.Time_6.@units
+# StripData.ArrhythmiaResults.Time_6.#text
+# StripData.ArrhythmiaResults.Time_7.@units
+# StripData.ArrhythmiaResults.Time_7.#text
+# StripData.ArrhythmiaResults.BeatClass_0
+# StripData.ArrhythmiaResults.BeatClass_1
+# StripData.ArrhythmiaResults.BeatClass_2
+# StripData.ArrhythmiaResults.BeatClass_3
+# StripData.ArrhythmiaResults.BeatClass_4
+# StripData.ArrhythmiaResults.BeatClass_5
+# StripData.ArrhythmiaResults.BeatClass_6
+# StripData.ArrhythmiaResults.BeatClass_7
+# FullDisclosure.NumberOfChannels
+# FullDisclosure.SampleRate.@units
+# FullDisclosure.SampleRate.#text
+# FullDisclosure.Resolution.@units
+# FullDisclosure.Resolution.#text
+# FullDisclosure.LeadOrder
+# FullDisclosure.FullDisclosureData.SampleCountTotal
+# FullDisclosure.FullDisclosureData.#text
+# FullDisclosure.EventList.Event_0
+# FullDisclosure.EventList.Event_1
+# FullDisclosure.EventList.Event_2
+# FullDisclosure.EventList.Event_3
+# FullDisclosure.EventList.Time_0.Minute
+# FullDisclosure.EventList.Time_0.Second
+# FullDisclosure.EventList.Time_1.Minute
+# FullDisclosure.EventList.Time_1.Second
+# FullDisclosure.EventList.Time_2.Minute
+# FullDisclosure.EventList.Time_2.Second
+# FullDisclosure.EventList.Time_3.Minute
+# FullDisclosure.EventList.Time_3.Second
+# FullDisclosure.ArrhythmiaResults.QRS
+# Export
+# CSWeb.a.@href
+
 @dataclass
 class ECGXMLReader(BaseECGDICOMReader):
     """
@@ -68,14 +374,14 @@ class ECGXMLReader(BaseECGDICOMReader):
     retain_raw : `bool`
         Whether the raw data was retained.
     STUDY_DATE_SOURCE : str
-        The study date format of the source DICOM.  This will be used in
-        `datetime.strptime` as format argument.
+        The study date format.  This will be used in `datetime.strptime` as
+        format argument.
     STUDY_DATE_TARGET : str
         The target formatting of the study date.  This will be used in
         `datetime.strptime` as format argument.
     ACQUISITION_DATE_SOURCE : str
-        The acquisition date and time format of the source DICOM.  This will be
-        used in `datetime.strptime` as format argument.
+        The acquisition date and time format.  This will be used in
+        `datetime.strptime` as format argument.
     ACQUISITION_DATE_TARGET : str
         The target formatting of the acquisition date and time.  This will be
         used in `datetime.strptime` as format argument.
@@ -92,7 +398,8 @@ class ECGXMLReader(BaseECGDICOMReader):
     """
     # #### properties
     # NOTE add these to the docstring
-    xml_tags = prop_fac(PXMLNam.XML_TAGS, once=True)
+    xml_tags = ManagedProperty(PXMLNam.XML_TAGS, list)
+    xml_dict = ManagedProperty(PXMLNam.XML_DICT, list)
     # #### parameters, with defaults
     augment_leads:bool = field(default=False)
     resample_500:bool = field(default=True)
@@ -176,11 +483,13 @@ class ECGXMLReader(BaseECGDICOMReader):
             with open(path, 'rb') as xml:
                 parsed_xml = etree.parse(xml)
         # map to flatten_dict
+        self.temp = xml_to_dict(parsed_xml)
         xml_dict = flatten_dict(xml_to_dict(parsed_xml), **kwargs)
-        xml_dict = flatten_dict(xml_to_dict(parsed_xml))
+        # xml_dict = flatten_dict(xml_to_dict(parsed_xml))
         # ### store keys
-        setattr(self, PXMLNam.XML_DICT, xml_dict)
-        setattr(self, PXMLNam.XML_TAGS, list(xml_dict.keys()))
+        getattr(type(self), PXMLNam.XML_DICT).set_with_setter(self, xml_dict)
+        getattr(type(self), PXMLNam.XML_TAGS).set_with_setter(
+            self, list(xml_dict.keys()))
         # ### return
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\

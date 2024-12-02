@@ -10,6 +10,7 @@ from lxml import etree
 from pathlib import Path
 from typing import Any, Callable, Optional, Type
 from ecgprocess.errors import (
+    InputValidationError,
     is_type,
 )
 from ecgprocess.constants import UtilsGeneralNames as UGNames
@@ -335,8 +336,7 @@ def flatten_dict(d:dict[str, Any], parent_prefix:str='', sep:str='.',
     return dict(res)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def property_factory(name:str, types:tuple[Type] | Type | None = None,
-                     once:bool=False) -> property:
+class ManagedProperty(object):
     """
     A generic property factory defining setters and getters, with optional
     type validation.
@@ -347,30 +347,70 @@ def property_factory(name:str, types:tuple[Type] | Type | None = None,
         The name of the setters and getters
     types: `Type`, default `NoneType`
         Either a single type, or a tuple of types to test against.
-    once : `bool`, default `False`
-        Should the setter be removed after setting the attribute the first time.
-        Essentially turns this into a getter only attribute.
     
-    Returns:
+    Methods
+    -------
+    enable_setter()
+        Enables the setter for the property, allowing attribute assignment.
+    disable_setter()
+        Disables the setter for the property, making the property read-only.
+    set_with_setter(instance, value)
+        Enables the setter, sets the property value, and then disables
+        the setter, ensuring controlled updates.
+    
+    Returns
     -------
     property
         A property object with getter and setter.
     """
-    is_type(once, bool)
-    is_type(name, str)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def prop_getter(instance):
-        """The getter"""
-        return instance.__dict__.get(name)
+    def __init__(self, name: str, types: tuple[type] | type | None = None):
+        """
+        Initialize the ManagedProperty.
+        """
+        self.name = name
+        self.types = types
+        self._setter_enabled = True
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def prop_setter(instance, value):
-        """The setter"""
-        if types:
-            is_type(value, types)
-        instance.__dict__[name] = value
-        # remove after setting
-        if once:
-            delattr(instance.__class__, name)
-            setattr(instance.__class__, name, property(prop_getter))
+    def __get__(self, instance, owner):
+        """Getter for the property."""
+        if instance is None:
+            return self
+        return instance.__dict__.get(self.name)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    return property(prop_getter, prop_setter)
+    def __set__(self, instance, value):
+        """Setter for the property."""
+        if not self._setter_enabled:
+            raise AttributeError(f"The property '{self.name}' is read-only.")
+        if self.types and not isinstance(value, self.types):
+            raise ValueError(
+                f"Expected any of {self.types}, got {type(value)} "
+                f"for property '{self.name}'."
+            )
+        instance.__dict__[self.name] = value
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def enable_setter(self):
+        """Enable the setter for the property."""
+        self._setter_enabled = True
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def disable_setter(self):
+        """Disable the setter for the property."""
+        self._setter_enabled = False
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def set_with_setter(self, instance, value):
+        """
+        Enable the setter, set the property value, and then disable the setter.
+        
+        Parameters
+        ----------
+        instance : `object`
+            The instance on which the property is being set.
+        value : `any`
+            The value to assign to the property.
+        """
+        try:
+            self.enable_setter()
+            setattr(instance, self.name, value)
+        finally:
+            self.disable_setter()
+

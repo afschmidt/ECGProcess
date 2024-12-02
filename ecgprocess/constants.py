@@ -3,6 +3,7 @@ Constants used by ECGProcess
 '''
 
 from dataclasses import dataclass
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class CoreData(object):
     '''
@@ -18,6 +19,18 @@ class CoreData(object):
     MedianBeats = 'MedianBeats'
     MetaData    = 'MetaData'
     OtherData   = 'OtherData'
+    lead_I      = 'I'
+    lead_II     = 'II'
+    lead_III    = 'III'
+    lead_aVR    = 'aVR'
+    lead_aVL    = 'aVL'
+    lead_aVF    = 'aVF'
+    lead_V1     = 'V1'
+    lead_V2     = 'V2'
+    lead_V3     = 'V3'
+    lead_V4     = 'V4'
+    lead_V5     = 'V5'
+    lead_V6     = 'V6'
     # The required meta data
     MD_SF       = 'sampling frequency (original)'
     MD_SF_D     = 'SamplingFrequency'
@@ -54,6 +67,8 @@ class UtilsConfigData(object):
     OtherData   = CoreData.OtherData
     WaveForms   = CoreData.WaveForms
     MedianBeats = CoreData.MedianBeats
+    path        = 'path'
+    data        = '_data'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class ProcessXMLNames(object):

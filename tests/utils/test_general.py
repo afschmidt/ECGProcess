@@ -312,25 +312,29 @@ def test_update_kwargs_with_overlapping_keys():
     assert result == {'c': 'black', 'alpha': 0.5}
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def test_property_factor():
+def test_managed_property():
+    # toy data
     val1 = 20
     val2 = 20.0
+    val3 = 30
     class TestClass:
-        prop = gen_utils.property_factory('prop')
-        prop2 = gen_utils.property_factory('prop2', int)
-        prop3 = gen_utils.property_factory('prop3', int, once=True)
+        prop  = gen_utils.ManagedProperty('prop')
+        prop2 = gen_utils.ManagedProperty('prop2', int)
+        prop3 = gen_utils.ManagedProperty('prop3', int)
+        def __init__(self):
+            type(self).prop3.set_with_setter(self, val3)
+    # evaluating stuff
     obj = TestClass()
     obj.prop = val1
     # make sure the getter worked.
     assert obj.prop == val1
     # make sure an error is raised
-    with pytest.raises(InputValidationError):
+    with pytest.raises(ValueError):
         obj.prop2 = val2
     # confirm the value has not been set
     assert obj.prop2 is None
-    # confirm the setter is remove after the first use
-    obj.prop3 = val1
-    obj.prop3 == val1
+    # confirm prop3 cannot be set
     with pytest.raises(AttributeError):
-        obj.prop3 = 10
+        obj.prop3 = 15
+    assert obj.prop3 == val3
     
