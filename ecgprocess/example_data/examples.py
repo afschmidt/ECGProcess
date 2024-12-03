@@ -346,14 +346,21 @@ def config_file(path=None, text:None | dict[str, list[str]]=None) -> str:
     """
     # Default configuration
     default_text = {
-        "WaveForms": ["Attribute1"],
-        "MedianBeats": ["Attribute2"],
+        "WaveForms": [
+            "I\tLead_I_name",
+            "aVF\tLead_aVF_name",
+        ],
+        "MedianBeats": [
+            "II\tLead_II_name",
+        ],
         "MetaData": [
             "sampling frequency (original)\tSamplingFrequency",
             "sampling number (waveforms)\tNumberOfWaveformSamples",
             "Birthdate\tPatientBirthDate",
         ],
-        "OtherData": ["ChannelSampleSkew\tChannelSampleSkew"],
+        "OtherData": [
+            "ChannelSampleSkew\tChannelSampleSkew",
+        ],
     }
     # Use default text if user_text is not provided
     config = text or default_text

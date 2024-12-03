@@ -318,7 +318,7 @@ class ConfigParser(object):
         
         This method reads the configuration file specified during
         initialization, validates its structure, and stores the data in a
-        dictionary. It supports sections with key-value pairs or single values.
+        dictionary. It supports sections with key-value pairs.
         """
         current = None
         with open(getattr(self, ConfigNames.path), "r", encoding="utf-8") as file:
@@ -375,9 +375,12 @@ class ConfigParser(object):
         Returns
         -------
         DataMap
-            The same `DataMap` instance provided as input, but with its attributes
-            updated to include the parsed data.
+            The same `DataMap` instance provided as input, but with its
+            attributes updated to include the parsed data.
         """
+        WRONG = ('Attribute `{}` is outside the allowed for key set for `{}`.'
+                 'Please update your configuration file to only list allowed '
+                 'attribute names. For example, consult the mapper object.')
         # ### make sure the instance was called
         if len(getattr(self, ConfigNames.data)) == 0:
             raise NotCalledError
@@ -392,20 +395,29 @@ class ConfigParser(object):
                 f"corresponding attributes for all required data types."
             )
         # ### class instances
+        # setting up the signal data
+        lead_keys = mapper.get_leads()
+        wave_data = RequiredData(_data=lead_keys.copy())
+        median_data = RequiredData(_data=lead_keys.copy())
+        lead_keys = lead_keys.keys()
+        # setting up the meta/other data
         meta_data_req = RequiredData()
         req_keys = meta_data_req.keys()
         meta_data_other = OtherData()
         other_data = OtherData()
         for key, d in getattr(self, ConfigNames.data).items():
-            if key in [ConfigNames.MedianBeats, ConfigNames.WaveForms]:
-                try:
-                    setattr(mapper, key, list(d.values())[0])
-                except IndexError:
-                    setattr(mapper, key, None)
-                # moving to the next key
-                continue
             for k, v in d.items():
-                if key == ConfigNames.MetaData:
+                if key == ConfigNames.MedianBeats:
+                    if k in lead_keys:
+                        median_data.update_values(**{k:v})
+                    else:
+                        raise KeyError(WRONG.format(k, key))
+                elif key == ConfigNames.WaveForms:
+                    if k in lead_keys:
+                        wave_data.update_values(**{k:v})
+                    else:
+                        raise KeyError(WRONG.format(k, key))
+                elif key == ConfigNames.MetaData:
                     # identify the required keys
                     if k in req_keys:
                         meta_data_req.update_values(**{k:v})
@@ -414,15 +426,15 @@ class ConfigParser(object):
                 else:
                     # the non-meta data
                     other_data.update_values(**{k:v})
-            # NOTE this will only be triggered for meta/other data
-            if key == ConfigNames.MetaData:
-                # set meta-data and other data
-                setattr(mapper, key,
-                        {**meta_data_req.to_dict(),
-                         **meta_data_other.to_dict()}
-                        )
-            else:
-                setattr(mapper, key, other_data.to_dict())
+        # #### set attributes
+        # set meta-data and other data
+        setattr(mapper, ConfigNames.OtherData, other_data.to_dict())
+        setattr(mapper, ConfigNames.WaveForms, wave_data.to_dict())
+        setattr(mapper, ConfigNames.MedianBeats, median_data.to_dict())
+        setattr(mapper, ConfigNames.MetaData,
+                {**meta_data_req.to_dict(),
+                 **meta_data_other.to_dict()}
+                )
         # return stuff
         return mapper
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -451,10 +463,15 @@ class ConfigParser(object):
             result.append(f"path={getattr(self,ConfigNames.path)}")
         else:
             j = "\n"
+            # Determine the maximum key length for alignment
+            max_key_length = max(
+                (len(key) for _, attr in getattr(self, ConfigNames.data).items()
+                 for key in attr.keys()), default=0)
             for section, attributes in getattr(self, ConfigNames.data).items():
                 result.append(f"[{section}]")
                 for key, value in attributes.items():
-                        result.append(f"  {key}  {value}")
+                        # Align values by padding keys
+                        result.append(f"\t{key:<{max_key_length}}    {value}")
                 result.append("")
         return j.join(result)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -466,9 +483,14 @@ class ConfigParser(object):
             result.append(f"path={getattr(self, ConfigNames.path)}")
         else:
             j = "\n"
-            for section, attributes in getattr(self, ConfigNames.data).items():
-                result.append(f"  [{section}]")
-                for key, value in attributes.items():
-                    result.append(f"    {key}  {value}")
+        # Determine the maximum key length for alignment
+        max_key_length = max(
+            (len(key) for _, attr in getattr(self, ConfigNames.data).items()
+             for key in attr.keys()), default=0)
+        for section, attributes in getattr(self, ConfigNames.data).items():
+            result.append(f"  [{section}]")
+            for key, value in attributes.items():
+                # Align values by padding keys
+                result.append(f"\t{key:<{max_key_length}}    {value}")
         result.append(")")
         return j.join(result)

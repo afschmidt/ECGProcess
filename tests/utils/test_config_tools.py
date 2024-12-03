@@ -93,10 +93,34 @@ class TestBaseExtraction(object):
             _ = config_file(path=tmp_file.name)
             parser = config.ConfigParser(tmp_file.name)()
         assert len(parser._data) > 0
-        assert len(parser.get_section('WaveForms')) == 1
+        assert len(parser.get_section('WaveForms')) == 2
         # add mapper
         mapped = parser.map(mapper=config.DataMap())
         meta = getattr(mapped, ConfigNames.MetaData)
         assert sum(1 for value in meta.values() if value is not None) == 3
+        assert getattr(mapped, ConfigNames.WaveForms) !=\
+            getattr(mapped, ConfigNames.MedianBeats)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_wrong_config_parers(self):
+        wrong_config = {
+            "WaveForms": [
+                "I\tLead_I_name",
+                "WRONG\tLead_II_name",
+            ],
+            "MetaData": [
+                "sampling frequency (original)\tSamplingFrequency",
+                "sampling number (waveforms)\tNumberOfWaveformSamples",
+                "Birthdate\tPatientBirthDate",
+            ]
+        }
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=wrong_config)
+            parser = config.ConfigParser(tmp_file.name)()
+        assert len(parser._data) > 0
+        assert len(parser.get_section('WaveForms')) == 2
+        # add mapper
+        with pytest.raises(KeyError):
+            _ = parser.map(mapper=config.DataMap())
+
 
 
