@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 from ecgprocess.constants import (
@@ -57,15 +58,22 @@ class RequiredData(object):
     # presist between instances.
     # NOTE using a single _ instead of __ to prevent name mangling.
     _data: dict[str, str] = field(default_factory=lambda: {
-        CDNames.MD_UID : None,
-        CDNames.MD_SF  : None,
-        CDNames.MD_SN  : None,
-        CDNames.MD_SNM : None,
-        CDNames.MD_AT  : None,
-        CDNames.MD_SD  : None,
-        CDNames.MD_CN  : None,
-        CDNames.MD_WU  : None,
-        CDNames.MD_MU  : None,
+        CDNames.MD_UID     : None,
+        CDNames.MD_NLEADS  : None,
+        CDNames.MD_RES_U_W : None,
+        CDNames.MD_RES_U_M : None,
+        CDNames.MD_RES_W   : None,
+        CDNames.MD_RES_M   : None,
+        CDNames.MD_SF      : None,
+        CDNames.MD_SF_U    : None,
+        CDNames.MD_SN_W    : None,
+        CDNames.MD_SN_M    : None,
+        CDNames.MD_SECOND  : None,
+        CDNames.MD_MINUTE  : None,
+        CDNames.MD_HOUR    : None,
+        CDNames.MD_DAY     : None,
+        CDNames.MD_MONTH   : None,
+        CDNames.MD_YEAR    : None,
     })
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def update_values(self, **kwargs:Optional[Any]) -> None:
@@ -342,7 +350,8 @@ class ConfigParser(object):
                     # Process the line
                     if "\t" in line:
                         # Split into key-value pairs
-                        k, v = line.split("\t", 1)
+                        k, v = re.split(r'\t+', line, maxsplit=1)
+                        # include a strip to make sure spaces are trimmed
                         getattr(self, ConfigNames.data)[current][k.strip()]=\
                             v.strip()
                     else:

@@ -14,9 +14,7 @@ from ecgprocess.utils.general import(
     validate_xml,
     xml_to_dict,
     flatten_dict,
-    property_factory as prop_fac,
     ManagedProperty,
-
 )
 from ecgprocess.utils.config_tools import(
     ConfigParser,
@@ -53,6 +51,10 @@ temp_l[0]['#text']
 parsed_xml.xml_dict['RestingECGMeasurements.MedianSamples.WaveformData_11.#text']
 parsed_xml.xml_dict['StripData.WaveformData_0.#text']
 parsed_xml.xml_dict['StripData.WaveformData_0.@lead']
+
+parsed_xml.temp['CardiologyXML']['PatientVisit']
+parsed_xml.xml_dict['PatientVisit.SysBP.@units']
+parsed_xml.xml_dict['PatientVisit.SysBP.#text']
 
 print(*parsed_xml.xml_tags, sep='\n')
 # >>> print(*parsed_xml.xml_tags, sep='\n')
@@ -399,7 +401,7 @@ class ECGXMLReader(BaseECGDICOMReader):
     # #### properties
     # NOTE add these to the docstring
     xml_tags = ManagedProperty(PXMLNam.XML_TAGS, list)
-    xml_dict = ManagedProperty(PXMLNam.XML_DICT, list)
+    xml_dict = ManagedProperty(PXMLNam.XML_DICT, dict)
     # #### parameters, with defaults
     augment_leads:bool = field(default=False)
     resample_500:bool = field(default=True)
