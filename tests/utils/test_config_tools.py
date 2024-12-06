@@ -1,12 +1,16 @@
 import pytest
 import ecgprocess.utils.config_tools as config
 from ecgprocess.constants import (
-    CoreData as CDNames,
+    CoreData as Core,
     UtilsConfigData as ConfigNames,
 )
 from ecgprocess.errors import InputValidationError
 from ecgprocess.example_data.examples import config_file
 from tempfile import NamedTemporaryFile
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# constants
+CMeta = Core.MetaData
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # fixtures
@@ -21,8 +25,8 @@ class TestBaseExtraction(object):
         default = required.to_dict()
         # Update values for some keys
         updates = {
-            CDNames.MD_UID: "UniqueID123",
-            CDNames.MD_SF: "SamplingFrequency123",
+            CMeta.UID: "UniqueID123",
+            CMeta.SF: "SamplingFrequency123",
         }
         required.update_values(**updates)
         # Verify the updated values
@@ -39,8 +43,8 @@ class TestBaseExtraction(object):
         required2 = config.RequiredData()
         # Update values for some keys
         updates = {
-            CDNames.MD_UID: "UniqueID123",
-            CDNames.MD_SF: "SamplingFrequency123",
+            CMeta.UID: "UniqueID123",
+            CMeta.SF: "SamplingFrequency123",
         }
         required1.update_values(**updates)
         # ensuring both dicts are distinct

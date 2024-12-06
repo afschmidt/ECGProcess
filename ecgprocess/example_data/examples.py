@@ -298,7 +298,7 @@ def list_xml_paths():
     paths_dict = {
         'example_1': os.path.join(
             _ROOT_DATASETS_DIR, FILENAME+'.xml'),
-        'example_1_shema': os.path.join(
+        'example_1_schema': os.path.join(
             _ROOT_DATASETS_DIR, FILENAME+'.xsd'),
     }
     # return

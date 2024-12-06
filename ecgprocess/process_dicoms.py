@@ -36,7 +36,7 @@ from typing import (
 from ecgprocess.errors import (
     NotCalledError,
     is_type,
-    MissingDICOMTagError,
+    MissingTagError as MissingDICOMTagError,
     Error_MSG,
     STDOUT_MSG,
     _check_readable,
@@ -53,31 +53,15 @@ from ecgprocess.utils.general import (
 from ecgprocess.plot_ecgs import (
     ECGDrawing,
 )
+from ecgprocess.utils.reader_tools import(
+    BaseReader,
+)
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Base class with slots
-class BaseECGDICOMReader:
-    '''
-    An ECGDICOMReader base class implementing the more efficient __slots__ for
-    the waveform arrays, while still retaining __dict__ dynamic attribute
-    creation.
-    '''
-    __slots__ = (PDNames.WaveForms, PDNames.MedianBeats,
-                 PDNames.MetaData)
-    # /////////////////////////////////////////////////////////////////////////
-    def __init__(self, waveforms=None, medianbeats=None,
-                 metadata=None):
-        '''
-        Initialises slots entries to `None`.
-        '''
-        setattr(self, PDNames.WaveForms, waveforms)
-        setattr(self, PDNames.MedianBeats,medianbeats)
-        setattr(self, PDNames.MetaData,metadata)
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
-class ECGDICOMReader(BaseECGDICOMReader):
+class ECGDICOMReader(BaseReader):
     """
     Takes an ECG DICOM file and extracts metadata, median beats (if available)
     and raw waveforms.

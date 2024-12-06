@@ -5,49 +5,70 @@ Constants used by ECGProcess
 from dataclasses import dataclass
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-class CoreData(object):
+
+class CoreData:
     '''
     Core variable names which are used internally by various modules in
     `ECGProcess`.
-    
-    Notes
-    -----
-    The suffix _D indicates the default values which are typically based on
-    dicom attribute names - which are more standardised than XML tags.
     '''
-    WaveForms   = 'WaveForms'
-    MedianBeats = 'MedianBeats'
-    MetaData    = 'MetaData'
-    OtherData   = 'OtherData'
-    lead_I      = 'I'
-    lead_II     = 'II'
-    lead_III    = 'III'
-    lead_aVR    = 'aVR'
-    lead_aVL    = 'aVL'
-    lead_aVF    = 'aVF'
-    lead_V1     = 'V1'
-    lead_V2     = 'V2'
-    lead_V3     = 'V3'
-    lead_V4     = 'V4'
-    lead_V5     = 'V5'
-    lead_V6     = 'V6'
-    # The required meta data - XML
-    MD_UID      = 'unique identifier'
-    MD_NLEADS   = 'number of leads'
-    MD_RES_U_W  = 'resolution unit (waveforms)'
-    MD_RES_U_M  = 'resolution unit (medianbeats)'
-    MD_RES_W    = 'resolution (waveforms)'
-    MD_RES_M    = 'resolution (medianbeats)'
-    MD_SF       = 'sampling frequency (original)'
-    MD_SF_U     = 'sampling frequency unit'
-    MD_SN_W     = 'sampling number (waveforms)'
-    MD_SN_M     = 'sampling number (medianbeats)'
-    MD_SECOND   = 'observation second'
-    MD_MINUTE   = 'observation minute'
-    MD_HOUR     = 'observation hour'
-    MD_DAY      = 'observation day'
-    MD_MONTH    = 'observation month'
-    MD_YEAR     = 'observation year'
+    # /////////////////////////////////////////////////////////////////////////
+    class DataTypes:
+        '''
+        Contains constants representing high-level data categories used
+        in ECG processing, such as waveforms, median beats, and metadata.
+        '''
+        WaveForms   = 'WaveForms'
+        MedianBeats = 'MedianBeats'
+        MetaData    = 'MetaData'
+        OtherData   = 'OtherData'
+    # /////////////////////////////////////////////////////////////////////////
+    class Leads:
+        '''
+        The interally used lead names.
+        '''
+        I   = 'I'
+        II  = 'II'
+        III = 'III'
+        aVR = 'aVR'
+        aVL = 'aVL'
+        aVF = 'aVF'
+        V1  = 'V1'
+        V2  = 'V2'
+        V3  = 'V3'
+        V4  = 'V4'
+        V5  = 'V5'
+        V6  = 'V6'
+    # /////////////////////////////////////////////////////////////////////////
+    class MetaData:
+        '''
+        Contains constants representing metadata fields required for
+        ECG processing.
+        '''
+        UID     = 'unique identifier'
+        NLEADS  = 'number of leads'
+        RES_U_W = 'resolution unit (waveforms)'
+        RES_U_M = 'resolution unit (medianbeats)'
+        RES_W   = 'resolution (waveforms)'
+        RES_M   = 'resolution (medianbeats)'
+        SF      = 'sampling frequency (original)'
+        SF_U    = 'sampling frequency unit'
+        SN_W    = 'sampling number (waveforms)'
+        SN_M    = 'sampling number (medianbeats)'
+        SECOND  = 'observation second'
+        MINUTE  = 'observation minute'
+        HOUR    = 'observation hour'
+        DAY     = 'observation day'
+        MONTH   = 'observation month'
+        YEAR    = 'observation year'
+    # /////////////////////////////////////////////////////////////////////////
+    class ProcessingData:
+        '''
+        Contains constants for attributes and variables created by the process
+        modules.
+        '''
+        RAW      = 'raw_data'
+        Duration = 'duration (sec)'
+        SF_NEW   = 'sampling frequency (processed)'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsGeneralNames(object):
@@ -61,10 +82,10 @@ class UtilsConfigData(object):
     '''
     Names used in the Utils Cofig Data module
     '''
-    MetaData    = CoreData.MetaData
-    OtherData   = CoreData.OtherData
-    WaveForms   = CoreData.WaveForms
-    MedianBeats = CoreData.MedianBeats
+    MetaData    = CoreData.DataTypes.MetaData
+    OtherData   = CoreData.DataTypes.OtherData
+    WaveForms   = CoreData.DataTypes.WaveForms
+    MedianBeats = CoreData.DataTypes.MedianBeats
     path        = 'path'
     data        = '_data'
 
@@ -73,17 +94,18 @@ class ProcessXMLNames(object):
     '''
     Names used in the process_xml module.
     '''
-    XML_DICT = 'xml_dict'
-    XML_TAGS = 'xml_tags'
+    XML_TAGS  = 'xml_tags'
+    RESAMPLE  = 'resample_500'
+    AUG_LEADS = 'augment_leads'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class ProcessDicomNames(object):
     '''
     Names used in the process_dicom module.
     '''
-    MetaData              = CoreData.MetaData
-    WaveForms             = CoreData.WaveForms
-    MedianBeats           = CoreData.MedianBeats
+    MetaData              = CoreData.DataTypes.MetaData
+    WaveForms             = CoreData.DataTypes.WaveForms
+    MedianBeats           = CoreData.DataTypes.MedianBeats
     MEDIAN_PRESENT        = 'MedianWaveformPresent'
     WAVE_ARRAY            = 'Raw_Waveforms'
     MEDIAN_ARRAY          = 'Raw_MedianWaveforms'
@@ -180,9 +202,9 @@ class ProcessDicomNames(object):
     SOP_UID               = 'SOPinstanceUID'
     LEAD_UNITS            = 'WaveformUnits'
     LEAD_UNITS2           = 'MedianWaveformUnits'
-    RESULTS_DICT          = CoreData.MetaData
-    LEAD_VOLTAGES         = CoreData.WaveForms
-    LEAD_VOLTAGES2        = CoreData.MedianBeats
+    RESULTS_DICT          = CoreData.DataTypes.MetaData
+    LEAD_VOLTAGES         = CoreData.DataTypes.WaveForms
+    LEAD_VOLTAGES2        = CoreData.DataTypes.MedianBeats
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass

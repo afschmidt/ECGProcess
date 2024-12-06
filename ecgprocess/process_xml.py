@@ -2,18 +2,19 @@
 A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 '''
 import pathlib
+import warnings
+import ecgprocess.utils.config_tools as config
+import ecgprocess.utils.reader_tools as reader_utils
+import ecgprocess.utils.ecg_tools as ecg_utils
 from lxml import etree
+from ecgprocess.utils.reader_tools import(
+    BaseReader,
+)
 from dataclasses import dataclass, field
 from typing import (
     Optional, Self, Any, Literal,
 )
-from ecgprocess.process_dicoms import (
-    BaseECGDICOMReader,
-)
 from ecgprocess.utils.general import(
-    validate_xml,
-    xml_to_dict,
-    flatten_dict,
     ManagedProperty,
 )
 from ecgprocess.utils.config_tools import(
@@ -22,7 +23,7 @@ from ecgprocess.utils.config_tools import(
 from ecgprocess.errors import (
     is_type,
     _check_readable,
-    _check_presence,
+    Warn_MSG,
     Error_MSG,
 )
 from ecgprocess.constants import (
@@ -31,325 +32,64 @@ from ecgprocess.constants import (
 )
 
 # NOTE REMOVE THIS
-from ecgprocess.example_data.examples import (
-    list_xml_paths
-)
-path = list_xml_paths()['example_1']
-validate = list_xml_paths()['example_1_shema']
-verbose=True
+# from ecgprocess.example_data.examples import (
+#     config_file,
+#     list_xml_paths,
+# )
+# from tempfile import NamedTemporaryFile
+# path = list_xml_paths()['example_1']
+# validate = list_xml_paths()['example_1_schema']
+# verbose=True
+# # getting a parsed config file
+# example_config = {
+#     "WaveForms": [
+#         "I\tStripData.WaveformData_0.#text",
+#         "WRONG\tStripData.WaveformData_1.#text",
+#     ],
+#     "MedianBeats": [
+#         "aVF\tRestingECGMeasurements.MedianSamples.WaveformData_5.#text",
+#         "V1\tRestingECGMeasurements.MedianSamples.WaveformData_6.#text",
+#     ],
+#     "MetaData": [
+#         "unique identifier\t\t\tUID.DICOMStudyUID",
+#         "number of leads\t\t\t\tRestingECGMeasurements.MedianSamples.NumberOfLeads",
+#         "resolution unit (waveforms)\t\tStripData.Resolution.@units",
+#         "resolution (waveforms)\t\t\tStripData.Resolution.#text",
+#         "resolution unit (medianbeats)\t\tRestingECGMeasurements.MedianSamples.Resolution.@units",
+#         "resolution (medianbeats)\t\tRestingECGMeasurements.MedianSamples.Resolution.#text",
+#         "sampling frequency (original)\t\tRestingECGMeasurements.MedianSamples.SampleRate.#text",
+#         "sampling frequency unit\t\t\tRestingECGMeasurements.MedianSamples.SampleRate.@units",
+#         "sampling number (waveforms)\t\tStripData.ChannelSampleCountTotal",
+#         "sampling number (medianbeats)\t\tRestingECGMeasurements.MedianSamples.ChannelSampleCountTotal",
+#         "observation hour\t\t\tObservationDateTime.Hour",
+#         "observation minute\t\t\tObservationDateTime.Minute",
+#         "observation second\t\t\tObservationDateTime.Second",
+#         "observation day\t\t\t\tObservationDateTime.Day",
+#         "observation month\t\t\tObservationDateTime.Month",
+#         "observation year\t\t\tObservationDateTime.Year",
+#     ]
+# }
+# with NamedTemporaryFile("w") as tmp_file:
+#     _ = config_file(path=tmp_file.name, text=example_config)
+#     parsed_confg = config.ConfigParser(tmp_file.name)()
+
+# config=parsed_confg.get_section('WaveForms')
+# skip_empty = True
+# ecgxml_reader = ECGXMLReader()
+# parsed_xml = ecgxml_reader(path=path, schema=validate, verbose=True)
+# data_dict = parsed_xml.raw_data.copy()
+
+# ~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# constants
+CTypes = Core.DataTypes
+CLeads = Core.Leads
+CMeta = Core.MetaData
+CProc = Core.ProcessingData
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-ecgxml_reader = ECGXMLReader()
-parsed_xml = ecgxml_reader(path=path, validate=validate, verbose=True)
-parsed_xml.temp
-parsed_xml.temp['CardiologyXML']['RestingECGMeasurements']
-temp_l = parsed_xml.temp['CardiologyXML']['RestingECGMeasurements']['MedianSamples']['WaveformData']
-# already \n\t\t here
-temp_l[0]['#text']
-# NOTE array data in flatten_dict output contains  \n\t\t see where these
-# should be addressed either in flatted_dict or xml_to_dict
-parsed_xml.xml_dict['RestingECGMeasurements.MedianSamples.WaveformData_11.#text']
-parsed_xml.xml_dict['StripData.WaveformData_0.#text']
-parsed_xml.xml_dict['StripData.WaveformData_0.@lead']
-
-parsed_xml.temp['CardiologyXML']['PatientVisit']
-parsed_xml.xml_dict['PatientVisit.SysBP.@units']
-parsed_xml.xml_dict['PatientVisit.SysBP.#text']
-
-print(*parsed_xml.xml_tags, sep='\n')
-# >>> print(*parsed_xml.xml_tags, sep='\n')
-# ObservationType
-# ObservationDateTime.Hour
-# ObservationDateTime.Minute
-# ObservationDateTime.Second
-# ObservationDateTime.Day
-# ObservationDateTime.Month
-# ObservationDateTime.Year
-# UID.DICOMStudyUID
-# ClinicalInfo.ReasonForStudy
-# ClinicalInfo.Technician.FamilyName
-# ClinicalInfo.Technician.GivenName
-# ClinicalInfo.Technician.PersonID
-# ClinicalInfo.ObservationComment
-# ClinicalInfo.DeviceInfo.Desc
-# ClinicalInfo.DeviceInfo.SoftwareVer
-# ClinicalInfo.DeviceInfo.AnalysisVer
-# PatientVisit.PatientClass
-# PatientVisit.AssignedPatientLocation.Facility
-# PatientVisit.AssignedPatientLocation.LocationNumber
-# PatientVisit.AssignedPatientLocation.LocationName
-# PatientVisit.PatientRoom
-# PatientVisit.AdmissionType
-# PatientVisit.OrderingProvider.FamilyName
-# PatientVisit.OrderingProvider.GivenName
-# PatientVisit.OrderingProvider.PersonID
-# PatientVisit.AttendingDoctor.FamilyName
-# PatientVisit.AttendingDoctor.GivenName
-# PatientVisit.AttendingDoctor.PersonID
-# PatientVisit.ReferringDoctor.FamilyName
-# PatientVisit.ReferringDoctor.GivenName
-# PatientVisit.ReferringDoctor.PersonID
-# PatientVisit.ServicingFacility.Name
-# PatientVisit.ServicingFacility.Address.Street1
-# PatientVisit.ServicingFacility.Address.City
-# PatientVisit.SysBP.@units
-# PatientVisit.DiaBP.@units
-# PatientVisit.MedicalHistory.MedicalHistoryText
-# PatientVisit.OrderNumber
-# PatientVisit.Medications.Drug
-# PatientVisit.Medications.Dosage
-# PatientVisit.ExtraQuestions.Label_0.@Type
-# PatientVisit.ExtraQuestions.Label_1.@Type
-# PatientVisit.ExtraQuestions.Content_0
-# PatientVisit.ExtraQuestions.Content_1
-# PatientInfo.PID
-# PatientInfo.Name.FamilyName
-# PatientInfo.Name.GivenName
-# PatientInfo.Age.@units
-# PatientInfo.Age.#text
-# PatientInfo.BirthDateTime.Day
-# PatientInfo.BirthDateTime.Month
-# PatientInfo.BirthDateTime.Year
-# PatientInfo.Gender
-# PatientInfo.Race
-# PatientInfo.Height.@units
-# PatientInfo.Height.#text
-# PatientInfo.Weight.@units
-# PatientInfo.Weight.#text
-# PatientInfo.PaceMaker
-# FilterSetting.CubicSpline
-# FilterSetting.Filter50Hz
-# FilterSetting.Filter60Hz
-# FilterSetting.LowPass.@units
-# FilterSetting.LowPass.#text
-# FilterSetting.HighPass.@units
-# FilterSetting.HighPass.#text
-# Device-Type
-# Interpretation.Diagnosis.DiagnosisText_0
-# Interpretation.Diagnosis.DiagnosisText_1
-# Interpretation.Diagnosis.DiagnosisText_2
-# Interpretation.Diagnosis.DiagnosisText_3
-# Interpretation.Diagnosis.DiagnosisText_4
-# Interpretation.Conclusion.ConclusionText_0
-# Interpretation.Conclusion.ConclusionText_1
-# Interpretation.Conclusion.ConclusionText_2
-# Interpretation.Conclusion.ConclusionText_3
-# Interpretation.Conclusion.ConclusionText_4
-# RestingECGMeasurements.DiagnosisVersion
-# RestingECGMeasurements.VentricularRate.@units
-# RestingECGMeasurements.VentricularRate.#text
-# RestingECGMeasurements.PQInterval.@units
-# RestingECGMeasurements.PQInterval.#text
-# RestingECGMeasurements.PDuration.@units
-# RestingECGMeasurements.PDuration.#text
-# RestingECGMeasurements.QRSDuration.@units
-# RestingECGMeasurements.QRSDuration.#text
-# RestingECGMeasurements.QTInterval.@units
-# RestingECGMeasurements.QTInterval.#text
-# RestingECGMeasurements.QTCInterval.@units
-# RestingECGMeasurements.QTCInterval.#text
-# RestingECGMeasurements.RRInterval.@units
-# RestingECGMeasurements.RRInterval.#text
-# RestingECGMeasurements.PPInterval.@units
-# RestingECGMeasurements.PPInterval.#text
-# RestingECGMeasurements.SokolovLVHIndex.@units
-# RestingECGMeasurements.PAxis.@units
-# RestingECGMeasurements.PAxis.#text
-# RestingECGMeasurements.RAxis.@units
-# RestingECGMeasurements.RAxis.#text
-# RestingECGMeasurements.TAxis.@units
-# RestingECGMeasurements.TAxis.#text
-# RestingECGMeasurements.QTDispersion.@units
-# RestingECGMeasurements.QTDispersionBazett.@units
-# RestingECGMeasurements.QRSNum
-# RestingECGMeasurements.MeasurementTable.@Creation
-# RestingECGMeasurements.MeasurementTable.LeadOrder
-# RestingECGMeasurements.MeasurementTable.QDuration.@units
-# RestingECGMeasurements.MeasurementTable.QDuration.#text
-# RestingECGMeasurements.MeasurementTable.RDuration.@units
-# RestingECGMeasurements.MeasurementTable.RDuration.#text
-# RestingECGMeasurements.MeasurementTable.SDuration.@units
-# RestingECGMeasurements.MeasurementTable.SDuration.#text
-# RestingECGMeasurements.MeasurementTable.RpDuration.@units
-# RestingECGMeasurements.MeasurementTable.RpDuration.#text
-# RestingECGMeasurements.MeasurementTable.PAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.PAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.QAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.QAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.RAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.RAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.SAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.SAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.R1Amplitude.@units
-# RestingECGMeasurements.MeasurementTable.R1Amplitude.#text
-# RestingECGMeasurements.MeasurementTable.S1Amplitude.@units
-# RestingECGMeasurements.MeasurementTable.S1Amplitude.#text
-# RestingECGMeasurements.MeasurementTable.JAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.JAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.JXAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.JXAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.TAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.TAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.JXSlope.@units
-# RestingECGMeasurements.MeasurementTable.JXSlope.#text
-# RestingECGMeasurements.MeasurementTable.R1Duration.@units
-# RestingECGMeasurements.MeasurementTable.R1Duration.#text
-# RestingECGMeasurements.MeasurementTable.P1Amplitude.@units
-# RestingECGMeasurements.MeasurementTable.P1Amplitude.#text
-# RestingECGMeasurements.MeasurementTable.JXEAmplitude.@units
-# RestingECGMeasurements.MeasurementTable.JXEAmplitude.#text
-# RestingECGMeasurements.MeasurementTable.T1Amplitude.@units
-# RestingECGMeasurements.MeasurementTable.T1Amplitude.#text
-# RestingECGMeasurements.POnset.@units
-# RestingECGMeasurements.POnset.#text
-# RestingECGMeasurements.POffset.@units
-# RestingECGMeasurements.POffset.#text
-# RestingECGMeasurements.QOnset.@units
-# RestingECGMeasurements.QOnset.#text
-# RestingECGMeasurements.QOffset.@units
-# RestingECGMeasurements.QOffset.#text
-# RestingECGMeasurements.TOffset.@units
-# RestingECGMeasurements.TOffset.#text
-# RestingECGMeasurements.MedianSamples.NumberOfLeads
-# RestingECGMeasurements.MedianSamples.SampleRate.@units
-# RestingECGMeasurements.MedianSamples.SampleRate.#text
-# RestingECGMeasurements.MedianSamples.ChannelSampleCountTotal
-# RestingECGMeasurements.MedianSamples.Resolution.@units
-# RestingECGMeasurements.MedianSamples.Resolution.#text
-# RestingECGMeasurements.MedianSamples.FirstValid.@units
-# RestingECGMeasurements.MedianSamples.FirstValid.#text
-# RestingECGMeasurements.MedianSamples.LastValid.@units
-# RestingECGMeasurements.MedianSamples.LastValid.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_0.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_0.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_1.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_1.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_2.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_2.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_3.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_3.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_4.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_4.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_5.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_5.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_6.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_6.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_7.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_7.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_8.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_8.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_9.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_9.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_10.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_10.#text
-# RestingECGMeasurements.MedianSamples.WaveformData_11.@lead
-# RestingECGMeasurements.MedianSamples.WaveformData_11.#text
-# VectorLoops.@Creation
-# VectorLoops.Resolution.@units
-# VectorLoops.Resolution.#text
-# VectorLoops.ChannelSampleCountTotal
-# VectorLoops.POnset.@units
-# VectorLoops.POnset.#text
-# VectorLoops.POffset.@units
-# VectorLoops.POffset.#text
-# VectorLoops.QOnset.@units
-# VectorLoops.QOnset.#text
-# VectorLoops.QOffset.@units
-# VectorLoops.QOffset.#text
-# VectorLoops.TOffset.@units
-# VectorLoops.TOffset.#text
-# VectorLoops.Frontal_0.@Lead
-# VectorLoops.Frontal_0.#text
-# VectorLoops.Frontal_1.@Lead
-# VectorLoops.Frontal_1.#text
-# VectorLoops.Horizontal_0.@Lead
-# VectorLoops.Horizontal_0.#text
-# VectorLoops.Horizontal_1.@Lead
-# VectorLoops.Horizontal_1.#text
-# VectorLoops.Sagittal_0.@Lead
-# VectorLoops.Sagittal_0.#text
-# VectorLoops.Sagittal_1.@Lead
-# VectorLoops.Sagittal_1.#text
-# StripData.NumberOfLeads
-# StripData.SampleRate.@units
-# StripData.SampleRate.#text
-# StripData.ChannelSampleCountTotal
-# StripData.Resolution.@units
-# StripData.Resolution.#text
-# StripData.WaveformData_0.@lead
-# StripData.WaveformData_0.#text
-# StripData.WaveformData_1.@lead
-# StripData.WaveformData_1.#text
-# StripData.WaveformData_2.@lead
-# StripData.WaveformData_2.#text
-# StripData.WaveformData_3.@lead
-# StripData.WaveformData_3.#text
-# StripData.WaveformData_4.@lead
-# StripData.WaveformData_4.#text
-# StripData.WaveformData_5.@lead
-# StripData.WaveformData_5.#text
-# StripData.WaveformData_6.@lead
-# StripData.WaveformData_6.#text
-# StripData.WaveformData_7.@lead
-# StripData.WaveformData_7.#text
-# StripData.WaveformData_8.@lead
-# StripData.WaveformData_8.#text
-# StripData.WaveformData_9.@lead
-# StripData.WaveformData_9.#text
-# StripData.WaveformData_10.@lead
-# StripData.WaveformData_10.#text
-# StripData.WaveformData_11.@lead
-# StripData.WaveformData_11.#text
-# StripData.ArrhythmiaResults.Time_0.@units
-# StripData.ArrhythmiaResults.Time_0.#text
-# StripData.ArrhythmiaResults.Time_1.@units
-# StripData.ArrhythmiaResults.Time_1.#text
-# StripData.ArrhythmiaResults.Time_2.@units
-# StripData.ArrhythmiaResults.Time_2.#text
-# StripData.ArrhythmiaResults.Time_3.@units
-# StripData.ArrhythmiaResults.Time_3.#text
-# StripData.ArrhythmiaResults.Time_4.@units
-# StripData.ArrhythmiaResults.Time_4.#text
-# StripData.ArrhythmiaResults.Time_5.@units
-# StripData.ArrhythmiaResults.Time_5.#text
-# StripData.ArrhythmiaResults.Time_6.@units
-# StripData.ArrhythmiaResults.Time_6.#text
-# StripData.ArrhythmiaResults.Time_7.@units
-# StripData.ArrhythmiaResults.Time_7.#text
-# StripData.ArrhythmiaResults.BeatClass_0
-# StripData.ArrhythmiaResults.BeatClass_1
-# StripData.ArrhythmiaResults.BeatClass_2
-# StripData.ArrhythmiaResults.BeatClass_3
-# StripData.ArrhythmiaResults.BeatClass_4
-# StripData.ArrhythmiaResults.BeatClass_5
-# StripData.ArrhythmiaResults.BeatClass_6
-# StripData.ArrhythmiaResults.BeatClass_7
-# FullDisclosure.NumberOfChannels
-# FullDisclosure.SampleRate.@units
-# FullDisclosure.SampleRate.#text
-# FullDisclosure.Resolution.@units
-# FullDisclosure.Resolution.#text
-# FullDisclosure.LeadOrder
-# FullDisclosure.FullDisclosureData.SampleCountTotal
-# FullDisclosure.FullDisclosureData.#text
-# FullDisclosure.EventList.Event_0
-# FullDisclosure.EventList.Event_1
-# FullDisclosure.EventList.Event_2
-# FullDisclosure.EventList.Event_3
-# FullDisclosure.EventList.Time_0.Minute
-# FullDisclosure.EventList.Time_0.Second
-# FullDisclosure.EventList.Time_1.Minute
-# FullDisclosure.EventList.Time_1.Second
-# FullDisclosure.EventList.Time_2.Minute
-# FullDisclosure.EventList.Time_2.Second
-# FullDisclosure.EventList.Time_3.Minute
-# FullDisclosure.EventList.Time_3.Second
-# FullDisclosure.ArrhythmiaResults.QRS
-# Export
-# CSWeb.a.@href
-
 @dataclass
-class ECGXMLReader(BaseECGDICOMReader):
+class ECGXMLReader(BaseReader):
     """
     Processes an XML file containing ECG data and extracts the metadata,
     median beats (if available), and raw waveforms.
@@ -361,11 +101,6 @@ class ECGXMLReader(BaseECGDICOMReader):
         already available in the source file.
     resample : `bool`, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz.
-    retain_raw : `bool`, default `False`
-        Whether the raw parsed XML tree should be retained.  Set to `False` to
-        decrease memory usage. Set to `True` to explore the parsed document.
-        For example, use this one a few files to identify none-standard
-        information to extract.
     
     Attributes
     ----------
@@ -373,62 +108,34 @@ class ECGXMLReader(BaseECGDICOMReader):
         Whether the augmented leads were calculated if these were unavailable.
     resample : `bool`
         Whether the ECG was resampled to a 500 Hertz frequency.
-    retain_raw : `bool`
-        Whether the raw data was retained.
-    STUDY_DATE_SOURCE : str
-        The study date format.  This will be used in `datetime.strptime` as
-        format argument.
-    STUDY_DATE_TARGET : str
-        The target formatting of the study date.  This will be used in
-        `datetime.strptime` as format argument.
-    ACQUISITION_DATE_SOURCE : str
-        The acquisition date and time format.  This will be used in
-        `datetime.strptime` as format argument.
-    ACQUISITION_DATE_TARGET : str
-        The target formatting of the acquisition date and time.  This will be
-        used in `datetime.strptime` as format argument.
     
     Methods
     -------
-    TODO
+    extract(config, skip_empty, parse_numeric, **kwargs)
+        Processes the XML file content applying optional lead augmentation and
+        resampling. The XML content will be mapped to class attributes.
     
-    Notes
-    -----
-    The waveforms are stored using `__slots__` to decrease memory usage, which
-    is further improved by setting `retain_raw` to `False` - the default
-    behaviour.
     """
     # #### properties
     # NOTE add these to the docstring
     xml_tags = ManagedProperty(PXMLNam.XML_TAGS, list)
-    xml_dict = ManagedProperty(PXMLNam.XML_DICT, dict)
+    raw_data = ManagedProperty(CProc.RAW, dict)
     # #### parameters, with defaults
     augment_leads:bool = field(default=False)
     resample_500:bool = field(default=True)
-    retain_raw:bool = field(default=False)
-    # #### default dates to extract and format
-    STUDY_DATE_SOURCE = "%Y%m%d"
-    STUDY_DATE_TARGET = "%Y-%m-%d"
-    ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
-    ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
-    # #### Error MSG
-    __MSG1=Error_MSG.MISSING_PATH_INSTANCE.format('xml_tree')
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __post_init__(self):
         """Validating inputs."""
-        is_type(self.augment_leads, bool)
-        is_type(self.resample_500, bool)
-        is_type(self.retain_raw, bool)
+        is_type(getattr(self, PXMLNam.AUG_LEADS), bool)
+        is_type(getattr(self, PXMLNam.RESAMPLE), bool)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, path:str, validate:str | None = None,
-                 skip_empty:bool=True,
+    def __call__(self, path:str, schema:str | None = None,
                  verbose:bool=False,
                  **kwargs:Optional[Any],
                  ) -> Self:
         """
-        Reads an `.xml` file containing ECG readings and extracts  metadata,
-        raw waveforms, and median beats data, based on a parsed configuration
-        file mapping XML tags to class attributes.
+        Reads an `.xml` file containing ECG readings, optionally validates this
+        based on a .xsd schema, and map the XML file to a flat dictionary.
         
         Parameters
         ----------
@@ -437,15 +144,84 @@ class ECGXMLReader(BaseECGDICOMReader):
         config : `ConfigParser`
             A class instance of a parsed configuration file, mapping the XML
             content to class attributes.
-        validate : `str`, default `NoneType`
+        schema : `str`, default `NoneType`
             A path to an XML schema which will be used to valudate the XML file
             against.
-        skip_empty : `bool`, default `True`
-            Whether empty tags should be skipped or throw an error.
         verbose : `bool`, default `False`
-            Prints missing tags if skip_empty is set to `True`.
+            Whether warnings and process info should be printed.
         **kwargs : any
             keyword arguments passed to flatten_dict.
+        
+        Attributes
+        ----------
+        raw_data : `dict` [`str`, `any`]
+            The raw parsed data.
+        
+        Returns
+        -------
+        self : `ECGXMLReader` instance
+            Returns the class instance with updated attributes including the
+            extracted XML data.
+        """
+        # #### check input
+        is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str))
+        is_type(schema, (type(None), pathlib.PosixPath, pathlib.WindowsPath,
+                           str))
+        is_type(verbose, bool)
+        # #### assign to self
+        self.verbose = verbose
+        # #### confirm file is readable
+        _check_readable(path)
+        # #### validate XML
+        if not schema is None:
+            _check_readable(schema)
+            parsed_xml = reader_utils.validate_xml(
+                xml_path=path, xsd_path=schema, verbose=verbose)
+        else:
+            with open(path, 'rb') as xml:
+                parsed_xml = etree.parse(xml)
+        # map to flatten_dict
+        xml_dict = reader_utils.flatten_dict(
+            reader_utils.xml_to_dict(parsed_xml),
+            **kwargs,
+        )
+        # xml_dict = flatten_dict(xml_to_dict(parsed_xml))
+        # ### store keys
+        getattr(type(self), CProc.RAW).set_with_setter(self, xml_dict)
+        getattr(type(self), PXMLNam.XML_TAGS).set_with_setter(
+            self, list(xml_dict.keys()))
+        # ### return
+        return self
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def extract(self, config:ConfigParser, skip_empty:bool,
+                parse_numeric:bool=True, **kwargs:Optional[Any]) -> Self:
+        """
+        Processes the raw ECG data and assign these to class attributes
+        performing resampling and lead augmentation if requested.
+        
+        Parameters
+        ----------
+        config : `ConfigParser`
+            A class instance of a parsed configuration file, mapping the XML
+            content to class attributes. Specifically this should include
+            dictionary attributes `MetaData`, `WaveForms`, `MedianBeats`,
+            `OtherData`. The `MetaData` includes some required keys including
+            essential information to describe an ECG instance, as well as
+            non-required information. The difference between `OtherData` and
+            `MetaData` is the way it is processed by other functions or methods
+            with the `OtherData` processed without strong checks on its content.
+            `WaveForms` and `MedianBeats` simply include the lead mappings.
+            Please refer to the `constants.CoreData` class for the specifics
+        parse_numeric : bool, default `True`
+            Whether to check for numeric data accidentally recorded as string and
+            try to parse these to int or float depending on the presence of a
+            decimal separator.
+        skip_empty : `bool`, default `True`
+            Whether empty tags should be skipped or throw an error.
+        **kwargs
+            The keyword arguments for reader_tools.get_ecg_data. Note
+            as_array is hard coded so this will raise an error if supplied as
+            kwargs.
         
         Attributes
         ----------
@@ -455,56 +231,103 @@ class ECGXMLReader(BaseECGDICOMReader):
             The lead specific ECG waveforms.
         MedianBeats : `dict` [`str`, `np.array`]
             The lead specific ECG median beats.
+        OtherData : `dict` [`str`, `any`]
+            Other data.
         
         Returns
         -------
         self : `ECGXMLReader` instance
-            Returns the class instance with updated attributes containign the
+            Returns the class instance with updated attributes including the
             extracted XML data.
-        
-        Notes
-        -----
-        TODO add explanations on the extractor instance.
-        """
-        # #### check input
-        is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str))
-        is_type(validate, (type(None), pathlib.PosixPath, pathlib.WindowsPath,
-                           str))
-        is_type(skip_empty, bool)
-        is_type(verbose, bool)
-        # #### assign to self
-        self.verbose = verbose
-        # #### confirm file is readable
-        _check_readable(path)
-        # #### validate XML
-        if not validate is None:
-            _check_readable(validate)
-            parsed_xml = validate_xml(xml_path=path, xsd_path=validate,
-                                      verbose=verbose)
-        else:
-            with open(path, 'rb') as xml:
-                parsed_xml = etree.parse(xml)
-        # map to flatten_dict
-        self.temp = xml_to_dict(parsed_xml)
-        xml_dict = flatten_dict(xml_to_dict(parsed_xml), **kwargs)
-        # xml_dict = flatten_dict(xml_to_dict(parsed_xml))
-        # ### store keys
-        getattr(type(self), PXMLNam.XML_DICT).set_with_setter(self, xml_dict)
-        getattr(type(self), PXMLNam.XML_TAGS).set_with_setter(
-            self, list(xml_dict.keys()))
-        # ### return
-        return self
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def extract(config:ConfigParser):
-        """
-        TODO
-        
-        Parameters
-        ----------
-        config : `ConfigParser`
-            A class instance of a parsed configuration file, mapping the XML
-            content to class attributes.
         """
         is_type(config, ConfigParser)
-
+        is_type(skip_empty, bool)
+        is_type(parse_numeric, bool)
+        # update kwargs
+        kwargs = {**{'parse_numeric': parse_numeric,
+                     'skip_empty': skip_empty,
+                     }, **kwargs}
+        # #### extract metadata
+        meta_data, meta_missing = \
+            reader_utils.get_ecg_data(
+                getattr(self, CProc.RAW),
+                config=config.get_section(CTypes.MetaData),
+                **kwargs,
+            )
+        # #### extract waveforms
+        wave_data, wave_missing = \
+            reader_utils.get_ecg_data(
+                getattr(self, CProc.RAW),
+                config=config.get_section(CTypes.WaveForms),
+                as_array=True,
+                **kwargs,
+            )
+        # #### extract median beats
+        median_data, median_missing = \
+            reader_utils.get_ecg_data(
+                getattr(self, CProc.RAW),
+                config=config.get_section(CTypes.MedianBeats),
+                as_array=True,
+                **kwargs,
+            )
+        # #### extract other data
+        other_data, other_missing = \
+            reader_utils.get_ecg_data(
+                getattr(self, CProc.RAW),
+                config=config.get_section(CTypes.OtherData),
+                **kwargs,
+            )
+        # #### resample to 500hz
+        # first calculate the duration
+        try:
+            meta_data[CProc.Duration] =\
+                (meta_data[CMeta.SN_W]/meta_data[CMeta.SF]
+            )
+        except TypeError:
+            meta_data[CProc.Duration] = None
+        # only run when the parameter is True, SF is not 500 and there
+        # is a duration
+        meta_data[CProc.SF_NEW] = None
+        if getattr(self, PXMLNam.RESAMPLE) == True:
+            # confirm SF is present
+            if not CMeta.SF in meta_data:
+                raise KeyError(f'`{CMeta.SF}` is necessary to resample '
+                               'the ECG signal.')
+            # if it is, check whether there is a need to resample the signals.
+            if int(meta_data[CMeta.SF]) != 500 and\
+                    not meta_data[CProc.Duration] is None:
+                # set the new SF
+                meta_data[CProc.SF_NEW] = 500
+                # confirm there is waveform data
+                if len(wave_missing) == 12:
+                    if skip_empty == False:
+                        raise AttributeError(
+                            Error_MSG.MISSING_SIGNAL.format('waveform'))
+                else:
+                    wave_data = ecg_utils.resampling_500hz(
+                        wave_data, duration=meta_data[CProc.Duration])
+                # confirm there is median beats data
+                if len(median_missing) == 12:
+                    if skip_empty == False:
+                        raise AttributeError(
+                            Error_MSG.MISSING_SIGNAL.format('median beat'))
+                else:
+                    median_data = ecg_utils.resampling_500hz(
+                        median_data, median=True)
+        # ### See if we need to get the augmented leads
+        if getattr(self, PXMLNam.AUG_LEADS) == True and len(wave_missing) > 0:
+            wave_data = ecg_utils.get_limb_leads(wave_data)
+            median_data = ecg_utils.get_limb_leads(median_data)
+        # ### do we print missing tags
+        if self.verbose == True:
+            missing_tags=meta_missing+wave_missing+median_missing+other_missing
+            if len(missing_tags)>0:
+                warnings.warn(Warn_MSG.MISSING_TAG.format(missing_tags))
+        # #### assing stuff to attributes
+        setattr(self, CTypes.MetaData, meta_data)
+        setattr(self, CTypes.OtherData, other_data)
+        setattr(self, CTypes.WaveForms, wave_data)
+        setattr(self, CTypes.MedianBeats, median_data)
+        # #### return stuff
+        return self
 

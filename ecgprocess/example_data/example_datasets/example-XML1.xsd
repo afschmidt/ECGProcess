@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-    <!-- Define re-usable Types -->
+
+    <!-- Define re-usable type definitions -->
     <xs:complexType name="PersonType">
         <xs:sequence>
             <xs:element name="FamilyName" type="xs:string" minOccurs="1" nillable="true"/>
@@ -9,14 +10,20 @@
         </xs:sequence>
     </xs:complexType>
     
+    <!-- NOTE should make two additional definitions for float and int -->
     <xs:complexType name="MeasurementType">
         <xs:simpleContent>
+            <!-- NOTE check if extenson base can include nillable -->
             <xs:extension base="xs:string">
                 <xs:attribute name="units" type="xs:string" use="required"/>
             </xs:extension>
         </xs:simpleContent>
     </xs:complexType>
     
+    <!-- NOTE type should be changed to float or possibly int -->
+    <!-- NOTE 2 Need to create a small pytest to confirm the example XML is validated by the XSD schema. --> 
+    <!-- NOTE 3 it seems the comma separated list of numbers if making it difficutl to treat this list as anything but --> 
+    <!-- string, int or float expect white space seperation. -->
     <xs:complexType name="MeasurementListType">
         <xs:simpleContent>
             <xs:extension base="xs:string">
@@ -25,6 +32,7 @@
         </xs:simpleContent>
     </xs:complexType>
 
+    <!-- Note should make two additional definitions for float and int -->
     <xs:complexType name="VectorLoopType">
         <xs:simpleContent>
             <xs:extension base="xs:string">
@@ -33,6 +41,7 @@
         </xs:simpleContent>
     </xs:complexType>
     <!-- End re-usable Types, Start XSD schema -->
+
     <xs:element name="CardiologyXML">
         <xs:complexType>
             <xs:sequence>

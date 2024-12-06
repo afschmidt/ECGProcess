@@ -1,37 +1,9 @@
 # import os
+# import shutil
 import pytest
 import tarfile
-# import shutil
-from lxml import etree
-# from pathlib import Path
 from ecgprocess.utils import general as gen_utils
-from ecgprocess.errors import XMLValidationError, InputValidationError
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Fixture
-
-# Sample valid XML and XSD content for testing
-VALID_XML_PATH = "valid_example.xml"
-VALID_XSD_PATH = "valid_schema.xsd"
-INVALID_XML_PATH = "invalid_example.xml"
-STRICT_XSD_PATH = "strict_schema.xsd"
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@pytest.fixture
-def nested_dict_fixture():
-    return {
-        'a': {
-            'b': 1,
-            'c': {
-                'd': 2
-            },
-            'e': [
-                {'f': 3},
-                4,
-                None
-            ]
-        }
-    }
+from ecgprocess.errors import  InputValidationError
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @pytest.fixture
@@ -60,103 +32,6 @@ def tar_file_with_contents(tmp_path):
             file_path.write_text(f"This is file {i}")
             tar.add(file_path, arcname=f"file{i}.txt")
     return tar_path
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Create temporary XML and XSD files for testing
-@pytest.fixture
-def valid_xml(tmp_path):
-    xml_content = """
-    <RootTag>
-        <Element1>Value1</Element1>
-        <Element2>Value2</Element2>
-    </RootTag>
-    """
-    xml_path = tmp_path / VALID_XML_PATH
-    xml_path.write_text(xml_content)
-    return xml_path
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@pytest.fixture
-def valid_xsd(tmp_path):
-    xsd_content = """
-    <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-        <xs:element name="RootTag">
-            <xs:complexType>
-                <xs:sequence>
-                    <xs:element name="Element1" type="xs:string"/>
-                    <xs:element name="Element2" type="xs:string"/>
-                </xs:sequence>
-            </xs:complexType>
-        </xs:element>
-    </xs:schema>
-    """
-    xsd_path = tmp_path / VALID_XSD_PATH
-    xsd_path.write_text(xsd_content)
-    return xsd_path
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@pytest.fixture
-def invalid_xml(tmp_path):
-    xml_content = """
-    <RootTag>
-        <Element1>Value1</Element1>
-        <Element2>Value2</Element2>
-        <UnexpectedElement>Extra</UnexpectedElement>
-    </RootTag>
-    """
-    xml_path = tmp_path / INVALID_XML_PATH
-    xml_path.write_text(xml_content)
-    return xml_path
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@pytest.fixture
-def strict_xsd(tmp_path):
-    xsd_content = """
-    <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-        <xs:element name="RootTag">
-            <xs:complexType>
-                <xs:sequence>
-                    <xs:element name="Element1" type="xs:string"/>
-                    <xs:element name="Element2" type="xs:string"/>
-                </xs:sequence>
-            </xs:complexType>
-        </xs:element>
-    </xs:schema>
-    """
-    xsd_path = tmp_path / STRICT_XSD_PATH
-    xsd_path.write_text(xsd_content)
-    return xsd_path
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@pytest.fixture
-def xml_element_tree(valid_xml):
-    """Fixture that returns a parsed lxml ElementTree from a valid XML file."""
-    parser = etree.XMLParser(remove_blank_text=True)
-    with open(valid_xml, 'rb') as xml_file:
-        tree = etree.parse(xml_file, parser)
-    return tree
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@pytest.fixture
-def encoded_xml_element_tree(valid_xml):
-    """Fixture for an XML file with a specified encoding."""
-    parser = etree.XMLParser(encoding='utf-8')
-    with open(valid_xml, 'rb') as xml_file:
-        tree = etree.parse(xml_file, parser)
-    return tree
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@pytest.fixture
-def non_utf8_encoded_xml_element_tree(valid_xml):
-    """Fixture for an XML file with a non-UTF-8 encoding (e.g., ISO-8859-1)."""
-    parser = etree.XMLParser(encoding='ISO-8859-1')
-    with open(valid_xml, 'rb') as xml_file:
-        tree = etree.parse(xml_file, parser)
-    return tree
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# pytest
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Tar functions
@@ -212,84 +87,6 @@ class TestTarFunctions(object):
         result = gen_utils.list_tar(str(empty_tar_path))
         assert isinstance(result, list), "The output should be a list."
         assert len(result) == 0, "The tar file should be empty."
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# XML functions
-class TestXMLFunctions(object):
-    """
-    Testing XML functions.
-    """
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_validate_xml(self, valid_xml, valid_xsd):
-        xml_doc = gen_utils.validate_xml(xml_path=valid_xml, xsd_path=valid_xsd,
-                               strict=True,)
-        assert isinstance(xml_doc, etree._ElementTree)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_validate_xml_not_strict(self, invalid_xml, valid_xsd):
-        with pytest.warns(UserWarning):
-            xml_doc = gen_utils.validate_xml(xml_path=invalid_xml,
-                                             xsd_path=valid_xsd, strict=False)
-        assert isinstance(xml_doc, etree._ElementTree)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_validate_xml_errors(self, invalid_xml, strict_xsd):
-        with pytest.raises(XMLValidationError):
-            gen_utils.validate_xml(xml_path=invalid_xml, xsd_path=strict_xsd,
-                                   strict=True)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_xml_to_dict_valid(self, xml_element_tree):
-        """Test xml_to_dict with a valid XML document."""
-        result = gen_utils.xml_to_dict(xml_element_tree)
-        assert isinstance(result, dict)
-        assert 'RootTag' in result
-        assert result['RootTag']['Element1'] == 'Value1'
-        assert result['RootTag']['Element2'] == 'Value2'
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_xml_to_dict_with_non_utf8_encoding(self, non_utf8_encoded_xml_element_tree):
-            """Test xml_to_dict with a non-UTF-8 encoded XML document."""
-            result = gen_utils.xml_to_dict(non_utf8_encoded_xml_element_tree,
-                                           encoding='ISO-8859-1')
-            assert isinstance(result, dict)
-            assert 'RootTag' in result
-            assert result['RootTag']['Element1'] == 'Value1'
-            assert result['RootTag']['Element2'] == 'Value2'
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_xml_to_dict_empty(self):
-        """Test xml_to_dict with an empty XML document."""
-        empty_tree = etree.ElementTree()
-        with pytest.raises(TypeError):
-            gen_utils.xml_to_dict(empty_tree)
-        with pytest.raises(InputValidationError):
-            gen_utils.xml_to_dict({})
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_xml_to_dict_invalid_structure(self, invalid_xml):
-        """Test xml_to_dict with an invalid XML structure."""
-        parser = etree.XMLParser(remove_blank_text=True)
-        with open(invalid_xml, 'rb') as xml_file:
-            tree = etree.parse(xml_file, parser)
-        result = gen_utils.xml_to_dict(tree)
-        assert isinstance(result, dict)
-        assert 'UnexpectedElement' in result['RootTag']
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_flatten_dict(self, nested_dict_fixture):
-        # Test case when skip_root is True (default)
-        expected = {'b': 1, 'c.d': 2, 'e_0.f': 3, 'e_1': 4, 'e_2': None}
-        result = gen_utils.flatten_dict(nested_dict_fixture)
-        assert result == expected
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_flatten_dict_skip_root(self, nested_dict_fixture):
-        # Test case when skip_root is False
-        expected = {'a.b': 1, 'a.c.d': 2, 'a.e_0.f': 3, 'a.e_1': 4,
-                    'a.e_2': None}
-        result = gen_utils.flatten_dict(nested_dict_fixture, skip_root=False)
-        assert result == expected
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_flatten_dict_separator(self, nested_dict_fixture):
-        # Test case when using a custom separator
-        expected = {'a_b': 1, 'a_c_d': 2, 'a_e_0_f': 3, 'a_e_1': 4,
-                    'a_e_2': None}
-        result = gen_utils.flatten_dict(nested_dict_fixture, sep='_',
-                                        skip_root=False)
-        assert result == expected
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def test_assign_empty():

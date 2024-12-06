@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 from ecgprocess.constants import (
-    CoreData as CDNames,
+    CoreData as Core,
     UtilsConfigData as ConfigNames,
 )
 from ecgprocess.errors import (
@@ -17,6 +17,12 @@ from ecgprocess.utils.general import ManagedProperty
 Classes to handle and parse configuration files describing how the XML/DICOM
 tags should be assigned to dataclass attributes.
 """
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# constants
+CTypes = Core.DataTypes
+CLeads = Core.Leads
+CMeta  = Core.MetaData
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @dataclass
@@ -58,22 +64,22 @@ class RequiredData(object):
     # presist between instances.
     # NOTE using a single _ instead of __ to prevent name mangling.
     _data: dict[str, str] = field(default_factory=lambda: {
-        CDNames.MD_UID     : None,
-        CDNames.MD_NLEADS  : None,
-        CDNames.MD_RES_U_W : None,
-        CDNames.MD_RES_U_M : None,
-        CDNames.MD_RES_W   : None,
-        CDNames.MD_RES_M   : None,
-        CDNames.MD_SF      : None,
-        CDNames.MD_SF_U    : None,
-        CDNames.MD_SN_W    : None,
-        CDNames.MD_SN_M    : None,
-        CDNames.MD_SECOND  : None,
-        CDNames.MD_MINUTE  : None,
-        CDNames.MD_HOUR    : None,
-        CDNames.MD_DAY     : None,
-        CDNames.MD_MONTH   : None,
-        CDNames.MD_YEAR    : None,
+        CMeta.UID     : None,
+        CMeta.NLEADS  : None,
+        CMeta.RES_U_W : None,
+        CMeta.RES_U_M : None,
+        CMeta.RES_W   : None,
+        CMeta.RES_M   : None,
+        CMeta.SF      : None,
+        CMeta.SF_U    : None,
+        CMeta.SN_W    : None,
+        CMeta.SN_M    : None,
+        CMeta.SECOND  : None,
+        CMeta.MINUTE  : None,
+        CMeta.HOUR    : None,
+        CMeta.DAY     : None,
+        CMeta.MONTH   : None,
+        CMeta.YEAR    : None,
     })
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def update_values(self, **kwargs:Optional[Any]) -> None:
@@ -193,8 +199,8 @@ class DataMap(object):
     @staticmethod
     def get_leads():
         """Initialising the leads names to None"""
-        lead_attr = [attr for attr in dir(CDNames) if attr.startswith('lead_')]
-        return {getattr(CDNames, l): None for l in lead_attr}
+        lead_attr = [attr for attr in dir(CLeads) if not attr.startswith('__')]
+        return {getattr(CLeads, l): None for l in lead_attr}
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __post_init__(self):
         """Validating inputs."""

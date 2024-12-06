@@ -228,12 +228,20 @@ class Error_MSG(object):
     '''
     A collection of error messages.
     '''
+    MISSING_SIGNAL = 'There is no `{}` data available.'
     MISSING_DICOM='`{}` not found in DICOM file.'
     MISSING_XML='`{}` not found in XML file.'
     MISSING_KEY='key `{}` not found in object `{}`.'
     MISSING_ATTR='attribute `{}` not found in object `{}`.'
     CHOICE_PARM='`{}` is constrained to `{}`.'
     MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class Warn_MSG(object):
+    '''
+    A collection of warning messages.
+    '''
+    MISSING_TAG='The following tags could not be found: {}.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages
@@ -244,13 +252,13 @@ class STDOUT_MSG(object):
     PROCESSING_PATH = 'Processing path: {}.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class MissingDICOMTagError(Exception):
+class MissingTagError(Exception):
     '''
     Raises an error identifying the missing DICOM tag.
     '''
     def __init__(self, tag_name):
         self.tag_name = tag_name
-        super().__init__(f"DICOM tag '{tag_name}' is missing.")
+        super().__init__(f"Tag '{tag_name}' is missing.")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class NotCalledError(Exception):
