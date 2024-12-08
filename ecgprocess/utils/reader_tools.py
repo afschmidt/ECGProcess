@@ -223,7 +223,7 @@ def get_ecg_data(data_dict:dict[str, Any],
                  config:dict[str, str],
                  parse_numeric:bool=True,
                  as_array:bool=False,
-                 bits:np.dtype=np.int16,
+                 bits:np.dtype | None =None,
                  skip_empty:bool=True,
                  **kwargs:Optional[Any],
                  ) -> tuple[dict[str, Any], list[str]]:
@@ -244,8 +244,8 @@ def get_ecg_data(data_dict:dict[str, Any],
     as_array : `bool`, default `False`
         If true the extracted data will be piped through a
         `numpy(. , dtype=bits)`.
-    bits : `np.dtype`, default `np.int16`
-        np.array bits.
+    bits : `np.dtype`, default `None`
+        np.array bits passed to numpy.array dtype.
     skip_empty : `bool`, default `True`
         Whether to skip config values not matching data_dict keys.
     **kwargs,

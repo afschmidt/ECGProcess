@@ -3,6 +3,7 @@ A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 '''
 import pathlib
 import warnings
+import numpy as np
 import ecgprocess.utils.config_tools as config
 import ecgprocess.utils.reader_tools as reader_utils
 import ecgprocess.utils.ecg_tools as ecg_utils
@@ -219,9 +220,9 @@ class ECGXMLReader(BaseReader):
         skip_empty : `bool`, default `True`
             Whether empty tags should be skipped or throw an error.
         **kwargs
-            The keyword arguments for reader_tools.get_ecg_data. Note
-            as_array is hard coded so this will raise an error if supplied as
-            kwargs.
+            The keyword arguments for reader_tools.get_ecg_data.
+            For the waveforms and medianbeats as_array and bits are hard coded
+            so these will raise an error if supplied as kwargs.
         
         Attributes
         ----------
@@ -260,6 +261,7 @@ class ECGXMLReader(BaseReader):
                 getattr(self, CProc.RAW),
                 config=config.get_section(CTypes.WaveForms),
                 as_array=True,
+                bits=np.int16,
                 **kwargs,
             )
         # #### extract median beats
@@ -268,6 +270,7 @@ class ECGXMLReader(BaseReader):
                 getattr(self, CProc.RAW),
                 config=config.get_section(CTypes.MedianBeats),
                 as_array=True,
+                bits=np.int16,
                 **kwargs,
             )
         # #### extract other data
