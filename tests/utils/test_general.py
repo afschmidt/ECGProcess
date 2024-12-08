@@ -135,3 +135,33 @@ def test_managed_property():
         obj.prop3 = 15
     assert obj.prop3 == val3
     
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# parse function functions
+class TestTarFunctions(object):
+    """
+    Testing parse_number
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_parse_number_valid(self):
+        result = gen_utils.parse_number("1,2,3.5,4")
+        assert result == [1, 2, 3.5, 4]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_parse_number_list(self):
+        list_2 = ["1,2.5,3", "2"]
+        result = gen_utils.parse_number(["1,2.5,3"])
+        result2 = gen_utils.parse_number(list_2)
+        assert result == [1, 2.5, 3]
+        assert result2 == list_2
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_parse_number_nonnumber(self):
+        result = gen_utils.parse_number("1,2,abc")
+        assert result == "1,2,abc"
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_parse_number_sep_ec(self):
+        result = gen_utils.parse_number("1;2;3,5", sep=";", dec=",")
+        assert result == [1, 2, 3.5]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_parse_number_non_string_input(self):
+        result = gen_utils.parse_number(123)
+        assert result == 123
+

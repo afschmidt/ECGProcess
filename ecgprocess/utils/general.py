@@ -242,17 +242,18 @@ class ManagedProperty(object):
             self.disable_setter()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def parse_number(string:str | list, sep:str=',', dec:str='.',
-                 ) -> list[float|int] | str:
+def parse_number(string:Any, sep:str=',', dec:str='.',
+                 ) -> list[float|int] | Any:
     """
     Check if a string is a numbers.  Maps the string to a list of floats or
     ints.
     
     Parameters
     ----------
-    string : `str` or `list` [`str`]
-        The input string to be checked. Can also be a list with a single
-        element.
+    string : `any`
+        Strings and list with a `single` will be checked if this represent
+        numbers, other object will be
+        returned as is.
     sep : `str`, default ','
         The character used to separate values in a string.
     dec : `str`, default '.'
@@ -260,8 +261,22 @@ def parse_number(string:str | list, sep:str=',', dec:str='.',
     
     Returns
     -------
-    `list` or `string`
-        A list of intergers or floats or the original string.
+    `list` [`int` | `float`] or `any`
+        A list of parsed integers or floats or the original input.
+
+    Examples
+    --------
+    >>> gen_utils.parse_number("1;2;3,5", sep=";", dec=",")
+    [1, 2, 3.5]
+    
+    >>> gen_utils.parse_number(["1,2.5,3"])
+    [1, 2.5, 3]
+    
+    >>> gen_utils.parse_number(['1,2.5,3', '2'])
+    ['1,2.5,3', '2']
+    
+    >>> parse_number(123)
+    123
     """
     def is_valid_number(number):
         """Checks if a string `number` is a valid float or int"""
@@ -272,7 +287,7 @@ def parse_number(string:str | list, sep:str=',', dec:str='.',
         except ValueError:
             return False
     # ### Split the string into parts using the separator
-    # NOTE wrap in try/except incase input is not a string and does not have
+    # NOTE wrap in try/except in case input is not a string and does not have
     # string.split
     res = string
     # unlist if the string is nested in a list of length one.
