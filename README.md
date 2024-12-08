@@ -2,8 +2,12 @@
 __version__: `0.2.1`
 
 
-This repository (will) host a mixture of function dealing with processing 
-electrocardiogram (ECG) data, and preparing these for data analysis.
+This repository host a mixture of function dealing with processing 
+electrocardiogram (ECG) data, and preparing these data for analysis.
+The processing functions are intended for user defined parametrisation 
+about the data which should be extracted, covering signal data such as 
+waveforms or median beats, as well as metadata relevant for downstream 
+QC or as tabular information. 
 
 
 The documentation for ECGProcess can be found [here](https://SchmidtAF.gitlab.io/ECGProcess/). 
