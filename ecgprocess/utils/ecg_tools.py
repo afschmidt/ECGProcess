@@ -16,51 +16,6 @@ from ecgprocess.errors import (
 CLeads = Core.Leads
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# NOTE 1: add tests
-# actually in ms.
-def calc_ventricular_rate(duration:float, samples:int|float, rr_interval:float,
-                          ) -> float:
-    r"""
-    Calculate the ventricular (i.e. heart) rate from the RR-interval.
-    
-    Parameters
-    ----------
-    duration : float
-        The duration (in milliseconds: ms) of the ECG measurement.
-    samples : int or float
-        The number of ECG samples.
-    rr_interval : float
-        The RR-interval represents the time (in ms) between two successive
-        R-waves.
-    
-    Returns
-    -------
-    vrate : `float`
-        The estimated ventricular rate.
-    
-    Notes
-    -----
-    The ventricular rate is calculated using the following formula:
-    
-    .. :math::
-    
-        \text{vrate} = \frac{60.0}{\text{duration}} \times
-                       \frac{\text{samples}}{\text{rr_interval}}
-    
-    The formula is used to determine the ventricular rate (heart rate) from
-    the ECG data.
-    """
-    # check input
-    is_type(duration, (int, float))
-    is_type(samples, (int, float))
-    is_type(rr_interval, (int, float))
-    # actual calculations
-    vrate = 60.0 / duration *samples / rr_interval
-    return vrate
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# NOTE 2 add tests.
 def resampling_500hz(signals:dict[str, np.array],
                      duration: int | float | None=None,
                      median:bool=False) -> dict[str, np.array]:
@@ -135,7 +90,7 @@ def get_limb_leads(signals:dict[str, np.array],
     is_type(lead_I, str)
     is_type(lead_II, str)
     if not {lead_I, lead_II}.issubset(signals):
-        raise KeyError('leads I and II are not available in `signals`: '
+        raise KeyError('leads I and/or II are not available in `signals`: '
                        f'{signals.keys()}')
     # #### get limb leads
     if not CLeads.III in signals:
