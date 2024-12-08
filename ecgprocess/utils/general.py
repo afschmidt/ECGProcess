@@ -242,15 +242,17 @@ class ManagedProperty(object):
             self.disable_setter()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def parse_number(string:str, sep:str=',', dec:str='.') -> list[float|int] | str:
+def parse_number(string:str | list, sep:str=',', dec:str='.',
+                 ) -> list[float|int] | str:
     """
     Check if a string is a numbers.  Maps the string to a list of floats or
     ints.
     
     Parameters
     ----------
-    string : `str`
-        The input string to be checked.
+    string : `str` or `list` [`str`]
+        The input string to be checked. Can also be a list with a single
+        element.
     sep : `str`, default ','
         The character used to separate values in a string.
     dec : `str`, default '.'
@@ -270,14 +272,24 @@ def parse_number(string:str, sep:str=',', dec:str='.') -> list[float|int] | str:
         except ValueError:
             return False
     # ### Split the string into parts using the separator
-    parts = string.split(sep)
-    if all(is_valid_number(p) for p in parts):
-        # Convert each part to float or int, making sure a float has a '.'
-        res= [
-            float(p.replace(dec, '.')) if dec in p else int(p) for p in parts
-        ]
-    else:
-        res = string
+    # NOTE wrap in try/except incase input is not a string and does not have
+    # string.split
+    res = string
+    # unlist if the string is nested in a list of length one.
+    if isinstance(string, list):
+        if len(string) == 1:
+            string = string[0]
+    try:
+        parts = string.split(sep)
+        if all(is_valid_number(p) for p in parts):
+            # Convert each part to float or int, making sure a float has a '.'
+            res= [
+                float(p.replace(dec, '.')) if dec in p else int(p) for p in parts
+            ]
+        else:
+            res = string
+    except AttributeError:
+        pass
     # #### return
     return res
 
