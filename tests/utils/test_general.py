@@ -66,6 +66,11 @@ class TestTarFunctions(object):
             assert "file1.txt" in files_in_tar, "file1.txt was not archived."
             assert "file2.txt" in files_in_tar, "file2.txt was not archived."
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_replase_with_tar_filenotfound(self, test_directory):
+        with pytest.raises(FileExistsError):
+            gen_utils.replace_with_tar(old_dir=str(test_directory),
+                                       new_tar=str('error'))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_list_tar_valid(self, tar_file_with_contents):
         result = gen_utils.list_tar(str(tar_file_with_contents))
         assert isinstance(result, list), "The output should be a list."

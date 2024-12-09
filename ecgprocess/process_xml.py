@@ -4,7 +4,6 @@ A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
 import pathlib
 import warnings
 import numpy as np
-import ecgprocess.utils.config_tools as config
 import ecgprocess.utils.reader_tools as reader_utils
 import ecgprocess.utils.ecg_tools as ecg_utils
 from lxml import etree
@@ -32,55 +31,6 @@ from ecgprocess.constants import (
     CoreData as Core,
 )
 
-# NOTE REMOVE THIS
-# from ecgprocess.example_data.examples import (
-#     config_file,
-#     list_xml_paths,
-# )
-# from tempfile import NamedTemporaryFile
-# path = list_xml_paths()['example_1']
-# validate = list_xml_paths()['example_1_schema']
-# verbose=True
-# # getting a parsed config file
-# example_config = {
-#     "WaveForms": [
-#         "I\tStripData.WaveformData_0.#text",
-#         "WRONG\tStripData.WaveformData_1.#text",
-#     ],
-#     "MedianBeats": [
-#         "aVF\tRestingECGMeasurements.MedianSamples.WaveformData_5.#text",
-#         "V1\tRestingECGMeasurements.MedianSamples.WaveformData_6.#text",
-#     ],
-#     "MetaData": [
-#         "unique identifier\t\t\tUID.DICOMStudyUID",
-#         "number of leads\t\t\t\tRestingECGMeasurements.MedianSamples.NumberOfLeads",
-#         "resolution unit (waveforms)\t\tStripData.Resolution.@units",
-#         "resolution (waveforms)\t\t\tStripData.Resolution.#text",
-#         "resolution unit (medianbeats)\t\tRestingECGMeasurements.MedianSamples.Resolution.@units",
-#         "resolution (medianbeats)\t\tRestingECGMeasurements.MedianSamples.Resolution.#text",
-#         "sampling frequency (original)\t\tRestingECGMeasurements.MedianSamples.SampleRate.#text",
-#         "sampling frequency unit\t\t\tRestingECGMeasurements.MedianSamples.SampleRate.@units",
-#         "sampling number (waveforms)\t\tStripData.ChannelSampleCountTotal",
-#         "sampling number (medianbeats)\t\tRestingECGMeasurements.MedianSamples.ChannelSampleCountTotal",
-#         "observation hour\t\t\tObservationDateTime.Hour",
-#         "observation minute\t\t\tObservationDateTime.Minute",
-#         "observation second\t\t\tObservationDateTime.Second",
-#         "observation day\t\t\t\tObservationDateTime.Day",
-#         "observation month\t\t\tObservationDateTime.Month",
-#         "observation year\t\t\tObservationDateTime.Year",
-#     ]
-# }
-# with NamedTemporaryFile("w") as tmp_file:
-#     _ = config_file(path=tmp_file.name, text=example_config)
-#     parsed_confg = config.ConfigParser(tmp_file.name)()
-
-# config=parsed_confg.get_section('WaveForms')
-# skip_empty = True
-# ecgxml_reader = ECGXMLReader()
-# parsed_xml = ecgxml_reader(path=path, schema=validate, verbose=True)
-# data_dict = parsed_xml.raw_data.copy()
-
-# ~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # constants
 CTypes = Core.DataTypes
@@ -194,7 +144,7 @@ class ECGXMLReader(BaseReader):
         # ### return
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def extract(self, config:ConfigParser, skip_empty:bool,
+    def extract(self, config:ConfigParser, skip_empty:bool=True,
                 parse_numeric:bool=True, **kwargs:Optional[Any]) -> Self:
         """
         Processes the raw ECG data and assign these to class attributes
@@ -248,18 +198,35 @@ class ECGXMLReader(BaseReader):
         kwargs = {**{'parse_numeric': parse_numeric,
                      'skip_empty': skip_empty,
                      }, **kwargs}
+        # #### get the configs
+        try:
+            md_cnf = config.get_section(CTypes.MetaData)
+        except KeyError:
+            md_cnf = {}
+        try:
+            wf_cnf = config.get_section(CTypes.WaveForms)
+        except KeyError:
+            wf_cnf = {}
+        try:
+            mb_cnf = config.get_section(CTypes.MedianBeats)
+        except KeyError:
+            mb_cnf = {}
+        try:
+            od_cnf = config.get_section(CTypes.OtherData)
+        except KeyError:
+            od_cnf = {}
         # #### extract metadata
         meta_data, meta_missing = \
             reader_utils.get_ecg_data(
                 getattr(self, CProc.RAW),
-                config=config.get_section(CTypes.MetaData),
+                config=md_cnf,
                 **kwargs,
             )
         # #### extract waveforms
         wave_data, wave_missing = \
             reader_utils.get_ecg_data(
                 getattr(self, CProc.RAW),
-                config=config.get_section(CTypes.WaveForms),
+                config=wf_cnf,
                 as_array=True,
                 bits=np.int16,
                 **kwargs,
@@ -268,7 +235,7 @@ class ECGXMLReader(BaseReader):
         median_data, median_missing = \
             reader_utils.get_ecg_data(
                 getattr(self, CProc.RAW),
-                config=config.get_section(CTypes.MedianBeats),
+                config=mb_cnf,
                 as_array=True,
                 bits=np.int16,
                 **kwargs,
@@ -277,7 +244,7 @@ class ECGXMLReader(BaseReader):
         other_data, other_missing = \
             reader_utils.get_ecg_data(
                 getattr(self, CProc.RAW),
-                config=config.get_section(CTypes.OtherData),
+                config=od_cnf,
                 **kwargs,
             )
         # #### resample to 500hz

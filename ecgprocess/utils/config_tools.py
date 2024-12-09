@@ -468,7 +468,10 @@ class ConfigParser(object):
         dict
             A dictionary of key-value pairs for the requested section.
         """
-        return getattr(self, ConfigNames.data).get(section_name, KeyError)
+        res = getattr(self, ConfigNames.data).get(section_name)
+        if res is None:
+            raise KeyError(f"key {section_name} is not available.")
+        return res
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):
         """String representation of the parsed data."""

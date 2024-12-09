@@ -122,9 +122,10 @@ class TestBaseExtraction(object):
             parser = config.ConfigParser(tmp_file.name)()
         assert len(parser._data) > 0
         assert len(parser.get_section('WaveForms')) == 2
+        # raise error when key is unavailable
+        with pytest.raises(KeyError):
+            parser.get_section('OtherData')
         # add mapper
         with pytest.raises(KeyError):
             _ = parser.map(mapper=config.DataMap())
-
-
 
