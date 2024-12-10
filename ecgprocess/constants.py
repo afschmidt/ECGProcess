@@ -88,6 +88,7 @@ class UtilsConfigData(object):
     MedianBeats = CoreData.DataTypes.MedianBeats
     path        = 'path'
     data        = '_data'
+    MAPPER      = 'mapper'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class ProcessXMLNames(object):

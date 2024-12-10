@@ -199,22 +199,10 @@ class ECGXMLReader(BaseReader):
                      'skip_empty': skip_empty,
                      }, **kwargs}
         # #### get the configs
-        try:
-            md_cnf = config.get_section(CTypes.MetaData)
-        except KeyError:
-            md_cnf = {}
-        try:
-            wf_cnf = config.get_section(CTypes.WaveForms)
-        except KeyError:
-            wf_cnf = {}
-        try:
-            mb_cnf = config.get_section(CTypes.MedianBeats)
-        except KeyError:
-            mb_cnf = {}
-        try:
-            od_cnf = config.get_section(CTypes.OtherData)
-        except KeyError:
-            od_cnf = {}
+        md_cnf = config.get_section(CTypes.MetaData)
+        wf_cnf = config.get_section(CTypes.WaveForms)
+        mb_cnf = config.get_section(CTypes.MedianBeats)
+        od_cnf = config.get_section(CTypes.OtherData)
         # #### extract metadata
         meta_data, meta_missing = \
             reader_utils.get_ecg_data(

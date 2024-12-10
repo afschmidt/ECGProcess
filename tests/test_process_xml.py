@@ -17,7 +17,6 @@ from ecgprocess.example_data.examples import (
 example_config = {
     "WaveForms": [
         "I\tStripData.WaveformData_0.#text",
-        "WRONG\tStripData.WaveformData_1.#text",
     ],
     "MedianBeats": [
         "aVF\tRestingECGMeasurements.MedianSamples.WaveformData_5.#text",
@@ -91,6 +90,7 @@ class TestECGXMLReader(object):
             _ = config_file(path=tmp_file.name, text=example_config)
             parsed_confg = config_utils.ConfigParser(tmp_file.name)()
         # examples
+        parsed_confg_map = parsed_confg.map(mapper=config_utils.DataMap())
         path = list_xml_paths()['example_1']
         schema = list_xml_paths()['example_1_schema']
         # run
@@ -100,6 +100,7 @@ class TestECGXMLReader(object):
         with pytest.warns(UserWarning):
             extract = parsed_xml.extract(config=parsed_confg, skip_empty=True)
         assert extract.MetaData[n_leads] == 12
+        assert extract.WaveForms['I'].ndim == 1
         # extraction 2
         with pytest.raises(MissingTagError):
             parsed_xml.extract(config=parsed_confg, skip_empty=False)

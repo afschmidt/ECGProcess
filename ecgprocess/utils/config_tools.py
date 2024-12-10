@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass, field
-from typing import Optional, Any, Self
+from typing import Optional, Any, Self, Literal
 from ecgprocess.constants import (
     CoreData as Core,
     UtilsConfigData as ConfigNames,
@@ -450,17 +450,21 @@ class ConfigParser(object):
                 {**meta_data_req.to_dict(),
                  **meta_data_other.to_dict()}
                 )
+        setattr(self, ConfigNames.MAPPER, mapper)
         # return stuff
         return mapper
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def get_section(self, section_name) -> dict[str, str]:
+    def get_section(self,
+                    section_name:Literal['MetaData', 'WaveForms', 'MedianBeats',
+                                         'OtherData'],
+                    ) -> dict[str, str]:
         """
         Retrieve the parsed data for a specific section of the configuration
         file.
         
         Parameters
         ----------
-        section_name : `str`
+        section_name : {'MetaData', 'WaveForms', 'MedianBeats', 'OtherData'}
             Name of the section to retrieve.
         
         Returns
@@ -468,7 +472,18 @@ class ConfigParser(object):
         dict
             A dictionary of key-value pairs for the requested section.
         """
-        res = getattr(self, ConfigNames.data).get(section_name)
+        is_type(section_name, str)
+        SECTION_NAME = [ConfigNames.OtherData, ConfigNames.WaveForms,
+            ConfigNames.MedianBeats, ConfigNames.MetaData]
+        # confirm the choice is correct
+        if not section_name in SECTION_NAME:
+            raise ValueError(Error_MSG.CHOICE_PARM.\
+                             format('section_name', ', '.join(SECTION_NAME)))
+        # confirm mapper has been run
+        if not hasattr(self, ConfigNames.MAPPER):
+            raise AttributeError('`map` has not been run.')
+        # get the correct attribute
+        res = getattr(getattr(self, ConfigNames.MAPPER), section_name)
         if res is None:
             raise KeyError(f"key {section_name} is not available.")
         return res
