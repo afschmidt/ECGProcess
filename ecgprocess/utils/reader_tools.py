@@ -20,10 +20,12 @@ from ecgprocess.utils.general import(
 )
 from ecgprocess.constants import (
     CoreData as Core,
+    UtilsReaderNames as RNames,
 )
 from ecgprocess.errors import (
     is_type,
     MissingTagError,
+    Error_MSG,
 )
 from ecgprocess.constants import UtilsGeneralNames as UGNames
 from ecgprocess.errors import XMLValidationError
@@ -250,7 +252,7 @@ def flatten_dict(d:dict[str, Any], parent_prefix:str='', sep:str='.',
 def get_ecg_data(data_dict:dict[str, Any],
                  config:dict[str, str],
                  parse_numeric:bool=True,
-                 as_array:bool=False,
+                 as_array:Literal['No', 'Array', 'Buffer']='No',
                  bits:np.dtype | None =None,
                  skip_empty:bool=True,
                  **kwargs:Optional[Any],
@@ -269,9 +271,10 @@ def get_ecg_data(data_dict:dict[str, Any],
     parse_numeric : `bool`, default `True`
         Will check if a numbers are accidentally presented as strings and parse
         these to numbers.
-    as_array : `bool`, default `False`
-        If true the extracted data will be piped through a
-        `numpy(. , dtype=bits)`.
+    as_array : {'No', 'Array', 'Buffer'}, default `No`
+        Whether data should be mapped to `np.array` using a direct map:
+        `np.array(., dtype=bits)` by supplying `Array`, or reading from buffer:
+        `np.frombuffer(., dtype=bits)` by supplying `Buffer`.
     bits : `np.dtype`, default `None`
         np.array bits passed to numpy.array dtype.
     skip_empty : `bool`, default `True`
@@ -291,8 +294,15 @@ def get_ecg_data(data_dict:dict[str, Any],
     is_type(data_dict, dict)
     is_type(config, dict)
     is_type(skip_empty, bool)
-    is_type(as_array, bool)
+    is_type(as_array, str)
     is_type(parse_numeric, bool)
+    AS_ARRAY = [RNames.GET_DATA_ARRAY_A,
+                RNames.GET_DATA_ARRAY_B,
+                RNames.GET_DATA_ARRAY_N,
+                ]
+    if not as_array in AS_ARRAY:
+        raise ValueError(Error_MSG.CHOICE_PARM.\
+                         format('as_array', ', '.join(AS_ARRAY)))
     # #### initialise object
     results_dict = {}
     results_missing = []
@@ -309,9 +319,15 @@ def get_ecg_data(data_dict:dict[str, Any],
             else:
                 results_dict[t] = data_dict[s]
             # Do we want to extract signals and store these in a numpy array..
-            if as_array == True:
+            if as_array == RNames.GET_DATA_ARRAY_A:
                 try:
                     results_dict[t] = np.array(results_dict[t], dtype=bits)
+                except ValueError:
+                    pass
+            elif as_array == RNames.GET_DATA_ARRAY_B:
+                try:
+                    results_dict[t] = np.frombuffer(results_dict[t],
+                                                    dtype=bits)
                 except ValueError:
                     pass
         elif skip_empty == False:

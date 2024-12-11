@@ -16,6 +16,7 @@ from typing import (
 )
 from ecgprocess.utils.general import(
     ManagedProperty,
+    UtilsReaderNames as RNames,
 )
 from ecgprocess.utils.config_tools import(
     ConfigParser,
@@ -71,6 +72,7 @@ class ECGXMLReader(BaseReader):
     # #### properties
     xml_tags = ManagedProperty(PXMLNam.XML_TAGS, list)
     raw_data = ManagedProperty(CProc.RAW, dict)
+    _as_array:str = RNames.GET_DATA_ARRAY_A
     # #### parameters, with defaults
     augment_leads:bool = field(default=False)
     resample_500:bool = field(default=True)
@@ -213,7 +215,7 @@ class ECGXMLReader(BaseReader):
             reader_utils.get_ecg_data(
                 getattr(self, CProc.RAW),
                 config=wf_cnf,
-                as_array=True,
+                as_array=self._as_array,
                 bits=np.int16,
                 **kwargs,
             )
@@ -222,7 +224,7 @@ class ECGXMLReader(BaseReader):
             reader_utils.get_ecg_data(
                 getattr(self, CProc.RAW),
                 config=mb_cnf,
-                as_array=True,
+                as_array=self._as_array,
                 bits=np.int16,
                 **kwargs,
             )

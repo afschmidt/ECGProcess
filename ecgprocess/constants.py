@@ -73,6 +73,15 @@ class CoreData:
         AUG_LEADS = 'augment_leads'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class UtilsReaderNames(object):
+    '''
+    Names used in the Utils Reader Tools module.
+    '''
+    GET_DATA_ARRAY_A     = 'Array'
+    GET_DATA_ARRAY_B     = 'Buffer'
+    GET_DATA_ARRAY_N     = 'No'
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsGeneralNames(object):
     '''
     Names used in the Utils General module.

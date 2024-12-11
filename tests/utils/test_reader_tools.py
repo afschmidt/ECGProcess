@@ -277,7 +277,7 @@ class TestGetECGData(object):
         data_dict = {"signal1": ['1, 2, 3'], "signal2": [4, 5, 6]}
         config = {"output1": "signal1"}
         res, _ = reader_utils.get_ecg_data(data_dict, config,
-                                           as_array=True,
+                                           as_array='Array',
                                            bits=np.float32)
         assert np.array_equal(
             res["output1"], np.array([1, 2, 3], dtype=np.float32))
@@ -287,4 +287,15 @@ class TestGetECGData(object):
         config = {"output1": "signal2"}
         with pytest.raises(MissingTagError):
             reader_utils.get_ecg_data(data_dict, config, skip_empty=False)
+        with pytest.raises(ValueError):
+            reader_utils.get_ecg_data(data_dict, config, as_array='False')
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_as_buffer(self):
+        data_dict = {"signal1": "b'\\x01\\x02\\x03\\x04'"}
+        config = {"output1": "signal1"}
+        res, _ = reader_utils.get_ecg_data(data_dict, config,
+                                           as_array='Buffer',
+                                           bits=np.int8)
+        assert np.array_equal(
+            res["output1"], np.array([1, 2, 3, 4], dtype=np.int8))
 
