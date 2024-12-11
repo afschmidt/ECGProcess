@@ -6,6 +6,7 @@ python objects such as dictionary and systematically process these. Functions
 specifically focussed on ECG signals, such as calculating the limb leads,
 are collected in `ecgprocess.utils.ecg_tools`.
 """
+import pydicom
 import warnings
 import xmltodict
 import numpy as np
@@ -42,16 +43,17 @@ class BaseReader:
     creation.
     '''
     __slots__ = (CTypes.WaveForms, CTypes.MedianBeats,
-                 CTypes.MetaData, CProc.RAW)
+                 CTypes.MetaData, CTypes.OtherData, CProc.RAW)
     # /////////////////////////////////////////////////////////////////////////
-    def __init__(self, waveforms=None, medianbeats=None,
-                 metadata=None, raw=None):
+    def __init__(self, waveforms=None, medianbeats=None, metadata=None,
+                 otherdata=None, raw=None):
         '''
         Initialises slots entries to `None`.
         '''
         setattr(self, CTypes.WaveForms, waveforms)
         setattr(self, CTypes.MedianBeats,medianbeats)
         setattr(self, CTypes.MetaData,metadata)
+        setattr(self, CTypes.OtherData, otherdata)
         setattr(self, CProc.RAW,raw)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -129,7 +131,7 @@ def xml_to_dict(xml_doc:etree._ElementTree, encoding:str='utf-8',
         
     Returns
     -------
-    res : `dict` [`str`, `any`]
+    dict [`str`, `any`]
         A dictionary representation of the XML data.
     """
     is_type(encoding,str)
@@ -140,6 +142,32 @@ def xml_to_dict(xml_doc:etree._ElementTree, encoding:str='utf-8',
     xml_dict = xmltodict.parse(xml_str)
     # returning stuf.
     return xml_dict
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def dicom_to_dict(ds: pydicom.dataset.Dataset) -> dict[str, Any]:
+    """
+    Turn a pydicom Dataset into a dict with keys derived from the Element names.
+    
+    Parameters
+    ----------
+    ds : `pydicom.dataset.Dataset`
+        The DICOM dataset to convert.
+    
+    Returns
+    -------
+    dict [`str`, `any`]
+        A dictionary representation of the dataset.
+    """
+    output = {}
+    for elem in ds:
+        # SQ: sequences should be dealt with through recursion
+        # Each sequence element contains a list of sub-elements
+        # (nested datasets), which may themselves have multiple elements.
+        if elem.VR != "SQ":
+            output[elem.name] = elem.value
+        else:
+            output[elem.name] = [dicom_to_dict(item) for item in elem]
+    return output
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def flatten_dict(d:dict[str, Any], parent_prefix:str='', sep:str='.',

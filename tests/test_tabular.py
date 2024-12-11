@@ -1,9 +1,9 @@
 import os
 import pytest
 import pandas as pd
-from ecgprocess.constants import ProcessDicomNames as PDNames
+from ecgprocess.constants import TabularNames as PDNames
 from ecgprocess.errors import MissingTagError as MissingDICOMTagError
-from ecgprocess.process_dicoms import (
+from ecgprocess.tabular import (
     ECGDICOMReader,
     ECGDICOMTable,
 )

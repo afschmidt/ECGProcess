@@ -1,10 +1,6 @@
-import os
 import pytest
-import warnings
 import ecgprocess.process_xml as pro_xml
 from tempfile import NamedTemporaryFile
-from unittest.mock import patch, mock_open
-from ecgprocess.constants import ProcessDicomNames as PDNames
 from ecgprocess.errors import InputValidationError, MissingTagError
 import ecgprocess.utils.config_tools as config_utils
 from ecgprocess.example_data.examples import (

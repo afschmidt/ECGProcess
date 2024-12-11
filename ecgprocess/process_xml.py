@@ -31,6 +31,7 @@ from ecgprocess.constants import (
     CoreData as Core,
 )
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # constants
 CTypes = Core.DataTypes
@@ -43,7 +44,7 @@ CProc = Core.ProcessingData
 class ECGXMLReader(BaseReader):
     """
     Processes an XML file containing ECG data and extracts the metadata,
-    median beats (if available), and raw waveforms.
+    median beats, and raw waveforms.
     
     Parameters
     ----------
@@ -68,7 +69,6 @@ class ECGXMLReader(BaseReader):
     
     """
     # #### properties
-    # NOTE add these to the docstring
     xml_tags = ManagedProperty(PXMLNam.XML_TAGS, list)
     raw_data = ManagedProperty(CProc.RAW, dict)
     # #### parameters, with defaults
@@ -92,9 +92,6 @@ class ECGXMLReader(BaseReader):
         ----------
         path : `str`
             The path to the .xml file.
-        config : `ConfigParser`
-            A class instance of a parsed configuration file, mapping the XML
-            content to class attributes.
         schema : `str`, default `NoneType`
             A path to an XML schema which will be used to valudate the XML file
             against.
@@ -105,8 +102,10 @@ class ECGXMLReader(BaseReader):
         
         Attributes
         ----------
+        xml_tags : `list` [`str`]
+            A list of strings with parsed xml tags matching the `raw_data` keys.
         raw_data : `dict` [`str`, `any`]
-            The raw parsed data.
+            The raw parsed XML data.
         
         Returns
         -------
@@ -136,8 +135,7 @@ class ECGXMLReader(BaseReader):
             reader_utils.xml_to_dict(parsed_xml),
             **kwargs,
         )
-        # xml_dict = flatten_dict(xml_to_dict(parsed_xml))
-        # ### store keys
+        # ### store keys and data
         getattr(type(self), CProc.RAW).set_with_setter(self, xml_dict)
         getattr(type(self), PXMLNam.XML_TAGS).set_with_setter(
             self, list(xml_dict.keys()))

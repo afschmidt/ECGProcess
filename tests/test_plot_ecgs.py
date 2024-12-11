@@ -1,7 +1,7 @@
 import pytest
-from ecgprocess.constants import ProcessDicomNames as PDNames
+from ecgprocess.constants import TabularNames as PDNames
 from ecgprocess.errors import NotCalledError
-from ecgprocess.process_dicoms import (
+from ecgprocess.tabular import (
     ECGDICOMReader,
 )
 from ecgprocess.plot_ecgs import (

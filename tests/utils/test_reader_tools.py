@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from lxml import etree
 from xmltodict import parse
+from pydicom.dataset import Dataset
 from ecgprocess.utils import reader_tools as reader_utils
 from ecgprocess.errors import (
     XMLValidationError, InputValidationError, MissingTagError
@@ -185,6 +186,49 @@ class TestXMLFunctions(object):
         result = reader_utils.xml_to_dict(tree)
         assert isinstance(result, dict)
         assert 'UnexpectedElement' in result['RootTag']
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# PYDICOM function
+class TestDICOMFunctions(object):
+    """
+    Testing DICOM functions.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_dicom_to_dict_with_sequence(self):
+        # testing data
+        ds = Dataset()
+        ds.PatientName = "John Doe"
+        ds.PatientWeight = 75.5
+        seq_item = Dataset()
+        seq_item.SeriesNumber = "1"
+        seq_item.InstanceNumber = "2"
+        ds.ReferencedSeriesSequence = [seq_item]  # Sequence
+        # expected
+        expected = {
+            "Patient's Name": "John Doe",
+            "Patient's Weight": 75.5,
+            "Referenced Series Sequence": [
+                {
+                    "Series Number": "1",
+                    "Instance Number": "2"
+                }
+            ]
+        }
+        # apply function
+        result = reader_utils.dicom_to_dict(ds)
+        assert result == expected
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_dicom_to_dict_empty(self):
+        """Making sure an empty dict is returned"""
+        ds = Dataset()
+        result = reader_utils.dicom_to_dict(ds)
+        assert result == {}
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestFlattenDict(object):
+    """
+    Testing flatten_dict function
+    """
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_flatten_dict(self, nested_dict_fixture):
         # Test case when skip_root is True (default)

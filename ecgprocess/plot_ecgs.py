@@ -23,7 +23,7 @@ from ecgprocess.errors import (
     Error_MSG,
 )
 from ecgprocess.constants import (
-    ProcessDicomNames as PDNames,
+    TabularNames as PDNames,
 )
 from ecgprocess.utils.general import (
     assign_empty_default,

@@ -66,9 +66,11 @@ class CoreData:
         Contains constants for attributes and variables created by the process
         modules.
         '''
-        RAW      = 'raw_data'
-        Duration = 'duration (sec)'
-        SF_NEW   = 'sampling frequency (processed)'
+        RAW       = 'raw_data'
+        Duration  = 'duration (sec)'
+        SF_NEW    = 'sampling frequency (processed)'
+        RESAMPLE  = 'resample_500'
+        AUG_LEADS = 'augment_leads'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsGeneralNames(object):
@@ -96,11 +98,17 @@ class ProcessXMLNames(object):
     Names used in the process_xml module.
     '''
     XML_TAGS  = 'xml_tags'
-    RESAMPLE  = 'resample_500'
-    AUG_LEADS = 'augment_leads'
+    RESAMPLE  = CoreData.ProcessingData.RESAMPLE
+    AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class ProcessDicomNames(object):
+    DICOM_TAGS  = 'dicom_tags'
+    RESAMPLE  = CoreData.ProcessingData.RESAMPLE
+    AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
+    
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class TabularNames(object):
     '''
     Names used in the process_dicom module.
     '''
@@ -244,7 +252,7 @@ class DICOMTags(object):
     # /////////////////////////////////////////////////////////////////////////
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     METADATA = {
-        ProcessDicomNames.SOP_UID : 'SOPInstanceUID',
+        TabularNames.SOP_UID : 'SOPInstanceUID',
         'SERIESinstanceUID'       : 'SeriesInstanceUID',
         'STUDYinstanceUID'        : 'StudyInstanceUID',
         'PatientID'               : 'PatientID',
@@ -265,20 +273,20 @@ class DICOMTags(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     WAVE_FORMS = {
         'TimeOffset'                      : 'MultiplexGroupTimeOffset',
-        ProcessDicomNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
-        ProcessDicomNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
+        TabularNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
+        TabularNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
         'ChannelSensitivity'              : 'ChannelSensitivity',
         'ChannelBaseline'                 : 'ChannelBaseline',
         'ChannelSampleSkew'               : 'ChannelSampleSkew',
         'FilterLowFrequency'              : 'FilterLowFrequency',
         'FilterHighFrequency'             : 'FilterHighFrequency',
         'NotchFilterFrequency'            : 'NotchFilterFrequency',
-        ProcessDicomNames.SF              : 'SamplingFrequency',
-        ProcessDicomNames.SF_ORIGINAL     : 'SamplingFrequency',
+        TabularNames.SF              : 'SamplingFrequency',
+        TabularNames.SF_ORIGINAL     : 'SamplingFrequency',
     }
     # objects which cannot be extracted in a loop
     WAVE_FORMS_DICT = {
-        ProcessDicomNames.WAVE_ARRAY    : ['waveform_array', 0],
+        TabularNames.WAVE_ARRAY    : ['waveform_array', 0],
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     ECG_INTERPERTATION_DICT ={
@@ -301,8 +309,8 @@ class DICOMTags(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MEDIAN_BEATS = {
         'TimeOffset'                      : 'MultiplexGroupTimeOffset',
-        ProcessDicomNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
-        ProcessDicomNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
+        TabularNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
+        TabularNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
         'ChannelSensitivity'              : 'ChannelSensitivity',
         'ChannelBaseline'                 : 'ChannelBaseline',
         'ChannelSampleSkew'               : 'ChannelSampleSkew',
@@ -312,9 +320,9 @@ class DICOMTags(object):
     }
     MEDIAN_BEATS = {k + ' (MEDIAN)': v for k, v in MEDIAN_BEATS.items()}
     MEDIAN_BEATS_DICT = {
-        ProcessDicomNames.MEDIAN_ARRAY   : ['waveform_array', 1],
-        ProcessDicomNames.LEAD_INFO      : ['lead_info', 1],
-        ProcessDicomNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
+        TabularNames.MEDIAN_ARRAY   : ['waveform_array', 1],
+        TabularNames.LEAD_INFO      : ['lead_info', 1],
+        TabularNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
     }
 
 
