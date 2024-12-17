@@ -131,12 +131,55 @@ class TestBaseExtraction(object):
                 "Birthdate\tPatientBirthDate",
             ]
         }
+        config_comment = {
+            "WaveForms": [
+                "I\tLead_I_name",
+            ],
+            "MetaData": [
+                "sampling frequency (original)\tSamplingFrequency",
+                "#This is a comment",
+                "sampling number (waveforms)\tNumberOfWaveformSamples",
+                "Birthdate\tPatientBirthDate",
+            ]
+        }
+        config_no_lhs = {
+            "WaveForms": [
+                "I\tLead_I_name",
+            ],
+            "MetaData": [
+                "sampling frequency (original)\tSamplingFrequency",
+                "Without lhs",
+                "sampling number (waveforms)\tNumberOfWaveformSamples",
+                "Birthdate\tPatientBirthDate",
+            ]
+        }
+        config_duplicates = {
+            "WaveForms": [
+                "I\tLead_I_name",
+            ],
+            "MetaData": [
+                "sampling frequency (original)\tSamplingFrequency",
+                "sampling number (waveforms)\tNumberOfWaveformSamples",
+                "Birthdate\tPatientBirthDate",
+                "Birthdate\tPatientBirthDate",
+            ]
+        }
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name, text=wrong_config)
             parser1 = config_utils.ConfigParser(tmp_file.name)()
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name, text=config)
             parser2 = config_utils.ConfigParser(tmp_file.name)()
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=config_comment)
+            parser3 = config_utils.ConfigParser(tmp_file.name)()
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=config_no_lhs)
+            parser4 = config_utils.ConfigParser(tmp_file.name)()
+        with pytest.raises(InputValidationError):
+            with NamedTemporaryFile("w") as tmp_file:
+                _ = config_file(path=tmp_file.name, text=config_duplicates)
+                _ = config_utils.ConfigParser(tmp_file.name)()
         # the wrong config
         with pytest.raises(KeyError):
             mapped = parser1.map(mapper=config_utils.DataMap())
@@ -144,4 +187,6 @@ class TestBaseExtraction(object):
         mapped = parser2.map(mapper=config_utils.DataMap())
         assert len(parser2._data) > 0
         assert len(parser2.get_section('WaveForms')) == 12
+        assert parser3 == parser2
+        assert parser4 == parser2
 

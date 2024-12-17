@@ -60,6 +60,7 @@ from ecgprocess.utils.reader_tools import(
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Rename this to FixedECGDICOMReader .
 @dataclass
 class ECGDICOMReader(BaseReader):
     """

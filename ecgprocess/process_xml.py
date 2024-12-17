@@ -16,7 +16,6 @@ from typing import (
 )
 from ecgprocess.utils.general import(
     ManagedProperty,
-    UtilsReaderNames as RNames,
 )
 from ecgprocess.utils.config_tools import(
     ConfigParser,
@@ -28,6 +27,7 @@ from ecgprocess.errors import (
     Error_MSG,
 )
 from ecgprocess.constants import (
+    UtilsReaderNames as RNames,
     ProcessXMLNames as PXMLNam,
     CoreData as Core,
 )
@@ -72,7 +72,7 @@ class ECGXMLReader(BaseReader):
     # #### properties
     xml_tags = ManagedProperty(PXMLNam.XML_TAGS, list)
     raw_data = ManagedProperty(CProc.RAW, dict)
-    _as_array:str = RNames.GET_DATA_ARRAY_A
+    _as_array:bool = True
     # #### parameters, with defaults
     augment_leads:bool = field(default=False)
     resample_500:bool = field(default=True)
@@ -156,9 +156,9 @@ class ECGXMLReader(BaseReader):
             A class instance of a parsed configuration file, mapping the XML
             content to class attributes. Specifically this should include
             dictionary attributes `MetaData`, `WaveForms`, `MedianBeats`,
-            `OtherData`. The `MetaData` includes some required keys including
+            `OtherData`. The `MetaData` includes some privileged  keys including
             essential information to describe an ECG instance, as well as
-            non-required information. The difference between `OtherData` and
+            non-privileged  information. The difference between `OtherData` and
             `MetaData` is the way it is processed by other functions or methods
             with the `OtherData` processed without strong checks on its content.
             `WaveForms` and `MedianBeats` simply include the lead mappings.
@@ -248,7 +248,7 @@ class ECGXMLReader(BaseReader):
         meta_data[CProc.SF_NEW] = None
         if getattr(self, PXMLNam.RESAMPLE) == True:
             # confirm SF is present
-            if not CMeta.SF in meta_data:
+            if not CMeta.SF in meta_data or meta_data[CMeta.SF] is None:
                 raise KeyError(f'`{CMeta.SF}` is necessary to resample '
                                'the ECG signal.')
             # if it is, check whether there is a need to resample the signals.

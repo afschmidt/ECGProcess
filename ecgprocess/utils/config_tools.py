@@ -74,12 +74,6 @@ class RequiredData(object):
         CMeta.SF_U    : None,
         CMeta.SN_W    : None,
         CMeta.SN_M    : None,
-        CMeta.SECOND  : None,
-        CMeta.MINUTE  : None,
-        CMeta.HOUR    : None,
-        CMeta.DAY     : None,
-        CMeta.MONTH   : None,
-        CMeta.YEAR    : None,
     })
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def update_values(self, **kwargs:Optional[Any]) -> None:
@@ -326,6 +320,22 @@ class ConfigParser(object):
         getattr(type(self),ConfigNames.path).set_with_setter(self, path)
         getattr(type(self),ConfigNames.data).set_with_setter(self, {})
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __eq__(self, other):
+        """
+        Determine how instances are compared.
+        """
+        if len(getattr(self, ConfigNames.data)) == 0:
+            if self.path == other.path and self._data == other._data:
+                return True
+        elif hasattr(self, ConfigNames.MAPPER) and\
+            hasattr(other, ConfigNames.MAPPER):
+            if getattr(self, ConfigNames.MAPPER) ==\
+                    getattr(other, ConfigNames.MAPPER):
+                return True
+        elif  self._data == other._data:
+            return True
+        return False
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(self) -> Self:
         """
         Parse the configuration file.
@@ -349,30 +359,34 @@ class ConfigParser(object):
                             "correct and all sections are properly defined."
                         )
                     # confirm this is not already in data - fine if it is,
-                    # but no need to create a new key and subdict.
+                    # no need to create a new key and subdict.
+                    # can just add new entries.
                     if current not in getattr(self, ConfigNames.data):
                         getattr(self, ConfigNames.data)[current] = {}
+                # skip if there is a comment
+                elif re.match(r"^\s*#", line):
+                    continue
                 elif current and line:
                     # Process the line
                     if "\t" in line:
                         # Split into key-value pairs
                         k, v = re.split(r'\t+', line, maxsplit=1)
                         # include a strip to make sure spaces are trimmed
-                        getattr(self, ConfigNames.data)[current][k.strip()]=\
-                            v.strip()
-                    else:
-                        # in this case this should be a WaveForm or MedianBeat
-                        # attribute
-                        if len(getattr(self, ConfigNames.data)[current]) == 0:
-                            getattr(self, ConfigNames.data)[current][current]=\
-                                line.strip()
+                        if not k.strip() in\
+                                getattr(self, ConfigNames.data)[current]:
+                            getattr(self, ConfigNames.data)[current][k.strip()]=\
+                                v.strip()
                         else:
                             raise InputValidationError(
-                                f"`{current}` has already been set: "
-                                f"{getattr(self, ConfigNames.data)[current][current]}. "
-                                "Please ensure a single values has been set for "
-                                "data type."
+                                f"`{k.strip()}` has already been set: "
+                                f"{getattr(self, ConfigNames.data)[current]}. "
+                                "Please ensure a single unique name has been "
+                                "supplied for each variable."
                             )
+                    else:
+                        # simply skip if no \t is found
+                        # NOTE might want to raise a warining at some point.
+                        pass
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def map(self, mapper:DataMap) -> DataMap:

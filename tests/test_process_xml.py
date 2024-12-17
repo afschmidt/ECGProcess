@@ -1,8 +1,8 @@
 import pytest
 import ecgprocess.process_xml as pro_xml
+import ecgprocess.utils.config_tools as config_utils
 from tempfile import NamedTemporaryFile
 from ecgprocess.errors import InputValidationError, MissingTagError
-import ecgprocess.utils.config_tools as config_utils
 from ecgprocess.example_data.examples import (
     config_file,
     list_xml_paths,
@@ -86,7 +86,9 @@ class TestECGXMLReader(object):
             _ = config_file(path=tmp_file.name, text=example_config)
             parsed_confg = config_utils.ConfigParser(tmp_file.name)()
         # examples
-        parsed_confg_map = parsed_confg.map(mapper=config_utils.DataMap())
+        # FIXME paresed_xml.extract(config=parsed_confg) should really take
+        # the _ = parsed_confg.map(mapper=config_utils.DataMap()) object
+        _ = parsed_confg.map(mapper=config_utils.DataMap())
         path = list_xml_paths()['example_1']
         schema = list_xml_paths()['example_1_schema']
         # run

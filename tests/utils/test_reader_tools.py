@@ -17,6 +17,36 @@ VALID_XSD_PATH = "valid_schema.xsd"
 INVALID_XML_PATH = "invalid_example.xml"
 STRICT_XSD_PATH = "strict_schema.xsd"
 
+# Data used for subset_dict
+data_subset_dict = {
+    "Waveform Annotation Sequence_0.Referenced Waveform Channels_0": "Channel 1",
+    "Waveform Annotation Sequence_0.Referenced Waveform Channels_1": "Channel 2",
+    "Waveform Annotation Sequence_0.Annotation Group Number": 1,
+    "Waveform Annotation Sequence_0.Unformatted Text Value": "Event A",
+    "Waveform Annotation Sequence_8.Measurement Units Code Sequence_0.Code Value": "bpm",
+    "Waveform Annotation Sequence_8.Measurement Units Code Sequence_0.Code Meaning": "Heart Rate",
+    "Waveform Annotation Sequence_15.Measurement Units Code Sequence_0.Code Meaning": "Temperature",
+    "Waveform Annotation Sequence_15.Referenced Waveform Channels_1": "Channel 10",
+    "Waveform Annotation Sequence_15.Numeric Value": 36.7,
+    "Other Annotation Sequence_1.Some Value": "Other Data",
+    "Other Annotation Sequence_1.Meaning": "Other Code Meaning",
+}
+# Prefix-to-code-meaning mapping
+pattern_subset_dict = {
+    "Waveform Annotation Sequence_15": "Code Meaning",
+    "Waveform Annotation Sequence_8": "Code Meaning",
+    "Waveform Annotation Sequence_16": "Code Meaning",
+    "Waveform Annotation Sequence_11": "Code Meaning",
+    "Other Annotation Sequence_1": "Meaning",
+}
+pattern_subset_dict_error = {
+    "Waveform Annotation Sequence_15": "Code Meaning",
+    "Waveform Annotation Sequence_8": "Code Meaning",
+    "Waveform Annotation Sequence_16": "Code Meaning",
+    "Waveform Annotation Sequence_11": "Code Meaning",
+    "Other Annotation Sequence_1": "Meaning2",
+}
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @pytest.fixture
 def nested_dict_fixture():
@@ -277,7 +307,7 @@ class TestGetECGData(object):
         data_dict = {"signal1": ['1, 2, 3'], "signal2": [4, 5, 6]}
         config = {"output1": "signal1"}
         res, _ = reader_utils.get_ecg_data(data_dict, config,
-                                           as_array='Array',
+                                           as_array=True,
                                            bits=np.float32)
         assert np.array_equal(
             res["output1"], np.array([1, 2, 3], dtype=np.float32))
@@ -287,15 +317,59 @@ class TestGetECGData(object):
         config = {"output1": "signal2"}
         with pytest.raises(MissingTagError):
             reader_utils.get_ecg_data(data_dict, config, skip_empty=False)
-        with pytest.raises(ValueError):
+        with pytest.raises(InputValidationError):
             reader_utils.get_ecg_data(data_dict, config, as_array='False')
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_as_buffer(self):
-        data_dict = {"signal1": "b'\\x01\\x02\\x03\\x04'"}
-        config = {"output1": "signal1"}
-        res, _ = reader_utils.get_ecg_data(data_dict, config,
-                                           as_array='Buffer',
-                                           bits=np.int8)
-        assert np.array_equal(
-            res["output1"], np.array([1, 2, 3, 4], dtype=np.int8))
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# subset_dict
+class TestSubsetDict(object):
+    """
+    Testing `subset_dict`
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_subset_dict(self, recwarn):
+        res = reader_utils.subset_dict(
+            data_subset_dict, pattern_subset_dict, verbose=False,
+        )
+        assert res == {
+            'Temperature (Referenced Waveform Channels)': 'Channel 10',
+            'Temperature (Numeric Value)': 36.7,
+            'Heart Rate (Measurement Units Code Sequence Code Value)': 'bpm',
+            'Other Code Meaning (Some Value)': 'Other Data'
+        }
+        # confirm there are no warnings
+        assert len(recwarn) == 0
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_subset_dict_sub(self):
+        res = reader_utils.subset_dict(
+            data_subset_dict, pattern_subset_dict, verbose=False,
+            substitute=(r'_[0-9]{1,2}', ' '),
+        )
+        assert res == {
+            'Temperature (Referenced Waveform Channels)': 'Channel 10',
+            'Temperature (Numeric Value)': 36.7,
+            'Heart Rate (Measurement Units Code Sequence .Code Value)': 'bpm',
+            'Other Code Meaning (Some Value)': 'Other Data'
+        }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_subset_dict_warn(self):
+        with pytest.warns(UserWarning):
+            _ = reader_utils.subset_dict(
+                data_subset_dict, pattern_subset_dict, verbose=True,
+            )
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_subset_dict_error(self):
+        with pytest.raises(ValueError):
+            _ = reader_utils.subset_dict(
+                data_subset_dict, pattern_subset_dict_error, verbose=True,
+            )
+
+# verbose=True
+# sep='.'
+
+# # re.sub(r'_, , 'Referenced Waveform Channels_1'
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# subset_dict(data, pattern)
+# test2=subset_dict(data, pattern, substitute=None)
+# test3=subset_dict(data, pattern, substitute=[r'_[0-9]{1,2}\.*', ' '])
+# [r'_[0-9]{1,2}\.* ', '']

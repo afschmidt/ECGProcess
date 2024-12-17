@@ -54,12 +54,12 @@ class CoreData:
         SF_U    = 'sampling frequency unit'
         SN_W    = 'sampling number (waveforms)'
         SN_M    = 'sampling number (medianbeats)'
-        SECOND  = 'observation second'
-        MINUTE  = 'observation minute'
-        HOUR    = 'observation hour'
-        DAY     = 'observation day'
-        MONTH   = 'observation month'
-        YEAR    = 'observation year'
+        # SECOND  = 'observation second'
+        # MINUTE  = 'observation minute'
+        # HOUR    = 'observation hour'
+        # DAY     = 'observation day'
+        # MONTH   = 'observation month'
+        # YEAR    = 'observation year'
     # /////////////////////////////////////////////////////////////////////////
     class ProcessingData:
         '''
@@ -77,9 +77,7 @@ class UtilsReaderNames(object):
     '''
     Names used in the Utils Reader Tools module.
     '''
-    GET_DATA_ARRAY_A     = 'Array'
-    GET_DATA_ARRAY_B     = 'Buffer'
-    GET_DATA_ARRAY_N     = 'No'
+    DICOM_WAVE_ARRAY     = 'waveform_array'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsGeneralNames(object):
