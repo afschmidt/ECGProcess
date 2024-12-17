@@ -329,7 +329,8 @@ class TestSubsetDict(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_subset_dict(self, recwarn):
         res = reader_utils.subset_dict(
-            data_subset_dict, pattern_subset_dict, verbose=False,
+            data_subset_dict, pattern_subset_dict, verbose=True,
+            character_trim=1,
         )
         assert res == {
             'Temperature (Referenced Waveform Channels)': 'Channel 10',
@@ -337,13 +338,13 @@ class TestSubsetDict(object):
             'Heart Rate (Measurement Units Code Sequence Code Value)': 'bpm',
             'Other Code Meaning (Some Value)': 'Other Data'
         }
-        # confirm there are no warnings
-        assert len(recwarn) == 0
+        # confirm there is a warning
+        assert len(recwarn) == 1
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_subset_dict_sub(self):
+    def test_subset_dict_sub(self, recwarn):
         res = reader_utils.subset_dict(
             data_subset_dict, pattern_subset_dict, verbose=False,
-            substitute=(r'_[0-9]{1,2}', ' '),
+            substitute=(r'_[0-9]{1,2}', ' '), character_trim=1,
         )
         assert res == {
             'Temperature (Referenced Waveform Channels)': 'Channel 10',
@@ -351,6 +352,8 @@ class TestSubsetDict(object):
             'Heart Rate (Measurement Units Code Sequence .Code Value)': 'bpm',
             'Other Code Meaning (Some Value)': 'Other Data'
         }
+        # confirm there are no warnings
+        assert len(recwarn) == 0
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_subset_dict_warn(self):
         with pytest.warns(UserWarning):
@@ -362,14 +365,6 @@ class TestSubsetDict(object):
         with pytest.raises(ValueError):
             _ = reader_utils.subset_dict(
                 data_subset_dict, pattern_subset_dict_error, verbose=True,
+                skip_empty=False,
             )
 
-# verbose=True
-# sep='.'
-
-# # re.sub(r'_, , 'Referenced Waveform Channels_1'
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# subset_dict(data, pattern)
-# test2=subset_dict(data, pattern, substitute=None)
-# test3=subset_dict(data, pattern, substitute=[r'_[0-9]{1,2}\.*', ' '])
-# [r'_[0-9]{1,2}\.* ', '']

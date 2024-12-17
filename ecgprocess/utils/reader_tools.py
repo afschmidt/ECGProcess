@@ -335,7 +335,7 @@ def get_ecg_data(data_dict:dict[str, Any],
                     results_dict[t] = np.array(results_dict[t], dtype=bits)
                 except ValueError:
                     pass
-        elif skip_empty == False:
+        elif skip_empty == False and not s is None:
             # Should an Error be returned
             raise MissingTagError(s)
         else:
@@ -348,7 +348,8 @@ def get_ecg_data(data_dict:dict[str, Any],
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def subset_dict(data:dict[str, Any], pattern:dict[str, str],
                 substitute:tuple[str,str]|None=(r'_[0-9]{1,2}\.*', ' '),
-                verbose:bool=True,
+                character_trim:int=0,
+                verbose:bool=True, skip_empty:bool=True,
                 ) -> dict[str, Any]:
     """
     Creates a subset of a dictionary by grouping keys based on a matching
@@ -367,10 +368,13 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
         `data`, and each value defines the suffix to search within the matching
         keys in `data`. The value found in `data` corresponding to this suffix
         is used as the prefix for the resulting dictionary keys.
-    substitute : `tuple` [`str`,`str`] or `None`, default `(r"_[0-9]{1,2}\.*", " ")`
+    substitute : `tuple` [`str`,`str`] or `None`, default `(r"_[0-9]{1,2}\\.*", " ")`
         A tuple containing a regular expression pattern and replacement string.
         This substitution is applied to the remaining portion of the `data` key
         after removing the matching prefix.
+    character_trim : int, default `0`
+        The number of charecters which should be removed from the right-hand
+        side of the `data` key which did not match the `pattern` key.
     verbose : `bool`, default `True`
         Whether warnings should be issued.
     
@@ -426,6 +430,8 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
         prefix = None
         sub_dict = {}
         for k, v in data.items():
+            # if 'Name Code Sequence_0.Code Meaning' in k:
+            #     break
             # Skip if the string does not match
             # if regex==True:
             #     mtch = bool(re.search(d_name, k))
@@ -436,29 +442,37 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
                 unmatched_keys.discard(d_name)
                 # Subset the non-matching string
                 d_name_len = len(d_name)
-                str_remainder = k[d_name_len + 1:]
+                str_remainder = k[d_name_len + character_trim:]
                 # string replacement
                 if not substitute is None:
                     m, r = substitute
                     str_remainder = re.sub(m, r, str_remainder).strip()
-                # print(attribute)
                 # Check g_name is in str_remainder
                 if g_name in str_remainder:
                     if prefix is not None:
-                        raise ValueError("`prefix` is already set, please "
-                                         f"ensure {g_name} is unique.")
+                        raise ValueError(
+                            f"For pattern {d_name}, `prefix`: {prefix} is "
+                            f"already set, cannot assign new value: {v} "
+                            f"please ensure `{g_name}` is unique.")
                     prefix = v
                 else:
                     sub_dict[str_remainder] = v
         # next confirm prefix is not None, and add the prefix
-        if mtch and prefix is None:
-            raise ValueError(f"`{g_name}` was not found in data.")
-        grouped.update({f"{prefix} ({key})": val for key, val in\
-                        sub_dict.items()})
+        if len(sub_dict) > 0:
+            if prefix is None:
+                if skip_empty:
+                    continue
+                else:
+                    raise ValueError(f"`{g_name}` was not found in data.")
+            grouped.update(
+                {f"{prefix} ({key})": val for key, val in sub_dict.items()}
+            )
+            del sub_dict
     # do we want to return un-matching keys
     if verbose and unmatched_keys:
             warnings.warn("The following keys did not match any pattern: "
                           f"{', '.join(unmatched_keys)}")
     # return
     return grouped
+
 

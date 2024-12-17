@@ -144,8 +144,9 @@ class ECGXMLReader(BaseReader):
         # ### return
         return self
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def extract(self, config:ConfigParser, skip_empty:bool=True,
-                parse_numeric:bool=True, **kwargs:Optional[Any]) -> Self:
+    def extract(self, config:ConfigParser, bits:np.dtype | None=None,
+                skip_empty:bool=True, parse_numeric:bool=True,
+                **kwargs:Optional[Any]) -> Self:
         """
         Processes the raw ECG data and assign these to class attributes
         performing resampling and lead augmentation if requested.
@@ -169,6 +170,8 @@ class ECGXMLReader(BaseReader):
             decimal separator.
         skip_empty : `bool`, default `True`
             Whether empty tags should be skipped or throw an error.
+        bits : `np.dtype`, default `None`
+            np.array bits passed to numpy.array dtype.
         **kwargs
             The keyword arguments for reader_tools.get_ecg_data.
             For the waveforms and medianbeats as_array and bits are hard coded
@@ -216,7 +219,7 @@ class ECGXMLReader(BaseReader):
                 getattr(self, CProc.RAW),
                 config=wf_cnf,
                 as_array=self._as_array,
-                bits=np.int16,
+                bits=bits,
                 **kwargs,
             )
         # #### extract median beats
@@ -225,7 +228,7 @@ class ECGXMLReader(BaseReader):
                 getattr(self, CProc.RAW),
                 config=mb_cnf,
                 as_array=self._as_array,
-                bits=np.int16,
+                bits=bits,
                 **kwargs,
             )
         # #### extract other data
@@ -278,7 +281,9 @@ class ECGXMLReader(BaseReader):
             median_data = ecg_utils.get_limb_leads(median_data)
         # ### do we print missing tags
         if self.verbose == True:
-            missing_tags=meta_missing+wave_missing+median_missing+other_missing
+            missing_tags = [tag for tag in (
+                meta_missing + wave_missing + median_missing + other_missing
+            ) if tag is not None]
             if len(missing_tags)>0:
                 warnings.warn(Warn_MSG.MISSING_TAG.format(missing_tags))
         # #### assing stuff to attributes
