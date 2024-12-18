@@ -77,9 +77,6 @@ class ECGDICOMReader(ECGXMLReader):
     dicom_tags = ManagedProperty(PDNames.DICOM_TAGS, list)
     raw_data = ManagedProperty(CProc.RAW, dict)
     _as_array:bool = True
-    # Prevent xml_tags from being inherited
-    # if hasattr(ECGXMLReader, PXMLNam.XML_TAGS):
-    #     delattr(ECGXMLReader, PXMLNam.XML_TAGS)
     # #### parameters, with defaults
     augment_leads:bool = field(default=False)
     resample_500:bool = field(default=True)

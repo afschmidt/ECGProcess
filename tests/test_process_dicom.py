@@ -46,7 +46,7 @@ example_config = {
     ]
 }
 pattern = {f"Waveform Annotation Sequence_{i}.":\
-           "Name Code Sequence Code Meaning" for i in range(17)}
+           "Name Code Sequence_0.Code Meaning" for i in range(17)}
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ECGDICOMReader

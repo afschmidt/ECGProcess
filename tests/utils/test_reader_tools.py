@@ -33,18 +33,18 @@ data_subset_dict = {
 }
 # Prefix-to-code-meaning mapping
 pattern_subset_dict = {
-    "Waveform Annotation Sequence_15": "Code Meaning",
-    "Waveform Annotation Sequence_8": "Code Meaning",
-    "Waveform Annotation Sequence_16": "Code Meaning",
-    "Waveform Annotation Sequence_11": "Code Meaning",
-    "Other Annotation Sequence_1": "Meaning",
+    "Waveform Annotation Sequence_15.": "Code Meaning",
+    "Waveform Annotation Sequence_8.": "Code Meaning",
+    "Waveform Annotation Sequence_16.": "Code Meaning",
+    "Waveform Annotation Sequence_11.": "Code Meaning",
+    "Other Annotation Sequence_1.": "Meaning",
 }
 pattern_subset_dict_error = {
-    "Waveform Annotation Sequence_15": "Code Meaning",
-    "Waveform Annotation Sequence_8": "Code Meaning",
-    "Waveform Annotation Sequence_16": "Code Meaning",
-    "Waveform Annotation Sequence_11": "Code Meaning",
-    "Other Annotation Sequence_1": "Meaning2",
+    "Waveform Annotation Sequence_15.": "Code Meaning",
+    "Waveform Annotation Sequence_8.": "Code Meaning",
+    "Waveform Annotation Sequence_16.": "Code Meaning",
+    "Waveform Annotation Sequence_11.": "Code Meaning",
+    "Other Annotation Sequence_1.": "Meaning2",
 }
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -330,7 +330,7 @@ class TestSubsetDict(object):
     def test_subset_dict(self, recwarn):
         res = reader_utils.subset_dict(
             data_subset_dict, pattern_subset_dict, verbose=True,
-            character_trim=1,
+            character_trim=0,
         )
         assert res == {
             'Temperature (Referenced Waveform Channels)': 'Channel 10',
@@ -344,7 +344,7 @@ class TestSubsetDict(object):
     def test_subset_dict_sub(self, recwarn):
         res = reader_utils.subset_dict(
             data_subset_dict, pattern_subset_dict, verbose=False,
-            substitute=(r'_[0-9]{1,2}', ' '), character_trim=1,
+            substitute=(r'_[0-9]{1,2}', ' '), character_trim=0,
         )
         assert res == {
             'Temperature (Referenced Waveform Channels)': 'Channel 10',

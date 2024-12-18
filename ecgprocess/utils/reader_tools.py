@@ -430,12 +430,6 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
         prefix = None
         sub_dict = {}
         for k, v in data.items():
-            # if 'Name Code Sequence_0.Code Meaning' in k:
-            #     break
-            # Skip if the string does not match
-            # if regex==True:
-            #     mtch = bool(re.search(d_name, k))
-            # else:
             mtch = k.startswith(d_name)
             if mtch:
                 # remove from unmatched
@@ -443,10 +437,11 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
                 # Subset the non-matching string
                 d_name_len = len(d_name)
                 str_remainder = k[d_name_len + character_trim:]
-                # string replacement
+                # Do we want a cleaner string
+                str_remainder_clean = str_remainder
                 if not substitute is None:
                     m, r = substitute
-                    str_remainder = re.sub(m, r, str_remainder).strip()
+                    str_remainder_clean = re.sub(m, r, str_remainder).strip()
                 # Check g_name is in str_remainder
                 if g_name in str_remainder:
                     if prefix is not None:
@@ -456,7 +451,7 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
                             f"please ensure `{g_name}` is unique.")
                     prefix = v
                 else:
-                    sub_dict[str_remainder] = v
+                    sub_dict[str_remainder_clean] = v
         # next confirm prefix is not None, and add the prefix
         if len(sub_dict) > 0:
             if prefix is None:
