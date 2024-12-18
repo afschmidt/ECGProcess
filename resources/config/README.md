@@ -1,10 +1,10 @@
 # Configuration files to process ECG data
 
-It is should fairly straightforward to extract signal data 
+It should be fairly straightforward to extract signal data 
 from XML or DICOM files. 
 These files often include an abundance of metadata which 
-may also be important to consider, either in the analysis or in
-the processing. 
+may also be important to consider, either in downstream analysis or in
+processing of the signal data. 
 The process modules in ECGProcess leverage user-defined 
 configuration files to extract the ECG waveform, medianbeats, 
 and metadata in one go. 
@@ -60,7 +60,7 @@ Here the RHS will depend on the specific file that is being processed.
 The LHS names are privileged, meaning that the processing methods will ignore
 any other words or characters that do not exactly match the provided example. 
 
-_Note_: you can completely omit the header, or only specify a subset of lead 
+_Note_: you can completely omit these headers, or only specify a subset of lead 
 names.  The processing methods will simply assign `None` values to missing
 lead names. 
 

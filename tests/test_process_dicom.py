@@ -1,6 +1,7 @@
 import os
 import pytest
 import ecgprocess.utils.config_tools as config_utils
+from unittest import mock
 from tempfile import NamedTemporaryFile
 from ecgprocess.constants import ProcessDicomNames as PDNames
 from ecgprocess.errors import MissingTagError
@@ -85,14 +86,13 @@ class TestECGDICOMReader(object):
         with pytest.raises(ValueError):
             _ = ECG_DCM(path=invalid_file)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_wrong_permission_file(self, tmp_path):
-        # Create a dummy invalid DICOM file
-        unreadable_file = tmp_path / "invalid_file.dcm"
-        unreadable_file.write_text("This is not a valid DICOM file")
-        os.chmod(unreadable_file, 0o000)
+    def test_wrong_permission_file(self):
+        # Mock the behavior of opening the file and raise PermissionError
         ECG_DCM = ECGDICOMReader()
-        with pytest.raises(PermissionError):
-            _ = ECG_DCM(path=unreadable_file)
+        with mock.patch("builtins.open",
+                        mock.MagicMock(side_effect=PermissionError)):
+            with pytest.raises(PermissionError):
+                _ = ECG_DCM(path="invalid_file.dcm")
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_extract(self):
         n_leads = 'number of leads'
