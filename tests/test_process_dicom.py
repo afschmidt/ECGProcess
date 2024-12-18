@@ -58,9 +58,9 @@ class TestECGDICOMReader(object):
     def test_init(self):
         # default
         ECG_DCM = ECGDICOMReader()
-        assert getattr(ECG_DCM, PDNames.DICOM_TAGS) is None
+        assert getattr(ECG_DCM, CProc.TAGS) is None
         assert getattr(ECG_DCM, CProc.RAW) is None
-        # assert hasattr(ECG_DCM, PXMLNam.XML_TAGS) == False
+        # assert hasattr(ECG_DCM, CProc.TAGS) == False
         assert getattr(ECG_DCM, '_as_array') == True
         assert getattr(ECG_DCM, PXMLNam.AUG_LEADS) == False
         assert getattr(ECG_DCM, PXMLNam.RESAMPLE) == True
@@ -72,9 +72,9 @@ class TestECGDICOMReader(object):
     def test_call(self):
         ECG_DCM = ECGDICOMReader()
         file1 = ECG_DCM(path=dicom_file_path)
-        assert len(getattr(file1, PDNames.DICOM_TAGS)) > 100
+        assert len(getattr(file1, CProc.TAGS)) > 100
         assert len(getattr(file1, CProc.RAW)) > 100
-        assert len(getattr(file1, PDNames.DICOM_TAGS)) ==\
+        assert len(getattr(file1, CProc.TAGS)) ==\
             len(getattr(file1, CProc.RAW))
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_wrong_dicom_file(self, tmp_path):

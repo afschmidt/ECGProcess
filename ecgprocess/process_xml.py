@@ -27,7 +27,6 @@ from ecgprocess.errors import (
     Error_MSG,
 )
 from ecgprocess.constants import (
-    UtilsReaderNames as RNames,
     ProcessXMLNames as PXMLNam,
     CoreData as Core,
 )
@@ -70,7 +69,7 @@ class ECGXMLReader(BaseReader):
     
     """
     # #### properties
-    xml_tags = ManagedProperty(PXMLNam.XML_TAGS, list)
+    tags = ManagedProperty(CProc.TAGS, list)
     raw_data = ManagedProperty(CProc.RAW, dict)
     _as_array:bool = True
     # #### parameters, with defaults
@@ -104,10 +103,10 @@ class ECGXMLReader(BaseReader):
         
         Attributes
         ----------
-        xml_tags : `list` [`str`]
-            A list of strings with parsed xml tags matching the `raw_data` keys.
+        tags : `list` [`str`]
+            A list of strings with parsed tags matching the `raw_data` keys.
         raw_data : `dict` [`str`, `any`]
-            The raw parsed XML data.
+            The raw parsed data.
         
         Returns
         -------
@@ -139,7 +138,7 @@ class ECGXMLReader(BaseReader):
         )
         # ### store keys and data
         getattr(type(self), CProc.RAW).set_with_setter(self, xml_dict)
-        getattr(type(self), PXMLNam.XML_TAGS).set_with_setter(
+        getattr(type(self), CProc.TAGS).set_with_setter(
             self, list(xml_dict.keys()))
         # ### return
         return self

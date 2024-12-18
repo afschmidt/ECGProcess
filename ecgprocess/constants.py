@@ -66,6 +66,7 @@ class CoreData:
         Contains constants for attributes and variables created by the process
         modules.
         '''
+        TAGS      = 'tags'
         RAW       = 'raw_data'
         Duration  = 'duration (sec)'
         SF_NEW    = 'sampling frequency (processed)'
@@ -104,13 +105,11 @@ class ProcessXMLNames(object):
     '''
     Names used in the process_xml module.
     '''
-    XML_TAGS  = 'xml_tags'
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class ProcessDicomNames(object):
-    DICOM_TAGS  = 'dicom_tags'
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
     

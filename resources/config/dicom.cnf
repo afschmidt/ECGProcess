@@ -1,0 +1,65 @@
+[WaveForms]
+I					WaveformData.ECG_Leads_0
+II					WaveformData.ECG_Leads_1
+III					WaveformData.ECG_Leads_2
+aVR					WaveformData.ECG_Leads_3
+aVL					WaveformData.ECG_Leads_4
+aVF					WaveformData.ECG_Leads_5
+V1					WaveformData.ECG_Leads_6
+V2					WaveformData.ECG_Leads_7
+V3					WaveformData.ECG_Leads_8
+V4					WaveformData.ECG_Leads_9
+V5					WaveformData.ECG_Leads_10
+V6					WaveformData.ECG_Leads_11
+[MedianBeats]
+I					WaveformData.Median_Beats_0
+II					WaveformData.Median_Beats_1
+III					WaveformData.Median_Beats_2
+aVR					WaveformData.Median_Beats_3
+aVL					WaveformData.Median_Beats_4
+aVF					WaveformData.Median_Beats_5
+V1					WaveformData.Median_Beats_6
+V2					WaveformData.Median_Beats_7
+V3					WaveformData.Median_Beats_8
+V4					WaveformData.Median_Beats_9
+V5					WaveformData.Median_Beats_10
+V6					WaveformData.Median_Beats_11
+[MetaData]
+# Privileged tags
+unique identifier				SOP Class UID
+number of leads					Waveform Sequence_0.Number of Waveform Channels
+resolution unit (waveforms)			Waveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity Units Sequence_0.Code Value
+resolution (waveforms)				Waveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity
+resolution unit (medianbeats)			Waveform Sequence_1.Channel Definition Sequence_0.Channel Sensitivity Units Sequence_0.Code Value
+resolution (medianbeats)			Waveform Sequence_1.Channel Definition Sequence_0.Channel Sensitivity
+sampling frequency (original)			Waveform Sequence_0.Sampling Frequency
+sampling number (waveforms)			Waveform Sequence_0.Number of Waveform Samples
+sampling number (medianbeats)			Waveform Sequence_1.Number of Waveform Samples
+# baseline and correction information
+baseline (waveforms)				Waveform Sequence_0.Channel Definition Sequence_0.Channel Baseline
+correction factor (waveforms)			Waveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity Correction Factor
+baseline (medianbeats)				Waveform Sequence_1.Channel Definition Sequence_0.Channel Baseline
+correction factor (medianbeats)			Waveform Sequence_1.Channel Definition Sequence_0.Channel Sensitivity Correction Factor
+# Dates and times
+study date					Study Date
+content date					Content Date
+cruve date					Curve Date
+start date					Acquisition DateTime
+# Patient information
+patient identifier				Patient ID
+gender						Patient's Sex
+birthday					Patient's Birth Date
+height						Patient's Size
+weight						Patient's Weight
+# Also see how to extract this
+cubicspline					FilterSetting.CubicSpline
+filter50hz					FilterSetting.Filter50Hz
+filter60hz					FilterSetting.Filter60Hz
+lowpass unit					FilterSetting.LowPass.@units
+lowpass						FilterSetting.LowPass.#text
+highpass unit					FilterSetting.HighPass.@units
+highpass					FilterSetting.HighPass.#text
+Fist valid sample unit (medianbeats)		RestingECGMeasurements.MedianSamples.FirstValid.@units
+Fist valid sample(medianbeats)			RestingECGMeasurements.MedianSamples.FirstValid.#text
+Last valid sample unit (medianbeats)		RestingECGMeasurements.MedianSamples.LastValid.@units
+Last valid sample unit (medianbeats)		RestingECGMeasurements.MedianSamples.LastValid.#text

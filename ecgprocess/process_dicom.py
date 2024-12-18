@@ -24,7 +24,6 @@ from ecgprocess.utils.general import(
     parse_number,
 )
 from ecgprocess.constants import (
-    ProcessXMLNames as PXMLNam,
     ProcessDicomNames as PDNames,
     CoreData as Core,
 )
@@ -74,7 +73,7 @@ class ECGDICOMReader(ECGXMLReader):
     
     """
     # #### properties
-    dicom_tags = ManagedProperty(PDNames.DICOM_TAGS, list)
+    tags = ManagedProperty(CProc.TAGS, list)
     raw_data = ManagedProperty(CProc.RAW, dict)
     _as_array:bool = True
     # #### parameters, with defaults
@@ -103,10 +102,10 @@ class ECGDICOMReader(ECGXMLReader):
         
         Attributes
         ----------
-        dicom_tags : `list` [`str`]
-            A list of strings with parsed DICOM tags matching the `raw_data` keys.
+        tags : `list` [`str`]
+            A list of strings with parsed tags matching the `raw_data` keys.
         raw_data : `dict` [`str`, `any`]
-            The raw parsed DICOM data.
+            The raw parsed data.
         
         Returns
         -------
@@ -134,7 +133,7 @@ class ECGDICOMReader(ECGXMLReader):
         )
         # ### store keys and data
         getattr(type(self), CProc.RAW).set_with_setter(self, dicom_dict)
-        getattr(type(self), PDNames.DICOM_TAGS).set_with_setter(
+        getattr(type(self), CProc.TAGS).set_with_setter(
             self, list(dicom_dict.keys()))
         # ### return
         return self
