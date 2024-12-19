@@ -26,7 +26,7 @@ CMeta  = Core.MetaData
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @dataclass
-class RequiredData(object):
+class PrivilegedData(object):
     '''
     The core metadata dictionary, where the key values cannot not be changed
     because these are expected used by downstream programs. The values can
@@ -48,7 +48,7 @@ class RequiredData(object):
     
     Examples
     --------
-    >>> required = RequiredData()
+    >>> required = PrivilegedData()
     >>> print(*required.keys(), sep='\n')
     unique identifier
     sampling frequency (original)
@@ -112,7 +112,7 @@ class RequiredData(object):
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @dataclass
-class OtherData(RequiredData):
+class OtherData(PrivilegedData):
     """
     A class to map internal attribute names to DICOM/XML tags and collect data
     based on optional attributes.
@@ -126,7 +126,7 @@ class OtherData(RequiredData):
     keys()
         Returns the dictionary keys.
     """
-    # overwrite _data from RequiredData
+    # overwrite _data from PrivilegedData
     _data: Optional[dict[str, str]] = field(default_factory=dict)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def update_values(self, **kwargs:Optional[Any]) -> None:
@@ -179,11 +179,11 @@ class DataMap(object):
     ['WaveForms', 'MedianBeats', 'MetaData']
     """
     # setting attributes
-    WaveForms: dict = field(default_factory=lambda: RequiredData(
+    WaveForms: dict = field(default_factory=lambda: PrivilegedData(
         _data=DataMap.get_leads()).to_dict())
-    MedianBeats: dict = field(default_factory=lambda: RequiredData(
+    MedianBeats: dict = field(default_factory=lambda: PrivilegedData(
         _data=DataMap.get_leads()).to_dict())
-    MetaData: dict = field(default_factory=lambda: RequiredData().to_dict())
+    MetaData: dict = field(default_factory=lambda: PrivilegedData().to_dict())
     OtherData: dict | None = None
     _VALIDATE_ATTR = (
         ConfigNames.WaveForms, ConfigNames.MedianBeats,
@@ -426,11 +426,11 @@ class ConfigParser(object):
         # ### class instances
         # setting up the signal data
         lead_keys = mapper.get_leads()
-        wave_data = RequiredData(_data=lead_keys.copy())
-        median_data = RequiredData(_data=lead_keys.copy())
+        wave_data = PrivilegedData(_data=lead_keys.copy())
+        median_data = PrivilegedData(_data=lead_keys.copy())
         lead_keys = lead_keys.keys()
         # setting up the meta/other data
-        meta_data_req = RequiredData()
+        meta_data_req = PrivilegedData()
         req_keys = meta_data_req.keys()
         meta_data_other = OtherData()
         other_data = OtherData()

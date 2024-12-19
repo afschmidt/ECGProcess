@@ -35,31 +35,21 @@ resolution (medianbeats)			Waveform Sequence_1.Channel Definition Sequence_0.Cha
 sampling frequency (original)			Waveform Sequence_0.Sampling Frequency
 sampling number (waveforms)			Waveform Sequence_0.Number of Waveform Samples
 sampling number (medianbeats)			Waveform Sequence_1.Number of Waveform Samples
-# baseline and correction information
+# The lead names - important to confirm the leads have been assigned correctly. 
+signal name 0					Waveform Sequence_0.Channel Definition Sequence_0.Channel Source Sequence_0.Code Meaning
+signal name 1					Waveform Sequence_0.Channel Definition Sequence_1.Channel Source Sequence_0.Code Meaning
+signal name 2					Waveform Sequence_0.Channel Definition Sequence_2.Channel Source Sequence_0.Code Meaning
+signal name 3					Waveform Sequence_0.Channel Definition Sequence_3.Channel Source Sequence_0.Code Meaning
+signal name 4					Waveform Sequence_0.Channel Definition Sequence_4.Channel Source Sequence_0.Code Meaning
+signal name 5					Waveform Sequence_0.Channel Definition Sequence_5.Channel Source Sequence_0.Code Meaning
+signal name 6					Waveform Sequence_0.Channel Definition Sequence_6.Channel Source Sequence_0.Code Meaning
+signal name 7					Waveform Sequence_0.Channel Definition Sequence_7.Channel Source Sequence_0.Code Meaning
+signal name 8					Waveform Sequence_0.Channel Definition Sequence_8.Channel Source Sequence_0.Code Meaning
+signal name 9					Waveform Sequence_0.Channel Definition Sequence_9.Channel Source Sequence_0.Code Meaning
+signal name 10					Waveform Sequence_0.Channel Definition Sequence_10.Channel Source Sequence_0.Code Meaning
+signal name 11					Waveform Sequence_0.Channel Definition Sequence_11.Channel Source Sequence_0.Code Meaning
+# baseline and correction information - can also extract this per lead if needed
 baseline (waveforms)				Waveform Sequence_0.Channel Definition Sequence_0.Channel Baseline
 correction factor (waveforms)			Waveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity Correction Factor
 baseline (medianbeats)				Waveform Sequence_1.Channel Definition Sequence_0.Channel Baseline
 correction factor (medianbeats)			Waveform Sequence_1.Channel Definition Sequence_0.Channel Sensitivity Correction Factor
-# Dates and times
-study date					Study Date
-content date					Content Date
-cruve date					Curve Date
-start date					Acquisition DateTime
-# Patient information
-patient identifier				Patient ID
-gender						Patient's Sex
-birthday					Patient's Birth Date
-height						Patient's Size
-weight						Patient's Weight
-# Also see how to extract this
-cubicspline					FilterSetting.CubicSpline
-filter50hz					FilterSetting.Filter50Hz
-filter60hz					FilterSetting.Filter60Hz
-lowpass unit					FilterSetting.LowPass.@units
-lowpass						FilterSetting.LowPass.#text
-highpass unit					FilterSetting.HighPass.@units
-highpass					FilterSetting.HighPass.#text
-Fist valid sample unit (medianbeats)		RestingECGMeasurements.MedianSamples.FirstValid.@units
-Fist valid sample(medianbeats)			RestingECGMeasurements.MedianSamples.FirstValid.#text
-Last valid sample unit (medianbeats)		RestingECGMeasurements.MedianSamples.LastValid.@units
-Last valid sample unit (medianbeats)		RestingECGMeasurements.MedianSamples.LastValid.#text

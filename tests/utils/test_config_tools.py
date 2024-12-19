@@ -21,7 +21,7 @@ class TestBaseExtraction(object):
     Testing classses related to Extraction.
     """ # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_required_data(self):
-        required = config_utils.RequiredData()
+        required = config_utils.PrivilegedData()
         default = required.to_dict()
         # Update values for some keys
         updates = {
@@ -39,8 +39,8 @@ class TestBaseExtraction(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_required_data_multiple_intances(self):
         """Making sure multiple instances have unique content"""
-        required1 = config_utils.RequiredData()
-        required2 = config_utils.RequiredData()
+        required1 = config_utils.PrivilegedData()
+        required2 = config_utils.PrivilegedData()
         # Update values for some keys
         updates = {
             CMeta.UID: "UniqueID123",
@@ -51,7 +51,7 @@ class TestBaseExtraction(object):
         assert required1.to_dict().values() != required2.to_dict().values()
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_required_data_invalid_keys(self):
-        required = config_utils.RequiredData()
+        required = config_utils.PrivilegedData()
         # Try updating an invalid key
         with pytest.raises(KeyError):
             required.update_values(InvalidKey="InvalidValue")
