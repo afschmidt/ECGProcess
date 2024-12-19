@@ -114,6 +114,13 @@ class ProcessDicomNames(object):
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
     
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class FixedReaderNames(object):
+    ORIG_DCMREAD_INST     = 'DMCReadInstance'
+    WAVE_FORM_SEQ         = 'WaveformSequence'
+    CHANNEL_DEF_SEQ       = 'ChannelDefinitionSequence'
+    CHANNEL_NUMBER        = 'ChannelNumber'
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class TabularNames(object):
     '''
     Names used in the process_dicom module.
@@ -121,19 +128,12 @@ class TabularNames(object):
     MetaData              = CoreData.DataTypes.MetaData
     WaveForms             = CoreData.DataTypes.WaveForms
     MedianBeats           = CoreData.DataTypes.MedianBeats
-    MEDIAN_PRESENT        = 'MedianWaveformPresent'
-    WAVE_ARRAY            = 'Raw_Waveforms'
-    MEDIAN_ARRAY          = 'Raw_MedianWaveforms'
     LEAD_INFO             = 'lead_info_final'
-    WAVE_FORM_SEQ         = 'WaveformSequence'
-    CHANNEL_DEF_SEQ       = 'ChannelDefinitionSequence'
-    CHANNEL_NUMBER        = 'ChannelNumber'
     CHANNEL_SOURCE_SEQ    = 'ChannelSourceSequence'
     CHANNEL_CODE_MEANING  = 'CodeMeaning'
     CHANNEL_SENS          = 'ChannelSensitivity'
     CHANNEL_SENS_UNIT     = 'ChannelSensitivityUnitsSequence'
     STUDY_TIME            = 'StudyTime'
-    DURATION              = 'Duration'
     UNIT                  = 'Unit free'
     LEAD                  = 'Lead'
     LEAD_III              = 'III'
@@ -142,8 +142,6 @@ class TabularNames(object):
     LEAD_aVR              = 'aVR'
     LEAD_aVL              = 'aVL'
     LEAD_aVF              = 'aVF'
-    OVERSAMPLED           = 'oversampled'
-    ORIG_DCMREAD_INST     = 'DMCReadInstance'
     KEY_L                 = 'IndexList'
     FAILED_DATA_L         = 'NoDataList'
     INFO_T                = 'GeneralInfoTable'
@@ -156,7 +154,6 @@ class TabularNames(object):
     FPATH_L               = 'FailedPathList'
     RPATH_L               = 'RawPathList'
     CPATH_L               = 'CuratedPathList'
-    SAMPLING_SEQ          = 'SamplingSequence'
     COL_LEAD              = 'Lead'
     COL_VOLTAGE           = 'Voltage'
     COL_WAVETYPE          = 'Waveform type'
@@ -165,18 +162,9 @@ class TabularNames(object):
     WRITE_ECG_PATH        = 'target_path'
     PREVIOUS_HEADER       = 'previous_header'
     TABLE_CALLED          = 'table_called'
-    ECG_INTERPERTATION    = 'WaveformAnnotationSequence'
-    ECG_CONCEPTNAME       = 'ConceptNameCodeSequence'
-    CODE_MEANING          = 'CodeMeaning'
-    ECG_TRAIT_VALUE       = 'NumericValue'
     ECG_TRAIT_QT          = 'QT Interval'
     ECG_TRAIT_QT_U        = 'QT Interval UNIT'
     ECG_TRAIT_QRS_D       = 'QRS Duration'
-    ECG_UNIT              = 'MeasurementUnitsCodeSequence'
-    ECG_UNIT_STRING       = ' UNIT'
-    REFERENCED_POS        = 'ReferencedSamplePositions'
-    PACEMAKER_SPIKE       = 'Pacemaker Spike'
-    FREE_TEXT             = 'UnformattedTextValue'
     SKIP_PERMISSIONS      = 'Permissions'
     SKIP_DATA             = 'Data'
     SKIP_NONE             = 'None'
@@ -208,18 +196,9 @@ class TabularNames(object):
     PLOT_SAMPLING_NUMBER  = 'sampling number'
     # Need to be removed after updating process_dicoms
     ACQUISITION_DATE      = 'AcquisitionDateTime'
-    SAMPLING_NUMBER       = 'NumberOfWaveformSamples'
     SAMPLING_NUMBER_M     = 'NumberOfWaveformSamples (MEDIAN)'
-    SAMPLING_FREQ         = 'SamplingFrequency'
-    SF_ORIGINAL           = 'SamplingFrequencyOriginal'
-    SF                    = 'sf'
     STUDY_DATE            = 'StudyDate'
     SOP_UID               = 'SOPinstanceUID'
-    LEAD_UNITS            = 'WaveformUnits'
-    LEAD_UNITS2           = 'MedianWaveformUnits'
-    RESULTS_DICT          = CoreData.DataTypes.MetaData
-    LEAD_VOLTAGES         = CoreData.DataTypes.WaveForms
-    LEAD_VOLTAGES2        = CoreData.DataTypes.MedianBeats
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
@@ -237,16 +216,6 @@ class DICOMTags(object):
         DICOM.
     WAVE_FORMS
         A dictionary describing the waveform data one wants to extract.
-    WAVE_FORMS_DICT
-        A dictionary describing the median beats data one wants to extract
-        from the 'WaveformSequence' or 'ChannelDefinitionSequence' attributes.
-        The dictionary value contains a list with an object name (str) and
-        element to extract.
-    MEDIAN_BEATS_DICT
-        A dictionary describing the median beats data one wants to extract
-        from the 'WaveformSequence' or 'ChannelDefinitionSequence' attributes.
-        The dictionary value contains a list with an object name (str) and
-        element to extract.
     ECG_INTERPERTATION_DICT
     A dictionary describing the ECG traits one wants to extract from the
         `WaveformAnnotationSequence` pydicom attribute. The keys will be used
@@ -278,21 +247,16 @@ class DICOMTags(object):
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     WAVE_FORMS = {
-        'TimeOffset'                      : 'MultiplexGroupTimeOffset',
-        TabularNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
-        TabularNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
-        'ChannelSensitivity'              : 'ChannelSensitivity',
-        'ChannelBaseline'                 : 'ChannelBaseline',
-        'ChannelSampleSkew'               : 'ChannelSampleSkew',
-        'FilterLowFrequency'              : 'FilterLowFrequency',
-        'FilterHighFrequency'             : 'FilterHighFrequency',
-        'NotchFilterFrequency'            : 'NotchFilterFrequency',
-        TabularNames.SF              : 'SamplingFrequency',
-        TabularNames.SF_ORIGINAL     : 'SamplingFrequency',
-    }
-    # objects which cannot be extracted in a loop
-    WAVE_FORMS_DICT = {
-        TabularNames.WAVE_ARRAY    : ['waveform_array', 0],
+        'TimeOffset'                : 'MultiplexGroupTimeOffset',
+        FixedReaderNames.CHANNEL_NUMBER : 'NumberOfWaveformChannels',
+        CoreData.MetaData.SN_W      : 'NumberOfWaveformSamples',
+        CoreData.MetaData.SF        : 'SamplingFrequency',
+        'ChannelSensitivity'        : 'ChannelSensitivity',
+        'ChannelBaseline'           : 'ChannelBaseline',
+        'ChannelSampleSkew'         : 'ChannelSampleSkew',
+        'FilterLowFrequency'        : 'FilterLowFrequency',
+        'FilterHighFrequency'       : 'FilterHighFrequency',
+        'NotchFilterFrequency'      : 'NotchFilterFrequency',
     }
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     ECG_INTERPERTATION_DICT ={
@@ -315,8 +279,8 @@ class DICOMTags(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MEDIAN_BEATS = {
         'TimeOffset'                      : 'MultiplexGroupTimeOffset',
-        TabularNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
-        TabularNames.SAMPLING_NUMBER : 'NumberOfWaveformSamples',
+        FixedReaderNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
+        CoreData.MetaData.SN_M : 'NumberOfWaveformSamples',
         'ChannelSensitivity'              : 'ChannelSensitivity',
         'ChannelBaseline'                 : 'ChannelBaseline',
         'ChannelSampleSkew'               : 'ChannelSampleSkew',
@@ -324,11 +288,9 @@ class DICOMTags(object):
         'FilterHighFrequency'             : 'FilterHighFrequency',
         'NotchFilterFrequency'            : 'NotchFilterFrequency',
     }
-    MEDIAN_BEATS = {k + ' (MEDIAN)': v for k, v in MEDIAN_BEATS.items()}
-    MEDIAN_BEATS_DICT = {
-        TabularNames.MEDIAN_ARRAY   : ['waveform_array', 1],
-        TabularNames.LEAD_INFO      : ['lead_info', 1],
-        TabularNames.LEAD_VOLTAGES2 : ['make_leadvoltages', 1]
+    MEDIAN_BEATS = {
+        (k if ' (medianbeats)' in k else f'{k} (medianbeats)'): v
+        for k, v in MEDIAN_BEATS.items()
     }
 
 

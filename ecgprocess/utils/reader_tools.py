@@ -297,7 +297,7 @@ def get_ecg_data(data_dict:dict[str, Any],
         np.array bits passed to numpy.array dtype.
     skip_empty : `bool`, default `True`
         Whether to skip config values not matching data_dict keys.
-    **kwargs,
+    **kwargs
         keyword arguments to `parse_number`.
     
     Returns
@@ -352,12 +352,10 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
                 verbose:bool=True, skip_empty:bool=True,
                 ) -> dict[str, Any]:
     """
-    Creates a subset of a dictionary by grouping keys based on a matching
-    `pattern`. Each key in the output dictionary is derived from the original
-    dictionary key, modified by removing the mathing key taken from `pattern`
-    and optionally applying a regular expression substitution. The output key
-    is further updated by adding a suffix based on the value derived from the
-    pattern value matching key in `data`.
+    This will identify a subset of `data` items based on a `startswith` call
+    using the `pattern` key, and based on the patternl values this function
+    will identify the single entry in the subset whose values contains a
+    unique name which will be added as a prefix to the subset keys.
     
     Parameters
     ---------
@@ -367,7 +365,10 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
         A dictionary where each key is a prefix to match against the keys of
         `data`, and each value defines the suffix to search within the matching
         keys in `data`. The value found in `data` corresponding to this suffix
-        is used as the prefix for the resulting dictionary keys.
+        is used as the prefix for the resulting dictionary keys. The pattern
+        keys will be matched to the data keys based on a `startswith`, while
+        the pattern values will be matched to the data keys using:
+        `value in key`.
     substitute : `tuple` [`str`,`str`] or `None`, default `(r"_[0-9]{1,2}\\.*", " ")`
         A tuple containing a regular expression pattern and replacement string.
         This substitution is applied to the remaining portion of the `data` key

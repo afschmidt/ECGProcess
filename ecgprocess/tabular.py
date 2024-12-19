@@ -1,6 +1,6 @@
 '''
-A module to extract, metadata, median beats and raw waveforms from ECGs DICOM
-wrapping pydicom.
+A module to process ECG signal data and metadata to tabular form. This also
+includes 2D figures - which are strictly speaking tables of pixels.
 '''
 
 # NOTE implement the following
@@ -18,25 +18,18 @@ wrapping pydicom.
 import os
 import re
 import sys
-import copy
 import uuid
 import pathlib
 import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pylab as plt
-from pydicom import dcmread
-from pydicom.dataset import FileDataset as DCM_Class
-from datetime import datetime
-from scipy import signal
-from dataclasses import dataclass
 from typing import (
     List, Type, Union, Tuple, Self, Dict, Optional, Any, Literal,
 )
 from ecgprocess.errors import (
     NotCalledError,
     is_type,
-    MissingTagError as MissingDICOMTagError,
     Error_MSG,
     STDOUT_MSG,
     _check_readable,
@@ -44,7 +37,6 @@ from ecgprocess.errors import (
 )
 from ecgprocess.constants import (
     TabularNames as PDNames,
-    DICOMTags,
 )
 from ecgprocess.utils.general import (
     replace_with_tar,
@@ -60,718 +52,15 @@ from ecgprocess.utils.reader_tools import(
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Rename this to FixedECGDICOMReader .
-@dataclass
-class ECGDICOMReader(BaseReader):
-    """
-    Takes an ECG DICOM file and extracts metadata, median beats (if available)
-    and raw waveforms.
-    
-    Parameters
-    ----------
-    augment_leads : `bool`, default `False`
-        Whether the augmented leads are available in the DICOM, if not
-        these are calculated.
-    resample : `bool`, default `True`
-        Whether to resample the ECG to a frequency of 500 Hertz.
-    retain_raw : `bool`, default `False`
-        Whether the raw pydicom instance and raw waveforms should be retained.
-        Set to `False` to decrease memory usage. Set to `True` to explore the
-        orignal pydicom instance. For example, use this one a few files to
-        identify none-standard information to extract.
-    
-    Attributes
-    ----------
-    augment_leads : `bool`
-        Whether the augmented leads were calculated if these were unavailable.
-    resample : `bool`
-        Whether the ECG was resampled to a 500 Hertz frequency.
-    retain_raw : `bool`
-        Whether the raw pydicom data was retained.
-    METADATA : `dict` [`str`, `str`]
-        A dictionary describing the metadata one wants to extract from a
-        DICOM. The dictionary keys represents the `target` (new) name and the
-        dictionary values the `source` (old) names.
-    ECG_TRAIT_DICT : `dict` [`str`, `list[str]`]
-        A dictionary with the keys reflecting the desired name of the ECG trait.
-        Each key will have a list of strings as a value. These strings will be
-        compared to the names in `WaveformAnnotationSequence` attribute.
-        Matching is done without case-sensitivity.  If for any key there are
-        multiple matching strings the algorithm will check if the extracted
-        values are all the same, if not multiple entries will be returned for
-        the user to decide what to do next. The extracted ECG traits will be
-        included with the extracted METADATA.
-    STUDY_DATE_SOURCE : `str`
-        The study date format of the source DICOM.  This will be used in
-        `datetime.strptime` as format argument.
-    STUDY_DATE_TARGET : `str`
-        The target formatting of the study date.  This will be used in
-        `datetime.strptime` as format argument.
-    ACQUISITION_DATE_SOURCE : `str`
-        The acquisition date and time format of the source DICOM.  This will be
-        used in `datetime.strptime` as format argument.
-    ACQUISITION_DATE_TARGET : `str`
-        The target formatting of the acquisition date and time.  This will be
-        used in `datetime.strptime` as format argument.
-    
-    Methods
-    -------
-    get_metadata(path, skip_empty)
-        Extract the dicom metadata.
-    make_leadvoltages(waveform_array, lead_info, augment_leads)
-        Extracts the voltages from a DICOM file. Will automatically extract the
-        limb leads if missing.
-    
-    Notes
-    -----
-    The waveforms are stored using `__slots__` to decrease memory usage, which
-    is further improved by setting `retain_raw` to `False` - the default
-    behaviour.
-    """
-    # #### parameters, with defaults
-    augment_leads: bool=False
-    resample_500:bool=True
-    retain_raw:bool=False
-    # #### check input
-    is_type(augment_leads, bool, 'augment_leads')
-    is_type(resample_500, bool, 'resample_500')
-    # #### default tags - hacking about to make these non-persistance
-    # NOTE this is probably related to DICOMTags being a @dataclass
-    METADATA = copy.deepcopy(DICOMTags().METADATA)
-    WAVE_FORMS = copy.deepcopy(DICOMTags().WAVE_FORMS)
-    WAVE_FORMS_DICT = copy.deepcopy(DICOMTags().WAVE_FORMS_DICT)
-    MEDIAN_BEATS = copy.deepcopy(DICOMTags().MEDIAN_BEATS)
-    MEDIAN_BEATS_DICT = copy.deepcopy(DICOMTags().MEDIAN_BEATS_DICT)
-    ECG_TRAIT_DICT = copy.deepcopy(DICOMTags().ECG_INTERPERTATION_DICT)
-    # #### default dates to extract and format
-    STUDY_DATE_SOURCE = "%Y%m%d"
-    STUDY_DATE_TARGET = "%Y-%m-%d"
-    ACQUISITION_DATE_SOURCE = "%Y%m%d%H%M%S"
-    ACQUISITION_DATE_TARGET = "%Y-%m-%d %H:%M:%S"
-    # #### Error MSG
-    __MSG1=Error_MSG.MISSING_PATH_INSTANCE.format('dicom_instance')
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, path:str, skip_empty:bool=True, verbose:bool=False,
-                 ) -> Self:
-        """
-        Read a `.dcm` DICOM file and extracts metadata, raw waveforms, and
-        median beats.
-        
-        see `constants.DICOMTags` for the `METADATA`, `WAVE_FORMS`, and
-        `MEADIAN_BEATS` tags looked for.
-        
-        Parameters
-        ----------
-        path : `str`
-            The path to the .dcm file.
-        skip_empty : `bool`, default `True`
-            Whether empty tags should be skipped or throw an error.
-        verbose : `bool`, default `False`
-            Prints missing tags if skip_empty is set to `True`.
-        
-        Attributes
-        ----------
-        GeneralInfo : `list` [`str`]
-            A list of dcmread extracted attributes.
-        Waveforms : `dict` [`str`, `np.array`]
-            The lead specific ECG waveforms.
-        MedianWaveforms : `dict` [`str`, `np.array`]
-            The lead specific ECG median beats.
-        
-        Returns
-        -------
-        self : `ECGDICOMReader` instance
-            Returns the class instance with updated attributes extracted
-            from `dcmread`.
-        """
-        is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str), 'path')
-        is_type(skip_empty, bool, 'skip_empty')
-        is_type(verbose, bool, 'verbose')
-        # confirm file is readable
-        _check_readable(path)
-        # #### Read DICOM
-        ECG, results_dict, empty_metadata = self.get_metadata(
-            path, skip_empty=skip_empty)
-        # #### Extract waveforms
-        _, wave_dict, empty_wave_forms = self.get_waveforms(
-            dicom_instance=ECG, skip_empty=skip_empty)
-        results_dict.update(wave_dict)
-        # #### Extract Median beats
-        _, median_dict, empty_median_beats = self.get_median_beats(
-            dicom_instance=ECG, skip_empty=skip_empty)
-        results_dict.update(median_dict)
-        # #### do we need to resample
-        if self.resample_500 == True:
-            # the function will internally adjust
-            # LEAD_VOLTAGES, and LEAD_VOLTAGES2
-            # Nothing is returned
-            self._resampling_500hz(frequency=results_dict[PDNames.SF])
-            setattr(self, PDNames.OVERSAMPLED, True)
-            results_dict[PDNames.OVERSAMPLED] = True
-            results_dict[PDNames.SF] = 500
-            results_dict[PDNames.SAMPLING_FREQ] = 500
-        else:
-            setattr(self, PDNames.OVERSAMPLED, False)
-            results_dict[PDNames.OVERSAMPLED] = False
-        # #### remove raw data
-        if self.retain_raw == False:
-            try:
-                delattr(self, PDNames.WAVE_ARRAY)
-                delattr(self, PDNames.MEDIAN_ARRAY)
-            except AttributeError:
-                pass
-        # #### Extract standard ECG measurements
-        _, ecg_traits, missing_ecg_traits = self._get_waveform_annotation(
-            dicom_instance=ECG, skip_empty=skip_empty)
-        results_dict.update(ecg_traits)
-        empty_metadata = empty_metadata + missing_ecg_traits
-        # #### end of extractions, optionally printing tags which were missing
-        if verbose == True:
-            if len(empty_metadata) + len(empty_wave_forms) +\
-                    len(empty_median_beats)> 0:
-                warnings.warn(
-                    'The following DICOM tags could not be found: {}.'.format(
-                        empty_metadata + empty_wave_forms +\
-                    empty_median_beats))
-        # #### add duration,
-        # NOTE both values are either int/float or NA so no need
-        # for a try except
-        results_dict[PDNames.DURATION] = (
-            results_dict[PDNames.SAMPLING_NUMBER] /
-            results_dict[PDNames.SAMPLING_FREQ]
-        )
-        # #### add time variables
-        raw_AD = results_dict[PDNames.ACQUISITION_DATE]
-        raw_SD = results_dict[PDNames.STUDY_DATE]
-        results_dict[PDNames.ACQUISITION_DATE] = \
-            datetime.strptime(raw_AD, self.ACQUISITION_DATE_SOURCE).\
-            strftime(self.ACQUISITION_DATE_TARGET)
-        results_dict[PDNames.STUDY_DATE] = \
-            datetime.strptime(raw_SD, self.STUDY_DATE_SOURCE).\
-            strftime(self.STUDY_DATE_TARGET)
-        # #### assign results_dict
-        setattr(self, PDNames.RESULTS_DICT, results_dict)
-        # assign unique identifier
-        setattr(self, PDNames.SOP_UID, results_dict[PDNames.SOP_UID])
-        # add the original dcmread instance
-        if self.retain_raw == True:
-            setattr(self, PDNames.ORIG_DCMREAD_INST, ECG)
-        # #### return stuff
-        return self
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_metadata(self, path:str|None=None,
-                     dicom_instance:DCM_Class|None=None,
-                     skip_empty:bool=True
-                     ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
-        '''
-        Takes a dicom file and extracts its metadata
-        
-        Parameters
-        ----------
-        path : `str`, default `NoneType`.
-            The path to the .dcm file.
-        dicom_instance : `DCM_Class`, default `NoneType`.
-            A DCM_Class instance.
-        
-        Returns
-        -------
-        dict,DCM_Class
-            - A `DCM_Class` instance.
-            - A dictionary with extracted metadata.
-            - A list of missing `DCM_Class` attribute names.
-        
-        Notes
-        -----
-        Either supply a path to a dicom file or a DCM_Class instance
-        '''
-        # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
-        is_type(dicom_instance, (type(None), DCM_Class))
-        is_type(skip_empty, bool)
-        results_dict = {}
-        if (not dicom_instance is None) and (not path is None):
-            raise ValueError(self.__MSG1)
-        # #### Read DICOM
-        # NOTE `with` closes automatically if an error is raised
-        if not path is None:
-            with open(path, 'rb') as dicom:
-                # reads standard dicom content
-                ECG=dcmread(dicom)
-        else:
-            ECG=dicom_instance
-        # #### extract metadata
-        empty_metadata = []
-        for t, s in self.METADATA.items():
-            if hasattr(ECG, s):
-                # Assign if present
-                results_dict[t] = getattr(ECG, s)
-            elif skip_empty == False:
-                # Should an Error be returned
-                raise MissingDICOMTagError(s)
-            else:
-                # assign NA and append missing metadata
-                results_dict[t] = np.nan
-                empty_metadata.append(s)
-        # return
-        return ECG, results_dict, empty_metadata
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_waveforms(self, path:str|None=None,
-                     dicom_instance: DCM_Class|None=None,
-                     skip_empty:bool=True
-                     ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
-        '''
-        Takes a dicom file and extracts the waveforms and waveform metadata.
-        
-        Parameters
-        ----------
-        path : `str`, default `NoneType`.
-            The path to the .dcm file.
-        dicom_instance : `DCM_Class`, default `NoneType`.
-            A DCM_Class instance.
-        
-        Returns
-        -------
-        results : dict,DCM_Class
-            - A `DCM_Class` instance.
-            - A dictionary with extracted metadata.
-            - A list of missing `DCM_Class` attribute names.
-        
-        Notes
-        -----
-        Either supply a path to a dicom file or a DCM_Class instance
-        '''
-        # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
-        is_type(dicom_instance, (type(None), DCM_Class))
-        is_type(skip_empty, bool)
-        temp_results_dict = {}
-        if (not dicom_instance is None) and (not path is None):
-            raise ValueError(self.__MSG1)
-        # #### Read DICOM
-        # NOTE `with` closes automatically if an error is raised
-        if not path is None:
-            with open(path, 'rb') as dicom:
-                # reads standard dicom content
-                ECG=dcmread(dicom)
-        else:
-            ECG=dicom_instance
-        # #### extract waveforms
-        try:
-            nam, el = self.WAVE_FORMS_DICT[PDNames.WAVE_ARRAY]
-            setattr(self, PDNames.WAVE_ARRAY,
-                    getattr(ECG, nam)(el).T)
-        except:
-            raise AttributeError(Error_MSG.MISSING_DICOM.format(nam))
-        WAVE = getattr(ECG, PDNames.WAVE_FORM_SEQ)[0]
-        SETTINGS = getattr(WAVE, PDNames.CHANNEL_DEF_SEQ)[0]
-        # loop over the remaining wave form data
-        empty_wave_forms = []
-        for t, s in self.WAVE_FORMS.items():
-            # if present in WAVE or SETTINGS assign
-            if hasattr(WAVE, s):
-                temp_results_dict[t] = getattr(WAVE, s)
-            elif hasattr(SETTINGS, s):
-                temp_results_dict[t] = getattr(SETTINGS, s)
-            elif skip_empty == False:
-                # Should an Error be returned
-                raise MissingDICOMTagError(s)
-            else:
-                # assign NA and append missing metadata
-                temp_results_dict[t] = np.nan
-                empty_wave_forms.append(s)
-        # Check number of channels in ECG waveform
-        if temp_results_dict[PDNames.CHANNEL_NUMBER] >= 8:
-            channel_seq = getattr(getattr(ECG, PDNames.WAVE_FORM_SEQ)[0],
-                                  PDNames.CHANNEL_DEF_SEQ)
-            lead_info_waveform, lead_units=self._get_lead_info(channel_seq)
-            setattr(self, PDNames.LEAD_VOLTAGES,
-                    self.make_leadvoltages(
-                        lead_info=lead_info_waveform,
-                        waveform_array=getattr(self, PDNames.WAVE_ARRAY),
-                        augment_leads=self.augment_leads,
-                        ))
-            temp_results_dict[PDNames.LEAD_UNITS] = lead_units
-            temp_results_dict[PDNames.SAMPLING_FREQ] =\
-                temp_results_dict[PDNames.SF_ORIGINAL]
-        else:
-            # set to NA
-            setattr(self, PDNames.LEAD_VOLTAGES, np.nan)
-            empty_wave_forms.append(PDNames.LEAD_VOLTAGES)
-            temp_results_dict[PDNames.SAMPLING_FREQ] =\
-                temp_results_dict[PDNames.SF_ORIGINAL]
-            temp_results_dict[PDNames.LEAD_UNITS] = np.nan
-        # return
-        return ECG, temp_results_dict, empty_wave_forms
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def get_median_beats(self, path:str|None=None,
-                     dicom_instance: DCM_Class|None=None,
-                     skip_empty:bool=True
-                     ) -> tuple[DCM_Class, dict[str, Any], list[str]]:
-        '''
-        Takes a dicom file and extracts the median beats and its metadata.
-        
-        Parameters
-        ----------
-        path : `str`, default `NoneType`.
-            The path to the .dcm file.
-        dicom_instance : `DCM_Class`, default `NoneType`.
-            A DCM_Class instance.
-        
-        Returns
-        -------
-        results : dict,DCM_Class
-            - A `DCM_Class` instance.
-            - A dictionary with extracted metadata.
-            - A list of missing `DCM_Class` attribute names.
-        
-        Notes
-        -----
-        Either supply a path to a dicom file or a DCM_Class instance
-        '''
-        # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
-        is_type(dicom_instance, (type(None), DCM_Class))
-        is_type(skip_empty, bool)
-        temp_results_dict = {}
-        if (not dicom_instance is None) and (not path is None):
-            raise ValueError(self.__MSG1)
-        # #### Read DICOM
-        # NOTE `with` closes automatically if an error is raised
-        if not path is None:
-            with open(path, 'rb') as dicom:
-                # reads standard dicom content
-                ECG=dcmread(dicom)
-        else:
-            ECG=dicom_instance
-        # ##### extract the median beats data
-        # check if the wave form is present and if the index is correct
-        # the median beats should be index 1 (starting at 0)
-        temp_results_dict = {k: np.nan for k in self.MEDIAN_BEATS}
-        empty_median_beats = list(self.MEDIAN_BEATS.keys())
-        sccss = True
-        try:
-            nam, el = self.MEDIAN_BEATS_DICT[PDNames.MEDIAN_ARRAY]
-            setattr(self, PDNames.MEDIAN_ARRAY,
-                    getattr(ECG, nam)(el).T)
-        except:
-            if skip_empty == True:
-                sccss = False
-                setattr(self, PDNames.MEDIAN_ARRAY, np.nan)
-                pass
-            else:
-                raise AttributeError(Error_MSG.MISSING_DICOM.format(nam))
-        # getting WaveformSequence and ChannelDefinitionSequence attributes
-        if sccss == True:
-            WAVE_M = getattr(ECG, PDNames.WAVE_FORM_SEQ)[1]
-            SETTINGS_M = getattr(WAVE_M, PDNames.CHANNEL_DEF_SEQ)[1]
-            for t, s in self.MEDIAN_BEATS.items():
-                # if present in WAVE or SETTINGS assign
-                if hasattr(WAVE_M, s):
-                    temp_results_dict[t] = getattr(WAVE_M, s)
-                    empty_median_beats.remove(t)
-                elif hasattr(SETTINGS_M, s):
-                    temp_results_dict[t] = getattr(SETTINGS_M, s)
-                    empty_median_beats.remove(t)
-                elif skip_empty == False:
-                    # Should an Error be returned
-                    raise MissingDICOMTagError(s)
-                else:
-                    # the dict and list have already been pre-populated
-                    pass
-            # Update the leads if needed
-            channel_seq_median = getattr(
-                getattr(ECG, PDNames.WAVE_FORM_SEQ)[1],
-                PDNames.CHANNEL_DEF_SEQ)
-            lead_info_median, lead_units2=self._get_lead_info(channel_seq_median)
-            # assign the median beats
-            setattr(self, PDNames.LEAD_VOLTAGES2,
-                    self.make_leadvoltages(
-                        lead_info=lead_info_median,
-                        waveform_array=\
-                        getattr(self, PDNames.MEDIAN_ARRAY),
-                        augment_leads=self.augment_leads,
-                    ))
-            setattr(self, PDNames.MEDIAN_PRESENT, True)
-            temp_results_dict[PDNames.MEDIAN_PRESENT] = True
-            temp_results_dict[PDNames.LEAD_UNITS2] = lead_units2
-        else:
-            # set to missing
-            setattr(self, PDNames.LEAD_VOLTAGES2, np.nan)
-            setattr(self, PDNames.MEDIAN_PRESENT, False)
-            temp_results_dict[PDNames.MEDIAN_PRESENT] = False
-            temp_results_dict[PDNames.LEAD_UNITS2] = np.nan
-        # return
-        return ECG, temp_results_dict, empty_median_beats
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def _get_waveform_annotation(
-        self, path:str|None=None, dicom_instance: DCM_Class|None=None,
-        skip_empty:bool=True,) -> tuple[DCM_Class, dict[str, Any], list[str]]:
-        '''
-        Extract information from the `WaveformAnnotationSequence` attribute
-        of an dicom file.
-        
-        Parameters
-        ----------
-        path : `str`, default `NoneType`.
-            The path to the .dcm file.
-        dicom_instance : `DCM_Class`, default `NoneType`.
-            A DCM_Class instance.
-        
-        Returns
-        -------
-        results : dict,DCM_Class
-            - A `DCM_Class` instance.
-            - A dictionary with the extracted data.
-            - A list of missing `DCM_Class` attribute names.
-        
-        Notes
-        -----
-        Either supply a path to a dicom file or a DCM_Class instance
-        '''
-        # #### check input
-        is_type(path, (type(None), pathlib.PosixPath, pathlib.WindowsPath, str))
-        is_type(dicom_instance, (type(None), DCM_Class))
-        is_type(skip_empty, bool)
-        default_results_dict = {}
-        temp_results_dict = {}
-        temp_unit_dict = {}
-        if (not dicom_instance is None) and (not path is None):
-            raise ValueError(self.__MSG1)
-        # #### Read DICOM
-        # NOTE `with` closes automatically if an error is raised
-        if not path is None:
-            with open(path, 'rb') as dicom:
-                # reads standard dicom content
-                ECG=dcmread(dicom)
-        else:
-            ECG=dicom_instance
-        # first set everything to NA
-        for e in self.ECG_TRAIT_DICT:
-           default_results_dict[e] = np.nan
-           default_results_dict[e+PDNames.ECG_UNIT_STRING] = np.nan
-           free_text = np.nan
-           default_results_dict[PDNames.PACEMAKER_SPIKE]=np.nan
-        # next see if we can extract some interpretations.
-        if hasattr(ECG, PDNames.ECG_INTERPERTATION):
-            free_text = ''
-            # get the values lower-case strings (which are lists)
-            ECG_CMPR_LWR = [it.lower() for sl\
-                            in self.ECG_TRAIT_DICT.values() for it in sl]
-            for w in getattr(ECG, PDNames.ECG_INTERPERTATION):
-                if hasattr(w, PDNames.ECG_CONCEPTNAME):
-                    ecg_int = getattr(w, PDNames.ECG_CONCEPTNAME)[0]
-                    try:
-                        ecg_trait = getattr(ecg_int, PDNames.CODE_MEANING)
-                        # find matching element - using lower case again
-                        if ecg_trait.lower() in ECG_CMPR_LWR:
-                            # get the measurement and set to float
-                            temp_results_dict[ecg_trait.lower()] = float(
-                                        getattr(w, PDNames.ECG_TRAIT_VALUE)
-                                    )
-                            # get the unit
-                            try:
-                                temp_unit_dict[
-                                    ecg_trait.lower()+\
-                                    PDNames.ECG_UNIT_STRING]=getattr(
-                                        getattr(w, PDNames.ECG_UNIT)[0],
-                                        PDNames.CODE_MEANING)
-                            except (AttributeError, IndexError):
-                                pass
-                    except AttributeError:
-                        pass
-                    # #### ancillary info
-                    # see if there is a PaceMakerSpike
-                    if ecg_trait.lower() == PDNames.PACEMAKER_SPIKE.lower():
-                        try:
-                            default_results_dict[PDNames.PACEMAKER_SPIKE]=\
-                                getattr(w, PDNames.REFERENCED_POS)
-                        except AttributeError:
-                            pass
-                    # get free text
-                    if ecg_trait.lower() == PDNames.FREE_TEXT.lower():
-                        try:
-                            free_text = "%s\n%s" % (
-                                free_text,
-                                getattr(w, PDNames.FREE_TEXT)
-                            )
-                        except AttributeError:
-                            pass
-        # assing the final free_text object
-        default_results_dict[PDNames.FREE_TEXT]=free_text
-        # now assign temp_results_dict todefault_results_dict dealing with
-        # keys with more than one matching string.
-        if len(temp_results_dict) > 0:
-            for k, idx in self.ECG_TRAIT_DICT.items():
-                # Check if idx has more than one entry
-                # extract all entries and make sure they are the
-                # same  - NOTE using set comprehension to get the
-                # unique elements
-                unique_set = list({temp_results_dict[el.lower()] for el in\
-                                   idx if el.lower() in temp_results_dict})
-                if len(unique_set) == 1:
-                    # if only one unique entry simply assign this to k
-                    for e in idx:
-                        try:
-                           default_results_dict[k] =\
-                                temp_results_dict[e.lower()]
-                           default_results_dict[k+PDNames.ECG_UNIT_STRING] =\
-                                temp_unit_dict[
-                                    e.lower()+PDNames.ECG_UNIT_STRING]
-                        except KeyError:
-                            # NOTE the KeyError is expected behaviour,
-                            # some of the `e`'s will not be in the
-                            # temp_results_dict
-                            pass
-                elif len(unique_set) > 1:
-                    # given that the results are not unique
-                    # we will return all using the individual `idx` elements
-                    # instead of `k` - NOTE the index without call to lower
-                    # is intended.
-                    for e in idx:
-                        try:
-                           default_results_dict[e] =\
-                                temp_results_dict[e.lower()]
-                           default_results_dict[e+PDNames.ECG_UNIT_STRING] =\
-                                temp_unit_dict[
-                                    e.lower()+PDNames.ECG_UNIT_STRING]
-                        except KeyError:
-                            pass
-        # which ECG traits are still nan
-        missing_ecg_traits =\
-            [k for k,v in default_results_dict.items() if pd.isna(v)]
-        if skip_empty == False and len(missing_ecg_traits) > 0:
-            # Should an Error be returned
-            raise ValueError('The following ECG measurments are '
-                             'unavailable: {}'.format(missing_ecg_traits))
-        # return
-        return ECG, default_results_dict, missing_ecg_traits
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def _get_lead_info(self, channel_seq: DCM_Class
-                       ) -> tuple[dict[int, str], str]:
-        """
-        Extracts the lead names from a `dcmread` instance.
-        
-        Parameters
-        ----------
-        channel_seq : `DCM_Class`
-            A `pydicom.sequence.Sequence` instance.
-        
-        Returns
-        -------
-        `tuple` ['dict', `str`]:
-            - leadnames : dict [`int`, `str`]
-                A dictionary with numerical (interval) keys and the lead names
-                as values.
-            - leadunit : str
-                The measurment unit of the ECG leads.
-        """
-        # #### extracting the lead names
-        leadnames = {}
-        leadunits = {}
-        for k, channel in enumerate(channel_seq):
-            # extracting lead names
-            source = getattr(getattr(channel,PDNames.CHANNEL_SOURCE_SEQ)[0],
-                             PDNames.CHANNEL_CODE_MEANING)
-            # extracting units
-            if hasattr(channel, PDNames.CHANNEL_SENS_UNIT):
-                unit = getattr(
-                    getattr(channel, PDNames.CHANNEL_SENS_UNIT)[0],
-                    PDNames.CODE_MEANING)
-            else:
-                unit = np.nan
-            # assign lead names to numericals
-            leadnames[k] = source.replace(PDNames.LEAD, '').strip()
-            leadunits[leadnames[k]] = unit
-        # confirm the units are all the same
-        unique_unit = list(set(leadunits.values()))
-        if len(unique_unit) != 1:
-            raise ValueError('The ECG leads were measured using different '
-                             'units: `{}`.'.format(unique_unit))
-        # return stuff
-        return leadnames, unique_unit[0]
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def make_leadvoltages(self, waveform_array: np.ndarray,
-                          lead_info:Dict[int, str],
-                          augment_leads:bool,
-                          ) -> Dict[str, np.ndarray]:
-        """
-        Extracts the voltages from a DICOM file. Will automatically extract the
-        limb leads if missing, please see:
-        `url <https://ecgwaves.com/topic/ekg-ecg-leads-electrodes-systems-limb-chest-precordial/>`_.
-        
-        Parameters
-        ----------
-        waveform_array : `np.ndarray`
-            An array with the waveforms.
-        lead_info: `dict` [`int`, `str`]
-            A dictionary where the keys match the `waveform_array` rows and
-            the dictionary values contain the lead name strings.
-        augment_leads : `bool`
-            Whether to calculate the additional augmented leads. Will only work
-            if there are exactly 8 leads available.
-        
-        Returns
-        -------
-        leads: `dict` [`str`, `np.ndarray`]
-            A dictionary with the lead name string as keys and leads as
-            np.ndarray values.
-        """
-        # #### check input and set constants
-        is_type(waveform_array, np.ndarray, 'waveform_array')
-        is_type(lead_info, dict, 'lead_info')
-        leads = {}
-        # #### the main function
-        for k, lead in enumerate(waveform_array):
-            leads[lead_info[k]] = lead
-        if (k+1) == 8 and augment_leads == True:
-            # Calculate limb leads
-            leads[PDNames.LEAD_III] = np.subtract(leads[PDNames.LEAD_II],
-                                                  leads[PDNames.LEAD_I])
-            leads[PDNames.LEAD_aVR] = np.add(leads[PDNames.LEAD_I],
-                                  leads[PDNames.LEAD_II]) * (-0.5)
-            leads[PDNames.LEAD_aVL] = np.subtract(leads[PDNames.LEAD_I],
-                                       0.5 * leads[PDNames.LEAD_II])
-            leads[PDNames.LEAD_aVF] = np.subtract(leads[PDNames.LEAD_II],
-                                       0.5 * leads[PDNames.LEAD_I])
-        # return
-        return leads
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def _resampling_500hz(self, frequency:int|float):
-        """
-        Re-sample the frequency to 500 hz.
-        
-        Parameters
-        ----------
-        frequency : `int` or `float`
-            The original sampling frequency. Will simply check that this is
-            not 500 and if not proceed with the resampling.
-        
-        """
-        if int(frequency) != 500:
-            # #### wave forms
-            lead_volt_temp = getattr(self, PDNames.LEAD_VOLTAGES)
-            for i in lead_volt_temp:
-                lead_volt_temp[f"{i}"] =\
-                    signal.resample(lead_volt_temp[f"{i}"], 5000)
-            setattr(self, PDNames.LEAD_VOLTAGES, lead_volt_temp)
-            # #### median beats
-            if getattr(self, PDNames.MEDIAN_PRESENT) == True:
-                lead_volt_temp2 = getattr(self, PDNames.LEAD_VOLTAGES2)
-                for i in lead_volt_temp2:
-                    lead_volt_temp2[f"{i}"] = \
-                        signal.resample(lead_volt_temp2[f"{i}"], 600)
-                setattr(self, PDNames.LEAD_VOLTAGES2, lead_volt_temp2)
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class ECGDICOMTable(object):
+class ECGTable(object):
     '''
-    Takes an `ECGDICOMReader` instance and loops over a list of dicom paths
+    Takes an `BaseReader` instance and loops over a list of dicom paths
     and maps these to which can be used in analyses or saved to disk.
     
     Parameters
     ----------
-    ecgdicomreader : ECGDICOMReader
-        An instance of the ECGDICOMReader data class.
+    ecgdicomreader : BaseReader
+        An instance of the BaseReader data class.
     path_list : list [`str`]
         A list of paths to one or more .dcm files.
     info_type : {`all`, `rhythm`, `median`, `meta`}
@@ -801,7 +90,7 @@ class ECGDICOMTable(object):
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __init__(self, ecgdicomreader:ECGDICOMReader, path_list:List[str],
+    def __init__(self, ecgdicomreader:BaseReader, path_list:List[str],
                  info_type:Literal['all', 'rhythm', 'median', 'meta'] = 'all'
                  ) -> None:
         """
@@ -814,7 +103,7 @@ class ECGDICOMTable(object):
         self.INFO_MED = [PDNames.INFO_TYPE_ALL, PDNames.INFO_TYPE_MED]
         self.INFO_RTM = [PDNames.INFO_TYPE_ALL, PDNames.INFO_TYPE_RTM]
         # #### check input
-        is_type(ecgdicomreader, ECGDICOMReader, 'ecgdicomreader')
+        is_type(ecgdicomreader, BaseReader, 'ecgdicomreader')
         is_type(path_list, list, 'path_list')
         if not info_type in EXP_INFO:
             raise ValueError(f'`info_type` is restricted to `{EXP_INFO}`.')
@@ -840,8 +129,8 @@ class ECGDICOMTable(object):
         verbose:bool=False,
     ) -> Self:
         """
-        Will take a ECGDICOMReader and loops over a list of dcm file paths and
-        and confirm the files exist and have appropriate read permission
+        Will take a BaseReader instance and loops over a list of dcm file paths
+        and and confirm the files exist and have appropriate read permission
         
         Parameters
         ----------
@@ -920,7 +209,7 @@ class ECGDICOMTable(object):
         update_keys: dict [`str`, `str`], default `NoneType`
             A dictionary to remap lead names: [`old`, `new`]
         **kwargs: optional
-            Keyword arguments used in the call method of a `ECGDICOMReader`
+            Keyword arguments used in the call method of a `BaseReader`
             instance
         
         Attributes
@@ -1129,7 +418,7 @@ class ECGDICOMTable(object):
             Whether to write a text file to disk containing the failed file
             names.
         **kwargs : Optional[Any],
-            Keyword arguments used in the call method of a `ECGDICOMReader`
+            Keyword arguments used in the call method of a `BaseReader`
             instance.
         
         Attributes
@@ -1304,7 +593,7 @@ class ECGDICOMTable(object):
             names.
         kwargs_*: dict [`any`, `any`], default `NoneType`
             dictionaries with keyword arguments for the `plt.savefig`,
-            ECGDrawing, or ECGDICOMReader instances.
+            ECGDrawing, or BaseReader instances.
         
         Attributes
         ----------
@@ -1395,7 +684,7 @@ class ECGDICOMTable(object):
     def _write_internal(self, path:str, no_data_list:list[str],
                         key_list:list[str],
                         **kwargs,
-                        ) -> tuple[list, list, ECGDICOMReader|str]:
+                        ) -> tuple[list, list, BaseReader|str]:
         '''
         An internal function to read ECG dicom data, check whether there these
         data may have been extracted before (compared to key_list) and record
@@ -1411,7 +700,7 @@ class ECGDICOMTable(object):
         Returns
         -------
         `tuple`
-            A tuple with `no_data_list`, `key_list`, and an ECGDICOMReader
+            A tuple with `no_data_list`, `key_list`, and an BaseReader
             instance.
         
         Raises

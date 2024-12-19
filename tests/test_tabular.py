@@ -4,8 +4,7 @@ import pandas as pd
 from ecgprocess.constants import TabularNames as PDNames
 from ecgprocess.errors import MissingTagError as MissingDICOMTagError
 from ecgprocess.tabular import (
-    ECGDICOMReader,
-    ECGDICOMTable,
+    ECGTable,
 )
 from ecgprocess.plot_ecgs import (
     ECGDrawing,

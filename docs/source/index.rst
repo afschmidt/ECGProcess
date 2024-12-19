@@ -33,6 +33,7 @@ dicoms and map these to numpy arrays used in ML/AI algorithms.
    :caption: Project admin
 
    contributing
+   raising_issues
 
 Indices and tables
 ==================

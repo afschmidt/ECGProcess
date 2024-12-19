@@ -7,6 +7,7 @@ from ecgprocess.constants import ProcessDicomNames as PDNames
 from ecgprocess.errors import MissingTagError
 from ecgprocess.process_dicom import (
     ECGDICOMReader,
+    FixedDICOMReader,
 )
 from ecgprocess.example_data.examples import (
     list_dicom_paths as list_data_paths,
@@ -24,6 +25,9 @@ CProc = Core.ProcessingData
 # Relevant paths
 dicom_file_path = list_data_paths()['example_dicom_1']
 dicom_file_path2 = list_data_paths()['example_dicom_2']
+dicom_wrong_list = ['wrong']
+expect_content = set([PDNames.FAILED_FILE, PDNames.INFO_FILE,
+                      PDNames.WAVE_FILE, PDNames.MEDIAN_FILE])
 # example config
 example_config = {
     "WaveForms": [
@@ -137,3 +141,24 @@ class TestECGDICOMReader(object):
         assert extract2.MetaData['PR Interval (Numeric Value)'] == 0.0
         assert extract2.WaveForms['II'] is None
         assert extract2.WaveForms['aVL'].ndim == 1
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# FixedDICOMReader
+class TestFixedDICOMReader(object):
+    """
+    Testing FixedDICOMReader
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_default(self):
+        ECG_DCM = FixedDICOMReader()
+        res = ECG_DCM(path=dicom_file_path)
+        assert len(getattr(res, CTypes.MetaData)) > 0
+        assert isinstance(getattr(res,CTypes.MetaData), dict)
+        assert isinstance(getattr(res,CTypes.WaveForms), dict)
+        assert isinstance(getattr(res,CTypes.MedianBeats), dict)
+        assert len(getattr(res,CTypes.WaveForms)) == 12
+        assert getattr(res,CTypes.MetaData)['MedianWaveformUnits']==\
+                       'microvolt'
+        assert getattr(res,CTypes.MetaData)['sampling number (medianbeats)']==\
+            600
+        assert getattr(res,CTypes.MetaData)['sampling number (waveforms)']==5000
