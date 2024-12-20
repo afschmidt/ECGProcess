@@ -242,6 +242,7 @@ class Warn_MSG(object):
     A collection of warning messages.
     '''
     MISSING_TAG='The following tags could not be found: {}.'
+    NUMB_IS_NONE = '`{}` is NoneType, cannot convert to numerical.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

@@ -4,6 +4,7 @@ The general utils module
 import os
 import shutil
 import tarfile
+import numpy as np
 # from pathlib import Path
 from typing import Any, Callable, Optional, Type
 from ecgprocess.errors import (
@@ -308,3 +309,43 @@ def parse_number(string:Any, sep:str=',', dec:str='.',
     # #### return
     return res
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def string_concat(old:str , new: str, sep:str=', ') -> list[str]:
+    '''
+    Concatenates two strings, checking if the `old` string might be `NaN`.
+    
+    Parameters
+    ----------
+    old : `str` or `np.nan`,
+        The original string.
+    new : `str`
+        A new string.
+    sep : `str`, default `, `
+        The string separator.
+        
+    Returns
+    -------
+    str :
+        A concatenated string
+
+    Notes
+    -----
+    In general NaN is concidered a float and missing string information is
+    better reflected by `NoneType`. Nevertheless one does find strings may
+    be setted to NaN which is what this function deals with.
+    '''
+    # #### check input.
+    # np.nan is a float, so testing for float
+    is_type(old, (str, float, type(None)))
+    is_type(new, str)
+    # #### checking for nan
+    try:
+        if np.isnan(old):
+            res = new
+        else:
+            # will be run when old is a float
+            res = f"{old}{sep}{new}"
+    except TypeError:
+        res = f"{old}{sep}{new}"
+    # #### return
+    return res

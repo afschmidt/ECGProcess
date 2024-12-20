@@ -1,5 +1,6 @@
 import os
 import pytest
+import warnings
 import ecgprocess.utils.config_tools as config_utils
 from unittest import mock
 from tempfile import NamedTemporaryFile
@@ -195,6 +196,32 @@ class TestFixedDICOMReader(object):
         assert getattr(res, CTypes.MetaData)['QT Interval UNIT'] ==\
             'millisecond'
         assert getattr(res, CTypes.MetaData)[QT_NAM] == 378
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_ecg_trait_value_conversion_with_null(self):
+        """
+        Test ECG trait value extraction when the `ECG_TRAIT_VALUE` is set to
+        None.
+        """
+        # Load the DICOM file
+        ECG_DCM = FixedDICOMReader(retain_raw=True)
+        ecg_instance = ECG_DCM(path=dicom_file_path2)
+        # turn on verbose
+        ecg_instance.verbose = True
+        # get raw ECG
+        ECG = ecg_instance.DMCReadInstance
+        # Simulate setting the specific attribute to None
+        for waveform_annotation in getattr(ECG, 'WaveformAnnotationSequence'):
+            if hasattr(waveform_annotation, 'NumericValue'):
+                setattr(waveform_annotation, 'NumericValue', None)
+        # make sure we get warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _, _, miss  = ecg_instance._get_waveform_annotation(
+                dicom_instance=ECG, skip_empty=True,
+            )
+        # Confirm warnings were raised and there are missing
+        assert len(w) > 0
+        assert len(miss) > 0
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_augment_verbose(self):
         ECG_DCM = FixedDICOMReader()

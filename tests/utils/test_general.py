@@ -2,6 +2,7 @@
 # import shutil
 import pytest
 import tarfile
+import numpy as np
 from ecgprocess.utils import general as gen_utils
 from ecgprocess.errors import  InputValidationError
 
@@ -170,3 +171,12 @@ class TestTarFunctions(object):
         result = gen_utils.parse_number(123)
         assert result == 123
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def test_string_concat():
+    '''
+    Testing different inputs
+    '''
+    assert gen_utils.string_concat('hello', 'world') == 'hello, world'
+    assert gen_utils.string_concat('hello', 'world', sep='\n') == 'hello\nworld'
+    assert gen_utils.string_concat(np.nan, 'world', sep=': ') == 'world'
+    assert gen_utils.string_concat(1.0, 'world', sep=': ') == '1.0: world'

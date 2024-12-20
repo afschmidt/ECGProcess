@@ -384,7 +384,8 @@ class ECGTable(object):
                   compression:str | None ='gzip',
                   update_keys: None | dict[str,str] =None,
                   write_failed:bool=True,
-                  **kwargs:Optional[Any],
+                  kwargs_reader: None | dict[str, Any] = None,
+                  kwargs_write: None | dict[str, Any] = None,
                   ) -> Self:
         '''
         Extracts dicom files, and write these one by one to a set of target
@@ -417,9 +418,13 @@ class ECGTable(object):
         write_failed : bool, default `True`
             Whether to write a text file to disk containing the failed file
             names.
-        **kwargs : Optional[Any],
+        kwargs_reader : `dict` [`str`, `any`], default `None`
             Keyword arguments used in the call method of a `BaseReader`
             instance.
+        kwargs_write : `dict` [`str`, `any`], default `None`
+            Keyword argument for `pd.DataFrame.to_csv`. Currently allowing
+            for one set of kwargs for all tables, also not allowing to
+            overwrite key internal arguments: `sep`, `header`, `compression`.
         
         Attributes
         ----------
@@ -446,7 +451,9 @@ class ECGTable(object):
         NotADirectoryError or PermissionError
             If the target directory does not exist or is not writable.
         '''
-        self.kwargs = kwargs
+        # if kwargs is None assigned an empty dict
+        self.kwargs = kwargs_reader or {}
+        kwargs_write = kwargs_write or {}
         # #### check input and set constants
         is_type(target_tar, (type(None), str))
         is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str))
@@ -500,11 +507,11 @@ class ECGTable(object):
             if first==True:
                 first = False
                 # metadata
-                print([key_list[-1]])
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
                     pd.DataFrame([info], index=[key_list[-1]]).to_csv(
                         os.path.join(target, PDNames.INFO_FILE), sep=sep,
-                        header=True, compression=compression)
+                        header=True, compression=compression,
+                        **kwargs_write,)
                 # waveforms
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
                     self._get_long_table(
@@ -512,8 +519,9 @@ class ECGTable(object):
                         update_keys=update_keys,
                         purge_header=True,
                     ).to_csv(
-                            os.path.join(target, PDNames.WAVE_FILE), sep=sep,
-                            header=True, compression=compression)
+                        os.path.join(target, PDNames.WAVE_FILE), sep=sep,
+                        header=True, compression=compression,
+                        **kwargs_write,)
                 # median beats
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
                     self._get_long_table(
@@ -521,15 +529,17 @@ class ECGTable(object):
                         update_keys=update_keys,
                         purge_header=True,
                     ).to_csv(
-                            os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
-                            header=True, compression=compression)
+                        os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
+                        header=True, compression=compression,
+                        **kwargs_write,)
             else:
                 # appending using mode = 'a'
                 # metadata
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_MET:
                     pd.DataFrame([info], index=[key_list[-1]]).to_csv(
                         os.path.join(target, PDNames.INFO_FILE), sep=sep,
-                        header=False, mode='a', compression=compression)
+                        header=False, mode='a', compression=compression,
+                        **kwargs_write,)
                 # waveforms
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_RTM:
                     self._get_long_table(
@@ -537,8 +547,9 @@ class ECGTable(object):
                         update_keys=update_keys,
                         purge_header=False,
                     ).to_csv(
-                            os.path.join(target, PDNames.WAVE_FILE), sep=sep,
-                            header=False, mode='a', compression=compression)
+                        os.path.join(target, PDNames.WAVE_FILE), sep=sep,
+                        header=False, mode='a', compression=compression,
+                        **kwargs_write,)
                 # median beats
                 if getattr(self, PDNames.INFO_TYPE) in self.INFO_MED:
                     self._get_long_table(
@@ -546,8 +557,9 @@ class ECGTable(object):
                         update_keys=update_keys,
                         purge_header=False,
                     ).to_csv(
-                            os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
-                            header=False, mode='a', compression=compression)
+                        os.path.join(target, PDNames.MEDIAN_FILE), sep=sep,
+                        header=False, mode='a', compression=compression,
+                        **kwargs_write,)
             # delete key
             delattr(self, PDNames.KEY_L)
         # #### write failed files, note not compressing these

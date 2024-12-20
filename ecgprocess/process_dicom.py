@@ -20,11 +20,13 @@ from typing import (
 from ecgprocess.errors import (
     is_type,
     Error_MSG,
+    Warn_MSG,
     _check_readable,
     MissingTagError,
 )
 from ecgprocess.utils.general import(
     parse_number,
+    string_concat,
 )
 from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
@@ -292,7 +294,7 @@ class FixedDICOMReader(BaseReader):
     While the type of information that is extracted by this class is relatively
     extensive and can be axpanded through for example `METADATA`, the
     pydicom attributes which these data can be extracted from are fixed. This
-    therfore provides a less flexible solution than FixedECGDICOMReader.
+    therfore provides a less flexible solution than FixedDICOMReader.
     """
     # #### parameters, with defaults
     augment_leads: bool=False
@@ -339,13 +341,14 @@ class FixedDICOMReader(BaseReader):
         
         Returns
         -------
-        self : `ECGDICOMReader` instance
+        self : `FixedDICOMReader` instance
             Returns the class instance with updated attributes extracted
             from `dcmread`.
         """
         is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str), 'path')
         is_type(skip_empty, bool, 'skip_empty')
         is_type(verbose, bool, 'verbose')
+        self.verbose=verbose
         # confirm file is readable
         _check_readable(path)
         # #### Read DICOM
@@ -704,7 +707,7 @@ class FixedDICOMReader(BaseReader):
         for e in self.ECG_TRAIT_DICT:
            default_results_dict[e] = np.nan
            default_results_dict[e+ ECG_UNIT_STRING] = np.nan
-           free_text = np.nan
+           default_results_dict[FREE_TEXT] = None
            default_results_dict[PACEMAKER_SPIKE]=np.nan
         # next see if we can extract some interpretations.
         if hasattr(ECG, ECG_INTERPERTATION):
@@ -713,16 +716,31 @@ class FixedDICOMReader(BaseReader):
             ECG_CMPR_LWR = [it.lower() for sl\
                             in self.ECG_TRAIT_DICT.values() for it in sl]
             for w in getattr(ECG, ECG_INTERPERTATION):
+                # # set annot_count to -1 if not there
+                # # ANNOT GROUP  of > 0 represents annotations (1), arrythmia
+                # # markers (2), or pacemaker spikes (3).
+                # # group 0 will be the free text.
+                # annot_count = getattr(w, PDNames.ANNOTATION_GROUP, -1)
+                # if hasattr(w, PDNames.ECG_CONCEPTNAME) and annot_count > 0:
                 if hasattr(w, ECG_CONCEPTNAME):
                     ecg_int = getattr(w, ECG_CONCEPTNAME)[0]
                     try:
                         ecg_trait = getattr(ecg_int, CODE_MEANING)
                         # find matching element - using lower case again
                         if ecg_trait.lower() in ECG_CMPR_LWR:
-                            # get the measurement and set to float
-                            temp_results_dict[ecg_trait.lower()] = float(
-                                        getattr(w, ECG_TRAIT_VALUE)
-                                    )
+                            # get the measurement and set to float, will
+                            # skip float conversion if None type.
+                            try:
+                                temp_results_dict[ecg_trait.lower()] = float(
+                                            getattr(w, ECG_TRAIT_VALUE)
+                                        )
+                            except TypeError:
+                                temp_results_dict[ecg_trait.lower()] = \
+                                    getattr(w, ECG_TRAIT_VALUE)
+                                # see if we need to warn
+                                if self.verbose == True:
+                                    warnings.warn(Warn_MSG.NUMB_IS_NONE.\
+                                                  format(ecg_trait.lower()))
                             # get the unit
                             try:
                                 temp_unit_dict[
@@ -732,27 +750,32 @@ class FixedDICOMReader(BaseReader):
                                         CODE_MEANING)
                             except (AttributeError, IndexError):
                                 pass
+                        # #### ancillary info
+                        # see if there is a PaceMakerSpike
+                        if ecg_trait.lower() == PACEMAKER_SPIKE.lower():
+                            try:
+                                v = default_results_dict[
+                                    PACEMAKER_SPIKE]
+                                nv = str(getattr(w, REFERENCED_POS))
+                                default_results_dict[
+                                    PACEMAKER_SPIKE] = string_concat(
+                                        v, nv, sep=', ')
+                                del v, nv
+                            except AttributeError:
+                                pass
                     except AttributeError:
                         pass
-                    # #### ancillary info
-                    # see if there is a PaceMakerSpike
-                    if ecg_trait.lower() == PACEMAKER_SPIKE.lower():
-                        try:
-                            default_results_dict[PACEMAKER_SPIKE]=\
-                                getattr(w, REFERENCED_POS)
-                        except AttributeError:
-                            pass
-                    # get free text
-                    if ecg_trait.lower() == FREE_TEXT.lower():
-                        try:
-                            free_text = "%s\n%s" % (
-                                free_text,
-                                getattr(w, FREE_TEXT)
-                            )
-                        except AttributeError:
-                            pass
-        # assing the final free_text object
-        default_results_dict[FREE_TEXT]=free_text
+                # get free text
+                # if annot_count == 0:
+                if hasattr(w, FREE_TEXT):
+                    try:
+                        v = default_results_dict[FREE_TEXT]
+                        nv = getattr(w, FREE_TEXT)
+                        default_results_dict[FREE_TEXT] =\
+                            string_concat(old=v, new=nv, sep='\n')
+                        del v, nv
+                    except AttributeError:
+                        pass
         # now assign temp_results_dict todefault_results_dict dealing with
         # keys with more than one matching string.
         if len(temp_results_dict) > 0:
