@@ -84,8 +84,7 @@ class TestECGXMLReader(object):
         n_leads = 'number of leads'
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name, text=example_config)
-            parsed_confg = config_utils.ConfigParser(tmp_file.name)()
-        # examples
+            parsed_confg = config_utils.ConfigParser(tmp_file.name)() # examples
         # FIXME paresed_xml.extract(config=parsed_confg) should really take
         # the _ = parsed_confg.map(mapper=config_utils.DataMap()) object
         _ = parsed_confg.map(mapper=config_utils.DataMap())

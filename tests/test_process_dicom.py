@@ -215,10 +215,11 @@ class TestFixedDICOMReader(object):
                 setattr(waveform_annotation, 'NumericValue', None)
         # make sure we get warnings
         with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+            # warnings.simplefilter("always")
             _, _, miss  = ecg_instance._get_waveform_annotation(
                 dicom_instance=ECG, skip_empty=True,
             )
+            # warnings.resetwarnings()
         # Confirm warnings were raised and there are missing
         assert len(w) > 0
         assert len(miss) > 0

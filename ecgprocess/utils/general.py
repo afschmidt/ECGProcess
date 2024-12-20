@@ -5,10 +5,8 @@ import os
 import shutil
 import tarfile
 import numpy as np
-# from pathlib import Path
 from typing import Any, Callable, Optional, Type
 from ecgprocess.errors import (
-    # InputValidationError,
     is_type,
 )
 
@@ -327,7 +325,7 @@ def string_concat(old:str , new: str, sep:str=', ') -> list[str]:
     -------
     str :
         A concatenated string
-
+    
     Notes
     -----
     In general NaN is concidered a float and missing string information is

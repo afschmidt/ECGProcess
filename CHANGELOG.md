@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.2.2 - 20-12-2024
+
+### Fixed
+
+- Fixed ECGDICOMTable bug when the metadata is empy. 
+- Bug fix for ECGDICOMReader to handle NoneType ECG measurments.
+
+### Added
+
+- Added kwargs to ECGDICOMTable for the reader and writing functions. 
+- ECGDICOMReader extract free text and pacemaker spike information. 
+- Improved pytest coverage. 
+
+### Changed
+
+_Noting_
+
+### Deprecated
+
+_Nothing_
+
+### Removed
+
+_Nothing_
+
 ## v0.2.1 - 22-10-2024
 
 ### Fixed
