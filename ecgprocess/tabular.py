@@ -12,6 +12,20 @@ includes 2D figures - which are strictly speaking tables of pixels.
 # NOTE should also rename skip_missing to file_errors usign the same Literals
 # but replacing None by Error.
 
+# NOTE keep track of whether a XML was validated or not - if skip, then
+# record this in the failed doc. Probably also add this for the DICCOM and keep
+# the column empyt
+
+# NOTE add a function to check n many headers and get the union
+
+# NOTE add a function to write tables in bulk, with an option to first
+# find the union of headers and add empty columns if a header is missing
+
+# NOTE add functions to write ECG (wave, median) and metdata to HDF5 (perhaps skip, better for random access)
+# TFRecord, numpy files, or parquet (perhaps not?). Allowing to subset the metadata. Getting
+# an optional header text file mapping the array locations to their headers.
+# and allowing to extract any combination of wave, median, or metadata (providing
+# a list). https://chatgpt.com/c/676487d1-0dc8-8011-a3cb-2a9b2ee1ea6c
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
