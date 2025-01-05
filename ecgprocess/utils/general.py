@@ -5,7 +5,7 @@ import os
 import shutil
 import tarfile
 import numpy as np
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Optional, Type, Generator
 from ecgprocess.errors import (
     is_type,
 )
@@ -347,3 +347,36 @@ def string_concat(old:str , new: str, sep:str=', ') -> list[str]:
         res = f"{old}{sep}{new}"
     # #### return
     return res
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def chunk_list(lst:list[Any], size:int) -> Generator[list[Any], None, None]:
+    """
+    Splits a given list into chunks of a specified size.
+    
+    Parameters
+    ----------
+    lst : `list` [`any`]
+        A list of arbitrary length.
+    size : `int`
+        The size of the chunks, should be larger than 0.
+    
+    Yields
+    ------
+    list
+        A chunk of the input list of length ``size``. The final chunk
+        may be shorter if there aren't enough elements left.
+    
+    Examples
+    --------
+    >>> data = list(range(10))
+    >>> gen = chunk_list(data, 3)
+    >>> next(gen)
+    [0, 1, 2]
+    """
+    is_type(lst, list)
+    is_type(size, int)
+    if size < 1:
+        raise ValueError('`size` should be larger than 0.')
+    # #### The algorithm
+    for i in range(0, len(lst), size):
+        yield lst[i:i + size]

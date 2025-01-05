@@ -134,6 +134,7 @@ class TabularNames(object):
     WRITE_NUMPY    = 'numpy'
     WRITE_TFLOW    = 'tensorflow'
     WRITE_ECG_PATH = 'target_path'
+    WRITE_TYPE     = 'file_type'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class TabularNamesTemp(object):
@@ -236,7 +237,7 @@ class DICOMTags(object):
     # /////////////////////////////////////////////////////////////////////////
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     METADATA = {
-        TabularNames.SOP_UID : 'SOPInstanceUID',
+        CoreData.MetaData.UID : 'SOPInstanceUID',
         'SERIESinstanceUID'       : 'SeriesInstanceUID',
         'STUDYinstanceUID'        : 'StudyInstanceUID',
         'PatientID'               : 'PatientID',
