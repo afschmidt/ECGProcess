@@ -54,12 +54,6 @@ class CoreData:
         SF_U    = 'sampling frequency unit'
         SN_W    = 'sampling number (waveforms)'
         SN_M    = 'sampling number (medianbeats)'
-        # SECOND  = 'observation second'
-        # MINUTE  = 'observation minute'
-        # HOUR    = 'observation hour'
-        # DAY     = 'observation day'
-        # MONTH   = 'observation month'
-        # YEAR    = 'observation year'
     # /////////////////////////////////////////////////////////////////////////
     class ProcessingData:
         '''
@@ -122,6 +116,27 @@ class FixedReaderNames(object):
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class TabularNames(object):
+    E_META         = 'extract_'+CoreData.DataTypes.MetaData
+    E_WAVE         = 'extract_'+CoreData.DataTypes.WaveForms
+    E_MEDIAN       = 'extract_'+CoreData.DataTypes.MedianBeats
+    SKIP_PERM      = 'ignore_permission'
+    SKIP_DATA      = 'ignore_data'
+    SKIP_INVALID   = 'ignore_invalid'
+    SCHEMA         = 'schema'
+    RPATH_L        = 'RawPathList'
+    FPATH_L        = 'FailedPathList'
+    CPATH_L        = 'CuratedPathList'
+    KEY_L          = 'key_list'
+    NO_DATA_L      = 'no_data_list'
+    INVALID_L      = 'invalid_list'
+    TABLE_CALLED   = 'table_called'
+    WRITE_TAB      = 'table'
+    WRITE_NUMPY    = 'numpy'
+    WRITE_TFLOW    = 'tensorflow'
+    WRITE_ECG_PATH = 'target_path'
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class TabularNamesTemp(object):
     '''
     Names used in the process_dicom module.
     '''
@@ -143,7 +158,6 @@ class TabularNames(object):
     LEAD_aVL              = 'aVL'
     LEAD_aVF              = 'aVF'
     KEY_L                 = 'IndexList'
-    FAILED_DATA_L         = 'NoDataList'
     INFO_T                = 'GeneralInfoTable'
     WAVE_T                = 'WaveFormsTable'
     MEDIAN_T              = 'MedianWaveTable'
@@ -151,17 +165,12 @@ class TabularNames(object):
     WAVE_FILE             = 'WaveFormsTable.tsv.gz'
     MEDIAN_FILE           = 'MedianWaveTable.tsv.gz'
     FAILED_FILE           = 'FailedFiles.txt'
-    FPATH_L               = 'FailedPathList'
-    RPATH_L               = 'RawPathList'
-    CPATH_L               = 'CuratedPathList'
     COL_LEAD              = 'Lead'
     COL_VOLTAGE           = 'Voltage'
     COL_WAVETYPE          = 'Waveform type'
     WAVETYPE_RHYTHM       = 'rhythm'
     WAVETYPE_MEDIAN       = 'median'
-    WRITE_ECG_PATH        = 'target_path'
     PREVIOUS_HEADER       = 'previous_header'
-    TABLE_CALLED          = 'table_called'
     ECG_TRAIT_QT          = 'QT Interval'
     ECG_TRAIT_QT_U        = 'QT Interval UNIT'
     ECG_TRAIT_QRS_D       = 'QRS Duration'

@@ -113,6 +113,11 @@ class ECGXMLReader(BaseReader):
         self : `ECGXMLReader` instance
             Returns the class instance with updated attributes including the
             extracted XML data.
+        
+        Raises
+        ------
+        XMLValidationError
+            If the XML file is not valid based on the supplied schema.
         """
         # #### check input
         is_type(path, (pathlib.PosixPath, pathlib.WindowsPath, str))
