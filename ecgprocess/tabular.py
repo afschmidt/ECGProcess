@@ -6,19 +6,6 @@ The module leverages the existing process class instances and based on their
 class attributes extracts the requested data.
 '''
 
-# NOTE keep track of whether a XML was validated or not - if skip, then
-# record this in the failed doc. Probably also add this for the DICCOM and keep
-# the column empyt
-
-# NOTE add a function to write tables in bulk, with an option to first
-# find the union of headers and add empty columns if a header is missing
-
-# NOTE add functions to write ECG (wave, median) and metdata to HDF5 (perhaps skip, better for random access)
-# TFRecord, numpy files, or parquet (perhaps not?). Allowing to subset the metadata. Getting
-# an optional header text file mapping the array locations to their headers.
-# and allowing to extract any combination of wave, median, or metadata (providing
-# a list). https://chatgpt.com/c/676487d1-0dc8-8011-a3cb-2a9b2ee1ea6c
-
 # NOTE allow for a custom function to be applied to the waveforms and/or
 # medianbeats, which can optionally select data from the metadata.
 
@@ -33,6 +20,7 @@ import pathlib
 import warnings
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 # import matplotlib.pylab as plt
 from typing import (
     Self, Optional, Any, Literal,
@@ -49,7 +37,6 @@ from ecgprocess.errors import (
 from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
-    TabularNamesTemp as PDNames,
 )
 from ecgprocess.utils.general import (
     replace_with_tar,
@@ -96,23 +83,17 @@ class ECGTable(object):
     
     Attributes
     ----------
-    RawPathList : `list` [`str`]
+    raw_path_list : `list` [`str`]
         A list of file paths.
     
     Methods
     -------
-    get_table(update_keys,**kwargs)
-        extracts data from multiple dicom files and maps these to
-        pandas.DataFrames.
-    write_ecg(target_tar, target_path, sep, mode, compression, update_keys,
-    **kwargs)
-        writes each dicom file to a single sets of files (metadata,
-        waveforms, median beats). This is done by appending the extracted
-        data from each file the target file set, minimising the memory
-        footprint.
-    write_pdf(ecgdrawing, target_path, write_failed, kwargs_reader,
-    kwargs_drawing, kwargs_savefig)
-        writes dicom files to pdfs using the dicom unique id as file name.
+    get_table(unique, **kwargs)
+        extract ECG data and maps these to class attributes.
+    write_ecg(chunk, target_tar, target_path, tar_mode, file_type, tab_sep,
+    tab_compression, tab_append, unique, write_failed, write_chunk_record,
+    kwargs_reader, kwargs_tab)
+        writes processed ECG data to a single or multiple files.
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -172,14 +153,14 @@ class ECGTable(object):
         ignore_invalid : `bool`, default False
             Whether XML files who failed to an XSD validation schema should
             be skipped.
-        verbose : bool, default `False`
+        verbose : `bool`, default `False`
             Whether to print warnings.
         
         Attributes
         ----------
-        FailedPathList : list [`str`]
+        failed_path_list : `list` [`str`]
             File paths which were either absent or without read permission.
-        CuratedPathList : list [`str`]
+        curated_path_list : `list` [`str`]
             File paths which are readable.
         
         Returns
@@ -254,6 +235,10 @@ class ECGTable(object):
             A list of files without data.
         invalid_list : `list` [`str`]
             A list of files which failed to validate.
+        _id_start_number : `int`
+            Records the integer start number used as place holder UID when
+            unique = `False`. This attributes esnures UIDs are unique across
+            multiple calls to the method.
         
         Returns
         -------
@@ -287,7 +272,10 @@ class ECGTable(object):
         if hasattr(self, TabNames.INVALID_L) == False:
             setattr(self, TabNames.INVALID_L, [])
         # loop over individual files
-        for i, p in enumerate(path_list, start=1):
+        if hasattr(self, TabNames.ID_START) == False:
+            setattr(self, TabNames.ID_START, 1)
+        for i, p in enumerate(path_list,
+                              start=getattr(self, TabNames.ID_START)):
             if self.verbose == True:
                 print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
             # get instance and check how errors should be handled
@@ -371,6 +359,8 @@ class ECGTable(object):
             # if there is no data at all record this
             if no_meta and no_wave and no_median:
                 getattr(self,TabNames.NO_DATA_L).append(p)
+        # record update the last ID_START
+        setattr(self, TabNames.ID_START, i+1)
         # return the list
         return meta_list, wave_list, median_list
     # /////////////////////////////////////////////////////////////////////////
@@ -412,8 +402,19 @@ class ECGTable(object):
         each file processed.
         """
         # #### run loop
-        meta_list, wave_list, median_list = self._loop_table(
-            getattr(self, TabNames.CPATH_L), unique, **kwargs)
+        try:
+            meta_list, wave_list, median_list = self._loop_table(
+                getattr(self, TabNames.CPATH_L), unique, **kwargs)
+        finally:
+            # cleaning-up.
+            if hasattr(self, TabNames.KEY_L) == True:
+                delattr(self, TabNames.KEY_L)
+            if hasattr(self, TabNames.NO_DATA_L) == True:
+                delattr(self, TabNames.NO_DATA_L)
+            if hasattr(self, TabNames.INVALID_L) == True:
+                delattr(self, TabNames.INVALID_L)
+            if hasattr(self, TabNames.ID_START) == True:
+                delattr(self, TabNames.ID_START)
         # #### make tables and assign these to self
         if getattr(self, TabNames.E_META):
             setattr(self, CTypes.MetaData, pd.DataFrame(
@@ -509,19 +510,14 @@ class ECGTable(object):
         # #### return
         return long_table
     # /////////////////////////////////////////////////////////////////////////
-    # NOTE add a `chunk` integer to process the file paths in chunks.
-    # set this to None to simply process all, the default for get_table (hard-coded)
-    # implement this in write_ecg and set this to 1 as default.
     def write_ecg(self, chunk:int=256, target_tar: None | str = None,
                   target_path:str='.', tar_mode:str='w:gz',
                   file_type:Literal['table', 'numpy', 'tensorflow'] = 'table',
                   tab_sep:str='\t', tab_compression:str | None ='gzip',
-                  tab_append:bool=True, write_failed:bool=True,
-                  unique:bool=True,
+                  tab_append:bool=True, unique:bool=True,
+                  write_failed:bool=True, write_chunk_record:bool = False,
                   kwargs_reader: None | dict[str, Any] = None,
                   kwargs_tab: None | dict[str, Any] = None,
-                  kwargs_numpy: None | dict[str, Any] = None,
-                  kwargs_tfr: None | dict[str, Any] = None,
                   ) -> Self:
         '''
         Extracts chunks of ECG data, and writes these to a single or multiple
@@ -537,10 +533,11 @@ class ECGTable(object):
         target_tar : `str`, default `NoneType`
             The `name` of an optional tarfile where the individual files will
             be written to. The target_tar will be concatenated to
-            `target_path` and depending on `mode` this directory will be
-            tar.gz compressed. Set `target_tar` to `NoneType` to simply add
-            the files directly to `target_path`. Note this will overwrite
-            any potential directory or files with the identical names.
+            `target_path`. Depending on the `mode` this directory will be
+            tar.gz compressed for example.  Set `target_tar` to `NoneType` to
+            simply add the files directly to `target_path`.
+            Note this will overwrite any potential directory or file with the
+            provide name.
         target_path : `str`, default '.'
             The full path where the files should be written to. if provided
             `target_tar` will be created underneath this path, otherwise the
@@ -556,26 +553,25 @@ class ECGTable(object):
             The file separator, which will be passed to
             pandas.DataFrame.to_csv.
         tab_compression : `str`, default `gzip`
-            The file compression passed to pandas.DataFrame.write_csv.
+            The file compression passed to pandas.DataFrame.to_csv.
         tab_append : `bool`, default True
             Whether individual chunks should be appended to the `tsv` file.
-        write_failed : `bool`, default `True`
-            Whether to write a text file to disk containing the failed file
-            names.
         unique : `bool`, default `True`
             ensures the `UID` metadata items are unique between files. Please
             ensure the UID metadata key value pair is appropriately set in
             the config file. If set to false an file-specific integer key will
             be assigned instead.
+        write_failed : `bool`, default `True`
+            Whether to write a text file to disk containing the failed file
+            names.
+        write_chunk_record : `bool`, default `True`
+            Whether to include a record matching the chunk indicator to the
+            files included.
         kwargs_reader : `dict` [`str`, `any`], default `None`
             Keyword arguments used in the call method of a `BaseReader`
             instance.
         kwargs_tab : `dict` [`str`, `any`], default `None`
             Keyword argument for `pd.DataFrame.to_csv`.
-        kwargs_numpy : `dict` [`str`, `any`], default `None`
-            Keyword argument for `numpy.savez`.
-        kwargs_tfr : `dict` [`str`, `any`], default `None`
-            Keyword argument for `tensorflow.io.TFRecordWriter`.
         
         Attributes
         ----------
@@ -593,6 +589,14 @@ class ECGTable(object):
         ------
         NotADirectoryError or PermissionError
             If the target directory does not exist or is not writable.
+        
+        Notes
+        -----
+        While file_type='table' can store any kind of information, numpy and
+        tfrecord are best used to store numerical/float data. The current
+        behaviour does not check feature types and expects the user to
+        supply a reader instance which extract the appropriate type of data,
+        i.e., excluding string data when not writing to tables.
         '''
         # #### set defaults
         # if kwargs is None assigned an empty dict
@@ -610,6 +614,7 @@ class ECGTable(object):
         is_type(tab_sep, str)
         is_type(tab_compression, (type(None), str))
         is_type(write_failed, bool)
+        is_type(write_chunk_record, bool)
         is_type(file_type, str)
         # set to self
         setattr(self, TabNames.WRITE_TYPE, file_type)
@@ -643,58 +648,87 @@ class ECGTable(object):
             target = target_path
             setattr(self, TabNames.WRITE_ECG_PATH, target)
         # #### extract data
+        chunk_record = {}
         # chunk data
         if not chunk is None:
             path_list = chunk_list(getattr(self, TabNames.CPATH_L), chunk)
         else:
             path_list = getattr(self, TabNames.CPATH_L)
-        # NOTE not sure the `first` object is still needed.
+        # NOTE First is only relevant when writing to a file using append.
         first=True
         # #### loop over the path_list
-        for n, p in enumerate(path_list, start=1):
-            meta_list, wave_list, median_list = self._loop_table(
-                p, unique, **kwargs_reader)
-            # write based on the supplied file type
-            if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TAB:
-                if tab_append == False:
-                    self._write_tab(meta_list, wave_list, median_list,
-                                    target, chunk_num=n,
-                                    header=True,
-                                    )
-                # Write to a single file
-                elif first==True:
-                    first = False
-                    # write first file
-                    self._write_tab(meta_list, wave_list, median_list,
-                                    target, chunk_num=None,
-                                    header=True,
-                                    )
-                else:
-                    # append
-                    self._write_tab(meta_list, wave_list, median_list,
-                                    target, chunk_num=None,
-                                    header=False, mode='a',
-                                    )
-            if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NUMPY:
-                pass
-            if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TFLOW:
-                pass
-        # NOTE add the write methods for the other file_types and then
-        # finish the below, also allowing for invalid_filepaths.
+        try:
+            for n, p in enumerate(path_list, start=1):
+                # record the chunk_number and the files included
+                chunk_record[n] = ', '.join(p)
+                # extract data
+                meta_list, wave_list, median_list = self._loop_table(
+                    p, unique, **kwargs_reader)
+                # write based on the supplied file type
+                if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TAB:
+                    if tab_append == False:
+                        self._write_tab(
+                            meta_list, wave_list, median_list, target,
+                            chunk_num=n if chunk is not None else None,
+                            header=True,
+                                        )
+                    # Write to a single file
+                    elif first==True:
+                        first = False
+                        # write first file
+                        self._write_tab(meta_list, wave_list, median_list,
+                                        target, chunk_num=None,
+                                        header=True,
+                                        )
+                    else:
+                        # append
+                        self._write_tab(meta_list, wave_list, median_list,
+                                        target, chunk_num=None,
+                                        header=False, mode='a',
+                                        )
+                if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NUMPY:
+                    self._write_numpy(
+                        meta_list, wave_list, median_list, target,
+                        chunk_num=n if chunk is not None else None,
+                    )
+                if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TFLOW:
+                    self._write_tfr(
+                        meta_list, wave_list, median_list, target,
+                        chunk_num=n if chunk is not None else None,
+                    )
+        finally:
+            # cleaning-up.
+            if hasattr(self, TabNames.KEY_L) == True:
+                delattr(self, TabNames.KEY_L)
+            if hasattr(self, TabNames.NO_DATA_L) == True:
+                delattr(self, TabNames.NO_DATA_L)
+            if hasattr(self, TabNames.INVALID_L) == True:
+                delattr(self, TabNames.INVALID_L)
+            if hasattr(self, TabNames.ID_START) == True:
+                delattr(self, TabNames.ID_START)
+        # #### write chunk record
+        if write_chunk_record:
+            chunk_tab = pd.DataFrame.from_dict(chunk_record, orient='index',
+                                   columns=['Files'])
+            chunk_tab.index.name='Chunk number'
+            chunk_tab.to_csv(
+                os.path.join(target, 'ChunkRecord.tsv'), sep='\t', header=True,
+                index=True)
         # #### write failed files, note not compressing these
-        DELIM = '\t'
         if write_failed == True:
             # adding the reason for failing
-            total_failures = [
-                (p, PDNames.SKIP_PERMISSIONS) for p in\
-                getattr(self, PDNames.FPATH_L) ] + [
-                (p, PDNames.SKIP_DATA) for p in\
-                    getattr(self, PDNames.FAILED_DATA_L)]
+            total_failures =\
+                [(p, 'File permission') for p in\
+                 getattr(self, TabNames.FPATH_L) ] +\
+                [ (p, 'No data') for p in\
+                 getattr(self, TabNames.NO_DATA_L)] +\
+                [(p, 'Invalid data') for p in\
+                 getattr(self, TabNames.INVALID_L)]
             # writing to text file
-            with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
+            with open(os.path.join(target, 'FailedFiles.txt'), 'w') as file:
                 for p, cause in total_failures:
-                    file.write(p + DELIM + cause + "\n")
-        # #### if needed replace directory by tar.gz version
+                    file.write(p + "\t" + cause + "\n")
+        # #### if needed replace directory by a tarball
         if target_tar is not None:
             # create the final target path
             target_final = os.path.join(target_path, target_tar)
@@ -704,16 +738,29 @@ class ECGTable(object):
         return self
     # /////////////////////////////////////////////////////////////////////////
     def _write_file_names(self, chunk_num:int|None = None,
-                          ) -> tuple[str, str, str]:
+                          ) -> tuple[str, str, str, str]:
         """
-        TO DO
+        Creates the filenames with relevant extensions, optionally accounting
+        for chunks.
+        
+        Parameters
+        ----------
+        chunk_num : `int` or `NoneType`, default `NoneType`
+            Appends the chunk number with a '_' seperator before the file
+            extension.
+        
+        Returns
+        -------
+        tuple of strings
+            The filenames for metadata, waveforms, medianbeats, and ecg_data.
         """
         # #### check input
-        # TODO
+        is_type(chunk_num, (int, type(None)))
         # Set the initial filenames
         META_FILE = 'meta'
         WAVE_FILE = 'waveforms'
         MEDIAN_FILE = 'medianbeats'
+        ECG_FILE = 'ecg_data'
         SEP = ''
         CHUNK = ''
         # determine file type
@@ -742,8 +789,9 @@ class ECGTable(object):
         META_FILE = META_FILE + SEP + CHUNK + EXT
         WAVE_FILE = WAVE_FILE + SEP + CHUNK + EXT
         MEDIAN_FILE = MEDIAN_FILE + SEP + CHUNK + EXT
+        ECG_FILE = ECG_FILE + SEP + CHUNK + EXT
         # return
-        return META_FILE, WAVE_FILE, MEDIAN_FILE
+        return META_FILE, WAVE_FILE, MEDIAN_FILE, ECG_FILE
     # /////////////////////////////////////////////////////////////////////////
     def _write_tab(self, meta_list:list[dict[str, Any]],
                    wave_list:list[dict[str, np.ndarray]],
@@ -753,12 +801,30 @@ class ECGTable(object):
                    **kwargs,
                    ) -> None:
         """
-        TO DO
+        Writes data to a flat table.
+        
+        Parameters
+        ----------
+        wave_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing medianbeats signals.
+        target: `str`
+            The target directory.
+        chunk_num : `int` or `NoneType`
+            Appends the chunk number with a '_' seperator before the file
+            extension.
+        
+        Notes
+        -----
+        This function does not return anything.
         """
         # #### check input
-        # TODO
+        is_type(chunk_num, (int, type(None)))
         # Set the filenames
-        META_FILE, WAVE_FILE, MEDIAN_FILE=\
+        META_FILE, WAVE_FILE, MEDIAN_FILE, _=\
             self._write_file_names(chunk_num=chunk_num)
         # #### write individual files
         kwargs_tab_combi = {**self.kwargs_tab, **kwargs}
@@ -776,6 +842,111 @@ class ECGTable(object):
             pd.DataFrame([median_list]).to_csv(
                 os.path.join(target, MEDIAN_FILE),
                 **kwargs_tab_combi,
+            )
+    # /////////////////////////////////////////////////////////////////////////
+    # NOTE npz is not ideal to store non-numerical data, might want to filter
+    # the pandas tables to remove these - as an optional parameter?
+    # printing warnings returning the removed columns??
+    def _write_numpy(self, meta_list:list[dict[str, Any]],
+                   wave_list:list[dict[str, np.ndarray]],
+                   median_list:list[dict[str, np.ndarray]],
+                   target:str,
+                   chunk_num:int | None,
+                   ) -> None:
+        """
+        Writes data to a compressed numpy file `.npz`.
+        
+        Parameters
+        ----------
+        wave_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing medianbeats signals.
+        target: `str`
+            The target directory.
+        chunk_num : `int` or `NoneType`
+            Appends the chunk number with a '_' seperator before the file
+            extension.
+        
+        Notes
+        -----
+        This function does not return anything.
+        """
+        # #### check input
+        is_type(chunk_num, (int, type(None)))
+        # Set the filenames
+        _, _, _, ECG_FILE=\
+            self._write_file_names(chunk_num=chunk_num)
+        # #### write individual files
+        res_dict = {}
+        if getattr(self, TabNames.E_META):
+            res_dict[CTypes.MetaData] = pd.DataFrame([meta_list]).to_numpy()
+        if getattr(self, TabNames.E_WAVE):
+            res_dict[CTypes.WaveForms] = pd.DataFrame([wave_list]).to_numpy()
+        if getattr(self, TabNames.E_MEDIAN):
+            res_dict[CTypes.MedianBeats] =\
+                pd.DataFrame([median_list]).to_numpy()
+        # finally write to a single file
+        np.savez(os.path.join(target, ECG_FILE), **res_dict)
+    # /////////////////////////////////////////////////////////////////////////
+    # NOTE tfrecords cannot handle non-numerical data, might want to filter
+    # the pandas tables to remove these - as an optional parameter?
+    def _write_tfr(self, meta_list:list[dict[str, Any]],
+                   wave_list:list[dict[str, np.ndarray]],
+                   median_list:list[dict[str, np.ndarray]],
+                   target:str,
+                   chunk_num:int | None,
+                   ) -> None:
+        """
+        Writes data to a compressed tfrecord.
+        
+        Parameters
+        ----------
+        wave_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing medianbeats signals.
+        target: `str`
+            The target directory.
+        chunk_num : `int` or `NoneType`
+            Appends the chunk number with a '_' seperator before the file
+            extension.
+        
+        Notes
+        -----
+        This function does not return anything.
+        """
+        # #### check input
+        is_type(chunk_num, (int, type(None)))
+        # Set the filenames
+        _, _, _, ECG_FILE=\
+            self._write_file_names(chunk_num=chunk_num)
+        # #### write individual files
+        res_dict = {}
+        if getattr(self, TabNames.E_META):
+            res_dict[CTypes.MetaData] = tf.train.Feature(
+                float_list=tf.train.FloatList(
+                    value=pd.DataFrame([meta_list]).to_numpy().flatten()
+                ))
+        if getattr(self, TabNames.E_WAVE):
+            res_dict[CTypes.WaveForms] = tf.train.Feature(
+                float_list=tf.train.FloatList(
+                    value=pd.DataFrame([wave_list]).to_numpy().flatten()
+                ))
+        if getattr(self, TabNames.E_MEDIAN):
+            res_dict[CTypes.MedianBeats] = tf.train.Feature(
+                float_list=tf.train.FloatList(
+                    value=pd.DataFrame([median_list]).to_numpy().flatten()
+                ))
+        # finally write to a single file
+        with tf.io.TFRecordWriter(os.path.join(target, ECG_FILE)) as writer:
+            writer.write(
+                tf.train.Example(feature=tf.train.Features(feature=res_dict)).\
+                SerializeToString()
             )
     # # /////////////////////////////////////////////////////////////////////////
     # def write_pdf(self, ecgdrawing:ECGDrawing,

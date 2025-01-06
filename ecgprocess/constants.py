@@ -5,7 +5,6 @@ Constants used by ECGProcess
 from dataclasses import dataclass
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 class CoreData:
     '''
     Core variable names which are used internally by various modules in
@@ -123,9 +122,9 @@ class TabularNames(object):
     SKIP_DATA      = 'ignore_data'
     SKIP_INVALID   = 'ignore_invalid'
     SCHEMA         = 'schema'
-    RPATH_L        = 'RawPathList'
-    FPATH_L        = 'FailedPathList'
-    CPATH_L        = 'CuratedPathList'
+    RPATH_L        = 'raw_path_list'
+    FPATH_L        = 'failed_path_list'
+    CPATH_L        = 'curated_path_list'
     KEY_L          = 'key_list'
     NO_DATA_L      = 'no_data_list'
     INVALID_L      = 'invalid_list'
@@ -135,80 +134,7 @@ class TabularNames(object):
     WRITE_TFLOW    = 'tensorflow'
     WRITE_ECG_PATH = 'target_path'
     WRITE_TYPE     = 'file_type'
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-class TabularNamesTemp(object):
-    '''
-    Names used in the process_dicom module.
-    '''
-    MetaData              = CoreData.DataTypes.MetaData
-    WaveForms             = CoreData.DataTypes.WaveForms
-    MedianBeats           = CoreData.DataTypes.MedianBeats
-    LEAD_INFO             = 'lead_info_final'
-    CHANNEL_SOURCE_SEQ    = 'ChannelSourceSequence'
-    CHANNEL_CODE_MEANING  = 'CodeMeaning'
-    CHANNEL_SENS          = 'ChannelSensitivity'
-    CHANNEL_SENS_UNIT     = 'ChannelSensitivityUnitsSequence'
-    STUDY_TIME            = 'StudyTime'
-    UNIT                  = 'Unit free'
-    LEAD                  = 'Lead'
-    LEAD_III              = 'III'
-    LEAD_II               = 'II'
-    LEAD_I                = 'I'
-    LEAD_aVR              = 'aVR'
-    LEAD_aVL              = 'aVL'
-    LEAD_aVF              = 'aVF'
-    KEY_L                 = 'IndexList'
-    INFO_T                = 'GeneralInfoTable'
-    WAVE_T                = 'WaveFormsTable'
-    MEDIAN_T              = 'MedianWaveTable'
-    INFO_FILE             = 'GeneralInfoTable.tsv.gz'
-    WAVE_FILE             = 'WaveFormsTable.tsv.gz'
-    MEDIAN_FILE           = 'MedianWaveTable.tsv.gz'
-    FAILED_FILE           = 'FailedFiles.txt'
-    COL_LEAD              = 'Lead'
-    COL_VOLTAGE           = 'Voltage'
-    COL_WAVETYPE          = 'Waveform type'
-    WAVETYPE_RHYTHM       = 'rhythm'
-    WAVETYPE_MEDIAN       = 'median'
-    PREVIOUS_HEADER       = 'previous_header'
-    ECG_TRAIT_QT          = 'QT Interval'
-    ECG_TRAIT_QT_U        = 'QT Interval UNIT'
-    ECG_TRAIT_QRS_D       = 'QRS Duration'
-    SKIP_PERMISSIONS      = 'Permissions'
-    SKIP_DATA             = 'Data'
-    SKIP_NONE             = 'None'
-    WAVE_SCALING          = 'mm_mv'
-    MICROVOLT             = 'microvolt'
-    MILLIVOLT             = 'millivolt'
-    ECG_SIGNAL            = 'ecg_signal'
-    WAVE_TYPE             = 'wave_type'
-    PLOT_LAYOUT           = 'image_layout'
-    PLOT_HEIGHT           = 'height'
-    PLOT_WIDTH            = 'width'
-    PAPER_HEIGHT          = 'paper_h'
-    PAPER_WIDTH           = 'paper_w'
-    PLOT_UNIT             = 'ecg_unit'
-    PLOT_AXES             = 'ax'
-    PLOT_FIG              = 'fig'
-    PLOT_FIGSIZE          = 'figsize'
-    ECG_READER            = 'ECG_READER'
-    INFO_TYPE             = 'info_type'
-    INFO_TYPE_ALL         = 'all'
-    INFO_TYPE_RTM         = 'rhythm'
-    INFO_TYPE_MED         = 'median'
-    INFO_TYPE_MET         = 'meta'
-    START_POS_FIRST       = 'first'
-    START_POS_CONT        = 'continues'
-    XML_VAL_FULL          = 'Full'
-    XML_VAL_PART          = 'Partial'
-    XML_VAL_SKIP          = 'Skip'
-    PLOT_SAMPLING_NUMBER  = 'sampling number'
-    # Need to be removed after updating process_dicoms
-    ACQUISITION_DATE      = 'AcquisitionDateTime'
-    SAMPLING_NUMBER_M     = 'NumberOfWaveformSamples (MEDIAN)'
-    STUDY_DATE            = 'StudyDate'
-    SOP_UID               = 'SOPinstanceUID'
+    ID_START       = '_id_start_number'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
