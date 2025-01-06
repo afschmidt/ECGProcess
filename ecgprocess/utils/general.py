@@ -11,23 +11,22 @@ from ecgprocess.errors import (
 )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def replace_with_tar(old_dir:str, new_tar:str, mode:str='w:gz'):
+def replace_with_tar(old_dir:str, new_tar:str, mode:str='w:gz') -> None:
     '''
-    Moves the `old_dir` and its files an moves this to `tar` file, removing
-    the `old_dir`.
+    Moves the `old_dir` to a `tar` file, removing the `old_dir`.
     
     Parameters
     ----------
-    old_dir: str
+    old_dir: `str`
         The path to the old directory.
-    new_tar: str
+    new_tar: `str`
         The path to the new tar file.
-    mode: str, default `w:gz`
+    mode: `str`, default `w:gz`
         The tarfile.open mode.
     
-    Returns
-    -------
-    None
+    Notes
+    -----
+    The function does not return anything
     '''
     # Create the tar.gz archive
     with tarfile.open(new_tar, mode) as tar:
@@ -51,14 +50,15 @@ def list_tar(path:str, mode:str='r:gz') -> list[str]:
     
     Parameters
     ----------
-    path : str,
+    path : `str`,
         The path to the tar file.
-    mode : str, default `r:gz`
+    mode : `str`, default `r:gz`
         The tarfile open mode.
     
     Returns
     -------
-    files : list [`str`]
+    list
+        A list of filenames.
     '''
     # make sure we use a read mode
     if mode.startswith('r:') == False:
@@ -71,22 +71,6 @@ def list_tar(path:str, mode:str='r:gz') -> list[str]:
             files.append(member.name)
     # return
     return files
-
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# def getattr_case_insensitive(obj:object, attr_name:str) -> Any:
-#     '''
-#     A case insensitive version of getattr. Use this when extracting data from
-#     a dataclass instance which may have not been sufficiently standardised.
-#     '''
-#     # Get all attributes of the object
-#     all_attrs = dir(obj)
-#     # Find the attribute with a case-insensitive match
-#     for attr in all_attrs:
-#         if attr.lower() == attr_name.lower():
-#             return getattr(obj, attr)
-#     # Raise an AttributeError if no match is found
-#     raise AttributeError(f"'{type(obj).__name__}' object has no attribute "
-#                          f"'{attr_name}'")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def assign_empty_default(arguments:list[Any], empty_object:Callable[[],Any],
@@ -136,10 +120,10 @@ def _update_kwargs(update_dict:dict[Any, Any], **kwargs:Optional[Any],
     
     Parameters
     ----------
-    update_dict : dict
+    update_dict : `dict`
         A dictionary with key - value pairs that should be combined with any
         of the supplied kwargs.
-    kwargs : Any
+    kwargs : `Any`
         Arbitrary keyword arguments.
     
     Returns

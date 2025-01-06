@@ -29,8 +29,8 @@ dicom_path_list = [
     list_data_paths()['example_dicom_1'],
 ]
 dicom_wrong_list = ['wrong']
-expect_content = set([PDNames.FAILED_FILE, PDNames.INFO_FILE,
-                      PDNames.WAVE_FILE, PDNames.MEDIAN_FILE])
+# expect_content = set([PDNames.FAILED_FILE, PDNames.INFO_FILE,
+#                       PDNames.WAVE_FILE, PDNames.MEDIAN_FILE])
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest

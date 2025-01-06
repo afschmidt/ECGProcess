@@ -177,6 +177,13 @@ class DataMap(object):
     >>> data_map = DataMap()
     >>> data_map.get_attributes()
     ['WaveForms', 'MedianBeats', 'MetaData']
+
+    Notes
+    -----
+    The class is intended to work in conjunction with a config file processed
+    using `ConfigParser.map(DataMap)`. DataMap ensures any privileged
+    attributes ommited from the config are added and set to None, and prevents
+    the config file to be altered after processing.
     """
     # setting attributes
     WaveForms: dict = field(default_factory=lambda: PrivilegedData(
@@ -389,7 +396,7 @@ class ConfigParser(object):
                         pass
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def map(self, mapper:DataMap) -> DataMap:
+    def map(self, mapper:DataMap) -> None:
         """
         Maps the parsed data to a supplied `DataMap` instance.
         
@@ -401,11 +408,10 @@ class ConfigParser(object):
             or types). These attributes will be updated with the data parsed by
             this class.
         
-        Returns
-        -------
-        DataMap
-            The same `DataMap` instance provided as input, but with its
-            attributes updated to include the parsed data.
+        Notes
+        -----
+        The method does not return anything and simply creates the `mapper`
+        attribute.
         """
         WRONG = ('Attribute `{}` is outside the allowed for key set for `{}`.'
                  'Please update your configuration file to only list allowed '
@@ -465,8 +471,8 @@ class ConfigParser(object):
                  **meta_data_other.to_dict()}
                 )
         setattr(self, ConfigNames.MAPPER, mapper)
-        # return stuff
-        return mapper
+        # # return stuff
+        # return mapper
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def get_section(self,
                     section_name:Literal['MetaData', 'WaveForms', 'MedianBeats',

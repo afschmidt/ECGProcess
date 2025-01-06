@@ -1,6 +1,13 @@
 '''
-A module to extract, metadata, median beats and raw waveforms from ECG XMLs.
+A module for extracting metadata, median beats, and raw waveforms from ECG
+XML files, allowing for XML validation.
+
+This module provides an API through a reader class, which maps ECG data from
+XML files to class attributes. These attributes can be programmatically accessed
+and further processed by downstream ECGprocess modules or external programs
+leveraging the API.
 '''
+
 import pathlib
 import warnings
 import numpy as np

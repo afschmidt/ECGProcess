@@ -8,10 +8,10 @@ class attributes extracts the requested data.
 
 # NOTE allow for a custom function to be applied to the waveforms and/or
 # medianbeats, which can optionally select data from the metadata.
+# consider allowing for functions to be passed to metadata as well.
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
-import enum
 import os
 # import re
 import sys
@@ -757,7 +757,7 @@ class ECGTable(object):
         # #### check input
         is_type(chunk_num, (int, type(None)))
         # Set the initial filenames
-        META_FILE = 'meta'
+        META_FILE = 'metadata'
         WAVE_FILE = 'waveforms'
         MEDIAN_FILE = 'medianbeats'
         ECG_FILE = 'ecg_data'
@@ -834,12 +834,18 @@ class ECGTable(object):
                 **kwargs_tab_combi,
             )
         if getattr(self, TabNames.E_WAVE):
-            pd.DataFrame([wave_list]).to_csv(
+            self._get_long_table(
+                wave_list, signal_type=CTypes.WaveForms,
+                purge_header=True,
+            ).to_csv(
                 os.path.join(target, WAVE_FILE),
                 **kwargs_tab_combi,
             )
         if getattr(self, TabNames.E_MEDIAN):
-            pd.DataFrame([median_list]).to_csv(
+            self._get_long_table(
+                median_list, signal_type=CTypes.MedianBeats,
+                purge_header=True,
+            ).to_csv(
                 os.path.join(target, MEDIAN_FILE),
                 **kwargs_tab_combi,
             )

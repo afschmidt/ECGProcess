@@ -1,6 +1,11 @@
 '''
-A module to extract, metadata, median beats and raw waveforms from ECGs DICOM
-wrapping pydicom.
+A module for extracting metadata, median beats, and raw waveforms from ECG
+DICOM files.
+
+This module provides an API through a reader class, which maps ECG data from
+DICOM files to class attributes. These attributes can be programmatically accessed
+and further processed by downstream ECGprocess modules or external programs
+leveraging the API.
 '''
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -296,6 +301,12 @@ class FixedDICOMReader(BaseReader):
     pydicom attributes which these data can be extracted from are fixed. This
     therfore provides a less flexible solution than FixedDICOMReader.
     """
+    warnings.warn(
+        "'FixedDICOMReader' will be deprecated in a future version. "
+        "Please use 'ECGDICOMReader' instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     # #### parameters, with defaults
     augment_leads: bool=False
     resample_500:bool=True

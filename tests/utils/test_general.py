@@ -180,3 +180,43 @@ def test_string_concat():
     assert gen_utils.string_concat('hello', 'world', sep='\n') == 'hello\nworld'
     assert gen_utils.string_concat(np.nan, 'world', sep=': ') == 'world'
     assert gen_utils.string_concat(1.0, 'world', sep=': ') == '1.0: world'
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestChunkList(object):
+    """
+    Testing chunks
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize(
+        "lst, size, expected",
+        [
+            # standard
+            ([1, 2, 3, 4, 5], 2, [[1, 2], [3, 4], [5]]),
+            # last chunk smaller
+            ([1, 2, 3, 4, 5], 3, [[1, 2, 3], [4, 5]]),
+            # Single elements
+            ([1, 2, 3, 4, 5], 1, [[1], [2], [3], [4], [5]]),
+            # Exact size
+            ([1, 2, 3], 3, [[1, 2, 3]]),
+            # Size larger than list len
+            ([1, 2, 3], 4, [[1, 2, 3]]),
+            # empty
+            ([], 3, []),
+        ],
+    )
+    def test_chunk_list_valid(self, lst, size, expected):
+        result = list(gen_utils.chunk_list(lst, size))
+        assert result == expected
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize(
+        "lst, size, exception",
+        [
+            ([1, 2, 3], 0, ValueError),
+            ("not a list", 3, InputValidationError),
+            ([1, 2, 3], "not an int", InputValidationError),
+        ],
+    )
+    def test_invalid_cases(self, lst, size, exception):
+        with pytest.raises(exception):
+            list(gen_utils.chunk_list(lst, size))
+    

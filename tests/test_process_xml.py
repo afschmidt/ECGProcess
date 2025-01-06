@@ -82,15 +82,15 @@ class TestECGXMLReader(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_ecgxmlreader_extract(self):
         n_leads = 'number of leads'
+        # adding the mapper.
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name, text=example_config)
             parsed_confg = config_utils.ConfigParser(tmp_file.name)() # examples
-        # FIXME paresed_xml.extract(config=parsed_confg) should really take
-        # the _ = parsed_confg.map(mapper=config_utils.DataMap()) object
-        _ = parsed_confg.map(mapper=config_utils.DataMap())
+        parsed_confg.map(mapper=config_utils.DataMap())
+        # adding the file and schema path.
         path = list_xml_paths()['example_1']
         schema = list_xml_paths()['example_1_schema']
-        # run
+        # #### run
         reader = pro_xml.ECGXMLReader()
         parsed_xml = reader(path=path, schema=schema, verbose=True)
         # extraction 1

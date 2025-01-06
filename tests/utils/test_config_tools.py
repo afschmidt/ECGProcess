@@ -93,6 +93,7 @@ class TestBaseExtraction(object):
             config_utils.DataMap(1)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_config_parers(self):
+        MAPPED = 'mapper'
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name)
             parser = config_utils.ConfigParser(tmp_file.name)()
@@ -100,10 +101,14 @@ class TestBaseExtraction(object):
         with pytest.raises(AttributeError):
             parser.get_section('WaveForms')
         # add mapper
-        mapped = parser.map(mapper=config_utils.DataMap())
+        parser.map(mapper=config_utils.DataMap())
+        # confirm this only work with the correct names.
         with pytest.raises(ValueError):
             parser.get_section('Wave')
+        # confirm this now works.
         assert len(parser.get_section('WaveForms')) == 12
+        # testing the mapper
+        mapped = getattr(parser, MAPPED)
         meta = getattr(mapped, ConfigNames.MetaData)
         assert sum(1 for value in meta.values() if value is not None) == 3
         assert getattr(mapped, ConfigNames.WaveForms) !=\
@@ -182,9 +187,9 @@ class TestBaseExtraction(object):
                 _ = config_utils.ConfigParser(tmp_file.name)()
         # the wrong config
         with pytest.raises(KeyError):
-            mapped = parser1.map(mapper=config_utils.DataMap())
+            parser1.map(mapper=config_utils.DataMap())
         # the correct config
-        mapped = parser2.map(mapper=config_utils.DataMap())
+        parser2.map(mapper=config_utils.DataMap())
         assert len(parser2._data) > 0
         assert len(parser2.get_section('WaveForms')) == 12
         assert parser3 == parser2
