@@ -1,6 +1,6 @@
+tensorflow>=2.16
 lxml>=5
 xmltodict>=0.14
-tensorflow>=2.16
 pydicom>=2.0
 pytest>=6
 pytest-mock>=3.0

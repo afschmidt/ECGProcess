@@ -1,56 +1,75 @@
+# Use a minimal Debian image with Pandoc
 FROM pandoc/minimal:latest-static AS init
-FROM python:3.12.4-alpine3.19 AS build
+FROM python:3.12.8-bullseye AS build
 
-ENV BUILD_DEPS="build-base \
-    bzip2-dev \
-    zlib-dev \
-    xz-dev \
-    openssl-dev \
-    curl-dev \
+# Define build dependencies
+ENV BUILD_DEPS="build-essential \
+    bzip2 \
+    zlib1g-dev \
+    xz-utils \
+    libssl-dev \
+    libcurl4-openssl-dev \
     gfortran \
-    openblas-dev \
-    linux-headers \
-    openssh \
+    libopenblas-dev \
     libffi-dev \
-    libdeflate-dev \
     cmake \
-    pkgconf \
-    gcc \
-    musl-dev \
-    git"
+    make \
+    pkg-config \
+    git \
+    llvm-11-dev \
+    python3-dev"
 
 WORKDIR /data
 COPY requirements.txt ./
 COPY sphinx.txt ./
 
-# Used for llvmlist and numba install
-# ENV LLVM_CONFIG=/usr/bin/llvm11-config
-RUN apk upgrade --update && \
-    apk add --no-cache --virtual .build-deps $BUILD_DEPS && \
-    pip install --upgrade pip && \
-    pip install --upgrade pip setuptools && \
+# Used for llvmlite and numba installation
+ENV LLVM_CONFIG=/usr/bin/llvm-config-11
+
+# Install build dependencies and Python packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends $BUILD_DEPS && \
+    pip install --upgrade pip setuptools wheel && \
+    # Install packages required by numba and statsmodels
     pip install "setuptools_scm[toml]" && \
     pip install "pandas>=2.1.1" && \
     pip install "numpy>=1.26" && \
     pip install "scipy>=1.7" && \
     pip install -r requirements.txt && \
     pip install -r sphinx.txt && \
-    apk del .build-deps
+    # Clean up
+    apt-get purge -y --auto-remove $BUILD_DEPS && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-FROM python:3.12.4-alpine3.19 AS final
-ENV PERSISTENT_DEPS="libdeflate \
-    openblas \
-    curl \
+# Use a lightweight final image
+FROM python:3.12.8-bullseye AS final
+
+# Define persistent dependencies
+ENV PERSISTENT_DEPS="libdeflate0 \
+    libopenblas0 \
+    libcurl4 \
     git \
+    llvm-11 \
     sed"
-# Used for llvmlist and numba install
-# ENV LLVM_CONFIG=/usr/bin/llvm11-config
+
+# Set the LLVM config environment for numba
+ENV LLVM_CONFIG=/usr/bin/llvm-config-11
 
 WORKDIR /data
+
+# Copy necessary files from the build stage
 COPY --from=build /usr/local/bin /usr/local/bin
 COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=build /usr/local/share/jupyter /usr/local/share/jupyter
-COPY --from=init /pandoc /usr/local/bin/
+COPY --from=init /usr/local/bin/pandoc /usr/local/bin/
 
-RUN apk upgrade --update && \
-    apk add --virtual .persistent-deps $PERSISTENT_DEPS
+# Install persistent dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends $PERSISTENT_DEPS && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# running in sh
+CMD ["sh"]
+
