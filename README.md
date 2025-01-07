@@ -5,10 +5,14 @@ __version__: `0.2.2`
 This repository host a mixture of function dealing with processing 
 electrocardiogram (ECG) data, and preparing these data for analysis.
 The processing functions are intended for user defined parametrisation 
-about the data which should be extracted, covering signal data such as 
-waveforms or median beats, as well as metadata relevant for downstream 
-QC or as tabular information. 
+(using user supplied configuration files `cnf`) about the data which 
+should be extracted, covering signal data such as waveforms or
+median beats, as well as metadata relevant for downstream QC or as
+tabular information. 
 
+The module implements a basic application programming interface, mapping
+ECG data from distinct file types (e.g. XML or DICOM) to class attributes
+providing a fixed interface for downstream analysis and interrogation. 
 
 The documentation for ECGProcess can be found [here](https://SchmidtAF.gitlab.io/ECGProcess/). 
 

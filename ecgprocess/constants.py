@@ -118,6 +118,10 @@ class TabularNames(object):
     E_META         = 'extract_'+CoreData.DataTypes.MetaData
     E_WAVE         = 'extract_'+CoreData.DataTypes.WaveForms
     E_MEDIAN       = 'extract_'+CoreData.DataTypes.MedianBeats
+    ENG_META       = 'engineer_'+CoreData.DataTypes.MetaData
+    ENG_WAVE       = 'engineer_'+CoreData.DataTypes.WaveForms
+    ENG_MEDIAN     = 'engineer_'+CoreData.DataTypes.MedianBeats
+    META_LIST      = 'meta_list'
     SKIP_PERM      = 'ignore_permission'
     SKIP_DATA      = 'ignore_data'
     SKIP_INVALID   = 'ignore_invalid'

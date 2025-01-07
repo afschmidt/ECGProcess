@@ -23,7 +23,7 @@ import pandas as pd
 import tensorflow as tf
 # import matplotlib.pylab as plt
 from typing import (
-    Self, Optional, Any, Literal,
+    Callable, Self, Optional, Any, Literal,
 )
 from ecgprocess.errors import (
     XMLValidationError,
@@ -50,12 +50,38 @@ from ecgprocess.utils.general import (
 from ecgprocess.utils.reader_tools import(
     BaseReader,
 )
+from ecgprocess.utils.config_tools import(
+    ConfigParser,
+)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # constants
 CTypes = Core.DataTypes
 CMeta = Core.MetaData
+
+# defaults
+def metadata_identity(metadata:list[dict[str, Any]], verbose:bool=False,
+                      **kwargs) -> list[dict[str, Any]]:
+    """
+    A place holder identity function, simply returning the same input data
+    """
+    is_type(verbose, bool)
+    if verbose:
+        print(**kwargs)
+    return metadata
+
+def signal_identity(signals:list[dict[str, np.ndarray]], verbose:bool=False,
+                      **kwargs) -> list[dict[str, Any]]:
+    """
+    A place holder identity function, simply returning the same input data
+    """
+    is_type(verbose, bool)
+    if verbose:
+        print(**kwargs)
+    if not TabNames.META_LIST in kwargs:
+        raise KeyError(f"`{TabNames.MetaData}` should be included as kwargs")
+    return signals
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class ECGTable(object):
@@ -71,12 +97,21 @@ class ECGTable(object):
         An instance of the BaseReader data class.
     path_list : `list` [`str`]
         A list of paths to one or more files containing ECG data.
-    extract_meta : `bool`, `default` True
+    extract_meta : `bool`, default True
         Whether to extract the metadata data.
-    extract_wave : `bool`, `default` True
+    extract_wave : `bool`, default True
         Whether to extract the raw waveforms.
-    extract_median : `bool`, `default` True
+    extract_median : `bool`, default True
         Whether to extract the median beats.
+    engineer_meta : `Callable`, default `metadata_identity`
+        A function applied to the internal meta_list object. Please ensure
+        the function include parameters: `meta_list` and `**kwargs`.
+    engineer_wave : `Callable`, default `signal_identity`
+        A function applied to the internal wave_list object. Please ensure
+        the function include parameters: `wave_list` and `**kwargs`.
+    engineer_median : `Callable`, default `signal_identity`
+        A function applied to the internal median_list object. Please ensure
+        the function include parameters: `median_list` and `**kwargs`.
     schema : `str` or `NoneType`, default `NoneType`
         The path to an optional XSD schema to validate an XML file. Set to
         None to ignore.
@@ -94,12 +129,28 @@ class ECGTable(object):
     tab_compression, tab_append, unique, write_failed, write_chunk_record,
     kwargs_reader, kwargs_tab)
         writes processed ECG data to a single or multiple files.
+    
+    Notes
+    -----
+    The engineering parameters can be used to supply function that will be
+    applied separately to each processed file before these files are chunked and
+    written to disk. The functions are applied in the following order to the
+    internal objects: meta_list (for metadata),
+    wave_list (for waveform signals), median_list (for medianbeats signals).
+    Please ensure each supplied function includes a **kwargs parameter, which
+    will be used to internally include the two remaining list objects. So when
+    the engineer_wave function will have access to the list_meta data through
+    its kwargs.
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __init__(self, ecgreader:BaseReader, path_list:list[str],
                  extract_meta:bool=True, extract_wave:bool=True,
-                 extract_median:bool=True, schema:str | None = None,
+                 extract_median:bool=True,
+                 engineer_meta:Callable=metadata_identity,
+                 engineer_wave:Callable=signal_identity,
+                 engineer_median:Callable=signal_identity,
+                 schema:str | None = None,
                  ) -> None:
         """
         Initialises a new instance of `ECGTable`.
@@ -117,6 +168,9 @@ class ECGTable(object):
         setattr(self, TabNames.E_META, extract_meta)
         setattr(self, TabNames.E_WAVE, extract_wave)
         setattr(self, TabNames.E_MEDIAN, extract_median)
+        setattr(self, TabNames.ENG_META, engineer_meta)
+        setattr(self, TabNames.ENG_WAVE, engineer_wave)
+        setattr(self, TabNames.ENG_MEDIAN, engineer_median)
         setattr(self, TabNames.RPATH_L, path_list)
         setattr(self, TabNames.SCHEMA, schema)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -207,8 +261,11 @@ class ECGTable(object):
         # #### Return
         return self
     # /////////////////////////////////////////////////////////////////////////
-    def _loop_table(self, path_list:list[str], unique:bool=True,
-                    **kwargs:Optional[Any],
+    def _loop_table(self, path_list:list[str],
+                    parsed_config:ConfigParser,
+                    unique:bool=True,
+                    kwargs_reader_call:dict[Any, Any] | None = None,
+                    kwargs_reader_extract:dict[Any, Any] | None = None,
                   ) -> tuple[list[dict[str, Any]], list[dict[str, np.ndarray]],
                              list[dict[str, np.ndarray]]]:
         """
@@ -218,14 +275,18 @@ class ECGTable(object):
         ----------
         path_list : `list` [`str`]
             A list of paths to one or more files containing ECG data.
+        parsed_config : `ConfigParser`
+            A parsed configuration file which was mapped using
+            `ConfigParser.map`.
         unique : `bool`, default `True`
             ensures the `UID` metadata items are unique between files. Please
             ensure the UID metadata key value pair is appropriately set in
             the config file. If set to false an file-specific integer key will
             be assigned instead.
-        **kwargs: optional
-            Keyword arguments used in the call method of a `BaseReader`
-            instance
+        kwargs_reader_call: `dict` [`any`, `any`]  or None, default `NoneType`
+            passed to the kwargs of the `BaseReader` call method.
+        kwargs_reader_extract: `dict` [`any`, `any`]  or None, default `NoneType`
+            passed to the `BaseReader` extract method.
         
         Attributes
         ----------
@@ -256,7 +317,12 @@ class ECGTable(object):
         # NOTE path_list has already been test - not doing this again because
         # it is a private method.
         is_type(unique, bool)
-        kwargs_reader = kwargs
+        # if kwargs is None assigned an empty dict
+        kwargs_reader_call = kwargs_reader_call or {}
+        kwargs_reader_extract = kwargs_reader_extract or {}
+        kwargs_reader_extract = _update_kwargs(
+            update_dict=kwargs_reader_extract, config=parsed_config,
+        )
         # #### check if __call__ has been run
         # note that we are not directly using this attribute otherwise and
         # instead using the supplied path_list.
@@ -283,7 +349,9 @@ class ECGTable(object):
                 try:
                     ecg_inst = self.ecgreader(
                         p, schema=getattr(self, TabNames.SCHEMA),
-                        **kwargs_reader)
+                        verbose=self.verbose,
+                        **kwargs_reader_call)
+                    ecg_inst = ecg_inst.extract(**kwargs_reader_extract)
                 except XMLValidationError as XML_VAL:
                     getattr(self, TabNames.INVALID_L).append(p)
                     if getattr(self, TabNames.SKIP_INVALID):
@@ -292,7 +360,9 @@ class ECGTable(object):
                         raise XML_VAL
             else:
                 try:
-                    ecg_inst = self.ecgreader(p, **kwargs_reader)
+                    ecg_inst = self.ecgreader(p, verbose=self.verbose,
+                                              **kwargs_reader_call)
+                    ecg_inst = ecg_inst.extract(**kwargs_reader_extract)
                 except AttributeError as AE:
                     getattr(self,TabNames.NO_DATA_L).append(p)
                     if getattr(self, TabNames.SKIP_DATA):
@@ -330,7 +400,15 @@ class ECGTable(object):
             no_meta = False
             if getattr(self, TabNames.E_META):
                 try:
-                    meta_list.append(getattr(ecg_inst, CTypes.MetaData))
+                    # the metadata is first piped through the engineering
+                    # function, so you get a composite: g(f(m)). The wave_list
+                    # and median_list objects are supplied as kwargs.
+                    meta_list.append(
+                        getattr(self, TabNames.ENG_META)(
+                        getattr(ecg_inst, CTypes.MetaData),
+                            wave_list=wave_list, median_list=median_list,
+                        )
+                    )
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         no_meta=True
@@ -340,7 +418,12 @@ class ECGTable(object):
             no_wave = False
             if getattr(self, TabNames.E_WAVE):
                 try:
-                    wave_list.append(getattr(ecg_inst, CTypes.WaveForms))
+                    wave_list.append(
+                        getattr(self, TabNames.ENG_WAVE)(
+                        getattr(ecg_inst, CTypes.WaveForms),
+                            meta_list=meta_list, median_list=median_list,
+                        )
+                    )
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         no_wave=True
@@ -350,7 +433,12 @@ class ECGTable(object):
             no_median = False
             if getattr(self, TabNames.E_MEDIAN):
                 try:
-                    median_list.append(getattr(ecg_inst, CTypes.MedianBeats))
+                    median_list.append(
+                        getattr(self, TabNames.ENG_MEDIAN)(
+                        getattr(ecg_inst, CTypes.MedianBeats),
+                            meta_list=meta_list, wave_list=wave_list,
+                        )
+                    )
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         no_median=True
@@ -364,21 +452,29 @@ class ECGTable(object):
         # return the list
         return meta_list, wave_list, median_list
     # /////////////////////////////////////////////////////////////////////////
-    def get_table(self, unique:bool=True, **kwargs:Optional[Any],
+    def get_table(self,
+                  parsed_config:ConfigParser,
+                  unique:bool=True,
+                  kwargs_reader_call:dict[Any, Any] | None = None,
+                  kwargs_reader_extract:dict[Any, Any] | None = None,
                   ) -> Self:
         """
         Presents ECG data as pandas.DataFrames.
         
         Parameters
         ----------
+        parsed_config : `ConfigParser`
+            A parsed configuration file which was mapped using
+            `ConfigParser.map`.
         unique : `bool`, default `True`
             ensures the `UID` metadata items are unique between files. Please
             ensure the UID metadata key value pair is appropriately set in
             the config file. If set to false an file-specific integer key will
             be assigned instead.
-        **kwargs: optional
-            Keyword arguments used in the call method of a `BaseReader`
-            instance
+        kwargs_reader_call: `dict` [`any`, `any`]  or None, default `NoneType`
+            passed to the kwargs of the `BaseReader` call method.
+        kwargs_reader_extract: `dict` [`any`, `any`]  or None, default `NoneType`
+            passed to the `BaseReader` extract method.
         
         Attributes
         ----------
@@ -404,7 +500,11 @@ class ECGTable(object):
         # #### run loop
         try:
             meta_list, wave_list, median_list = self._loop_table(
-                getattr(self, TabNames.CPATH_L), unique, **kwargs)
+                getattr(self, TabNames.CPATH_L),
+                parsed_config=parsed_config, unique=unique,
+                kwargs_reader_call=kwargs_reader_call,
+                kwargs_reader_extract=kwargs_reader_extract,
+            )
         finally:
             # cleaning-up.
             if hasattr(self, TabNames.KEY_L) == True:
@@ -510,13 +610,15 @@ class ECGTable(object):
         # #### return
         return long_table
     # /////////////////////////////////////////////////////////////////////////
-    def write_ecg(self, chunk:int=256, target_tar: None | str = None,
+    def write_ecg(self, parsed_config=ConfigParser,
+                  chunk:int=256, target_tar: None | str = None,
                   target_path:str='.', tar_mode:str='w:gz',
                   file_type:Literal['table', 'numpy', 'tensorflow'] = 'table',
                   tab_sep:str='\t', tab_compression:str | None ='gzip',
                   tab_append:bool=True, unique:bool=True,
                   write_failed:bool=True, write_chunk_record:bool = False,
-                  kwargs_reader: None | dict[str, Any] = None,
+                  kwargs_reader_call:dict[Any, Any] | None = None,
+                  kwargs_reader_extract:dict[Any, Any] | None = None,
                   kwargs_tab: None | dict[str, Any] = None,
                   ) -> Self:
         '''
@@ -525,6 +627,9 @@ class ECGTable(object):
         
         Parameters
         ----------
+        parsed_config : `ConfigParser`
+            A parsed configuration file which was mapped using
+            `ConfigParser.map`.
         chunk : `int`, default 256
             The number of files written to a single file. For `file_type` set
             this to 1 with `tab_append=True` minimise the memory fingerprint.
@@ -567,9 +672,15 @@ class ECGTable(object):
         write_chunk_record : `bool`, default `True`
             Whether to include a record matching the chunk indicator to the
             files included.
-        kwargs_reader : `dict` [`str`, `any`], default `None`
-            Keyword arguments used in the call method of a `BaseReader`
-            instance.
+        unique : `bool`, default `True`
+            ensures the `UID` metadata items are unique between files. Please
+            ensure the UID metadata key value pair is appropriately set in
+            the config file. If set to false an file-specific integer key will
+            be assigned instead.
+        kwargs_reader_call: `dict` [`any`, `any`]  or None, default `NoneType`
+            passed to the kwargs of the `BaseReader` call method.
+        kwargs_reader_extract: `dict` [`any`, `any`]  or None, default
+            `NoneType` passed to the `BaseReader` extract method.
         kwargs_tab : `dict` [`str`, `any`], default `None`
             Keyword argument for `pd.DataFrame.to_csv`.
         
@@ -600,8 +711,10 @@ class ECGTable(object):
         '''
         # #### set defaults
         # if kwargs is None assigned an empty dict
-        kwargs_reader = kwargs_reader or {}
-        kwargs_tab = kwargs_tab or {}
+        # NOTE this is a bit convoluted kwargs_tabs is  assigned to self,
+        # which is used by the _write_tab function which internally
+        # runs an _update_kwargs(**kwargs_tab, **kwargs)
+        self.kwargs_tab = kwargs_tab or {}
         # expected file_types
         EXP_WRITE=[TabNames.WRITE_TAB, TabNames.WRITE_NUMPY,
                    TabNames.WRITE_TFLOW]
@@ -622,11 +735,6 @@ class ECGTable(object):
         if not file_type in EXP_WRITE:
             raise ValueError(
                 Error_MSG.CHOICE_PARM.format('file_type', EXP_WRITE))
-        # update kwargs with supplied parameters
-        self.kwargs_tab = _update_kwargs(update_dict=kwargs_tab,
-                                    compression=tab_compression,
-                                    sep=tab_sep,
-                                    )
         # check readability
         _check_presence(target_path)
         _check_readable(target_path)
@@ -663,14 +771,18 @@ class ECGTable(object):
                 chunk_record[n] = ', '.join(p)
                 # extract data
                 meta_list, wave_list, median_list = self._loop_table(
-                    p, unique, **kwargs_reader)
+                    p, parsed_config=parsed_config, unique=unique,
+                    kwargs_reader_call=kwargs_reader_call,
+                    kwargs_reader_extract=kwargs_reader_extract,
+                )
                 # write based on the supplied file type
                 if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TAB:
                     if tab_append == False:
                         self._write_tab(
                             meta_list, wave_list, median_list, target,
                             chunk_num=n if chunk is not None else None,
-                            header=True,
+                            header=True, sep=tab_sep,
+                            compression=tab_compression,
                                         )
                     # Write to a single file
                     elif first==True:
@@ -678,13 +790,15 @@ class ECGTable(object):
                         # write first file
                         self._write_tab(meta_list, wave_list, median_list,
                                         target, chunk_num=None,
-                                        header=True,
+                                        header=True, sep=tab_sep,
+                                        compression=tab_compression,
                                         )
                     else:
                         # append
                         self._write_tab(meta_list, wave_list, median_list,
                                         target, chunk_num=None,
-                                        header=False, mode='a',
+                                        header=False, mode='a', sep=tab_sep,
+                                        compression=tab_compression,
                                         )
                 if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NUMPY:
                     self._write_numpy(
@@ -738,6 +852,7 @@ class ECGTable(object):
         return self
     # /////////////////////////////////////////////////////////////////////////
     def _write_file_names(self, chunk_num:int|None = None,
+                          **kwargs:Optional[Any],
                           ) -> tuple[str, str, str, str]:
         """
         Creates the filenames with relevant extensions, optionally accounting
@@ -767,16 +882,19 @@ class ECGTable(object):
         if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TAB:
             EXT = '.tsv'
             # is the file compressed?
-            if self.kwargs_tab['compression'] == 'gz':
-                EXT = EXT + '.gz'
-            if self.kwargs_tab['compression'] == 'bz2':
-                EXT = EXT + '.bz2'
-            if self.kwargs_tab['compression'] == 'zip':
-                EXT = EXT + '.zip'
-            if self.kwargs_tab['compression'] == 'xz':
-                EXT = EXT + '.xz'
-            if self.kwargs_tab['compression'] == 'zst':
-                EXT = EXT + '.zst'
+            try:
+                if kwargs['compression'] == 'gz':
+                    EXT = EXT + '.gz'
+                if kwargs['compression'] == 'bz2':
+                    EXT = EXT + '.bz2'
+                if kwargs['compression'] == 'zip':
+                    EXT = EXT + '.zip'
+                if kwargs['compression'] == 'xz':
+                    EXT = EXT + '.xz'
+                if kwargs['compression'] == 'zst':
+                    EXT = EXT + '.zst'
+            except KeyError:
+                pass
         elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NUMPY:
             EXT = '.npz'
         elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TFLOW:
@@ -823,11 +941,11 @@ class ECGTable(object):
         """
         # #### check input
         is_type(chunk_num, (int, type(None)))
-        # Set the filenames
-        META_FILE, WAVE_FILE, MEDIAN_FILE, _=\
-            self._write_file_names(chunk_num=chunk_num)
-        # #### write individual files
         kwargs_tab_combi = {**self.kwargs_tab, **kwargs}
+        # #### Set the filenames
+        META_FILE, WAVE_FILE, MEDIAN_FILE, _=\
+            self._write_file_names(chunk_num=chunk_num, **kwargs_tab_combi)
+        # #### write individual files
         if getattr(self, TabNames.E_META):
             pd.DataFrame([meta_list]).to_csv(
                 os.path.join(target, META_FILE),
