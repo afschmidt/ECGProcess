@@ -121,7 +121,7 @@ class TabularNames(object):
     ENG_META       = 'engineer_'+CoreData.DataTypes.MetaData
     ENG_WAVE       = 'engineer_'+CoreData.DataTypes.WaveForms
     ENG_MEDIAN     = 'engineer_'+CoreData.DataTypes.MedianBeats
-    META_LIST      = 'meta_list'
+    META_DICT      = 'meta_dict'
     SKIP_PERM      = 'ignore_permission'
     SKIP_DATA      = 'ignore_data'
     SKIP_INVALID   = 'ignore_invalid'

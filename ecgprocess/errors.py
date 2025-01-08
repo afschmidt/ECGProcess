@@ -271,12 +271,22 @@ class NotCalledError(Exception):
         super().__init__(self.message)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class XMLValidationError(Exception):
+class FileValidationError(Exception):
     '''
-    Expection raised when the XML and XSD file are incompatible.
+    General expection raised when a file was not valid
     '''
-    def __init__(self, errors: list[str]):
-        message = ("XML validation failed with the following issues:\n"
-                   "\n".join(errors))
-        super().__init__(message)
+    def __init__(self, message="File failed to validate."):
+        self.message = message
+        super().__init__(self.message)
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class XMLValidationError(FileValidationError):
+    """
+    Expection raised when the XML and XSD file are incompatible.
+    """
+    def __init__(self, errors: list[str]):
+        custom_message = (
+            "XML validation failed due to the following issues:\n"
+            + "\n".join(errors)
+        )
+        super().__init__(custom_message)

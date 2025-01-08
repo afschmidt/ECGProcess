@@ -6,10 +6,6 @@ The module leverages the existing process class instances and based on their
 class attributes extracts the requested data.
 '''
 
-# NOTE allow for a custom function to be applied to the waveforms and/or
-# medianbeats, which can optionally select data from the metadata.
-# consider allowing for functions to be passed to metadata as well.
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import os
@@ -20,12 +16,15 @@ import pathlib
 import warnings
 import numpy as np
 import pandas as pd
+# filtering out TF warnings
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import tensorflow as tf
 # import matplotlib.pylab as plt
 from typing import (
     Callable, Self, Optional, Any, Literal,
 )
 from ecgprocess.errors import (
+    FileValidationError,
     XMLValidationError,
     NotCalledError,
     is_type,
@@ -61,8 +60,8 @@ CTypes = Core.DataTypes
 CMeta = Core.MetaData
 
 # defaults
-def metadata_identity(metadata:list[dict[str, Any]], verbose:bool=False,
-                      **kwargs) -> list[dict[str, Any]]:
+def metadata_identity(metadata:dict[str, Any], verbose:bool=False,
+                      **kwargs) -> dict[str, Any]:
     """
     A place holder identity function, simply returning the same input data
     """
@@ -71,16 +70,16 @@ def metadata_identity(metadata:list[dict[str, Any]], verbose:bool=False,
         print(**kwargs)
     return metadata
 
-def signal_identity(signals:list[dict[str, np.ndarray]], verbose:bool=False,
-                      **kwargs) -> list[dict[str, Any]]:
+def signal_identity(signals:dict[str, np.ndarray], verbose:bool=False,
+                      **kwargs) -> dict[str, Any]:
     """
     A place holder identity function, simply returning the same input data
     """
     is_type(verbose, bool)
     if verbose:
         print(**kwargs)
-    if not TabNames.META_LIST in kwargs:
-        raise KeyError(f"`{TabNames.MetaData}` should be included as kwargs")
+    if not TabNames.META_DICT in kwargs:
+        raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
     return signals
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -104,14 +103,14 @@ class ECGTable(object):
     extract_median : `bool`, default True
         Whether to extract the median beats.
     engineer_meta : `Callable`, default `metadata_identity`
-        A function applied to the internal meta_list object. Please ensure
-        the function include parameters: `meta_list` and `**kwargs`.
+        A function applied to the internal meta_dict object. Please ensure
+        the function include parameter: `meta_dict`.
     engineer_wave : `Callable`, default `signal_identity`
-        A function applied to the internal wave_list object. Please ensure
-        the function include parameters: `wave_list` and `**kwargs`.
+        A function applied to the internal wave_dict object. Please ensure
+        the function include parameters: `wave_dict` and `**kwargs`.
     engineer_median : `Callable`, default `signal_identity`
-        A function applied to the internal median_list object. Please ensure
-        the function include parameters: `median_list` and `**kwargs`.
+        A function applied to the internal median_dict object. Please ensure
+        the function include parameters: `median_dict` and `**kwargs`.
     schema : `str` or `NoneType`, default `NoneType`
         The path to an optional XSD schema to validate an XML file. Set to
         None to ignore.
@@ -133,14 +132,14 @@ class ECGTable(object):
     Notes
     -----
     The engineering parameters can be used to supply function that will be
-    applied separately to each processed file before these files are chunked and
-    written to disk. The functions are applied in the following order to the
-    internal objects: meta_list (for metadata),
-    wave_list (for waveform signals), median_list (for medianbeats signals).
-    Please ensure each supplied function includes a **kwargs parameter, which
-    will be used to internally include the two remaining list objects. So when
-    the engineer_wave function will have access to the list_meta data through
-    its kwargs.
+    applied separately to dictionaries of each processed file before these
+    dictionaries are chunked and written to disk. The functions are applied in
+    the following order to the internal objects: meta_dict (for metadata),
+    wave_dict (for waveform signals), median_dict (for medianbeats signals).
+    Please ensure the waveform and medianbeats functions includes a **kwargs
+    parameter, which will be used internally include the metadata. This
+    ensures for example, that the engineer_wave function will have access to
+    the metadata.
     '''
     
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -184,7 +183,7 @@ class ECGTable(object):
     def __repr__(self):
         CLASS_NAME = type(self).__name__
         return (f"{CLASS_NAME}(ecgreader={self.ecgreader}, "
-                f"augment_leads={getattr(self, TabNames.RPATH_L)})"
+                f"path_list={getattr(self, TabNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, ignore_permission:bool = True,
@@ -201,12 +200,15 @@ class ECGTable(object):
             Skips file permission errors. The failed file names will be recorded
             for review.
         ignore_data : `bool`, default False
-            Whether missing MetaData, WaveForm, or MedianBeat data objects
-            should be skipped. The file names for these failures will be
-            recorded.
+            Whether files with missing MetaData, WaveForm, or MedianBeat
+            attributes should be skipped. The file names for these failures
+            will be recorded.  Note, to limit I/O calls schema validation will
+            not be conducted during __call__ but in methods processing these
+            files.
         ignore_invalid : `bool`, default False
             Whether XML files who failed to an XSD validation schema should
-            be skipped.
+            be skipped. Note, to limit I/O calls schema validation will not be
+            conducted during __call__ but in methods processing these files.
         verbose : `bool`, default `False`
             Whether to print warnings.
         
@@ -287,13 +289,14 @@ class ECGTable(object):
             passed to the kwargs of the `BaseReader` call method.
         kwargs_reader_extract: `dict` [`any`, `any`]  or None, default `NoneType`
             passed to the `BaseReader` extract method.
-        
+         
         Attributes
         ----------
         key_list: list [`str`]
             A list of unique identifiers.
         no_data_list : `list` [`str`]
-            A list of files without data.
+            A list of files without the requested attributes: MetaData,
+            WaveForms, and/or MedianBeats.
         invalid_list : `list` [`str`]
             A list of files which failed to validate.
         _id_start_number : `int`
@@ -376,79 +379,99 @@ class ECGTable(object):
                                          'no MetaData to extract the UID from.'
                                          )
                 else:
-                    if hasattr(ecg_inst[CTypes.MetaData], CMeta.UID) == False:
-                        raise AttributeError(Error_MSG.MISSING_ATTR.format(
-                            'CMeta.UID', 'ecg_inst'))
-                    else:
-                        key = str(getattr(ecg_inst[CTypes.MetaData], CMeta.UID))
+                    key = str(
+                        getattr(ecg_inst, CTypes.MetaData)[CMeta.UID])
             else:
+                key = i
                 try:
-                    key = str(getattr(ecg_inst[CTypes.MetaData], CMeta.UID))
+                    if not getattr(ecg_inst, CTypes.MetaData)[CMeta.UID] is None:
+                        key = str(getattr(ecg_inst, CTypes.MetaData)[CMeta.UID])
                 except AttributeError or KeyError:
-                    key = i
+                    pass
             # confirm the key is unique
             if key in getattr(self, TabNames.KEY_L):
-                raise IndexError('The file seems to have been extracted already'
-                                 '.Please ensure the supplied files are unique.'
-                                 f'This is the current file ID {key} and these'
-                                 'are the IDs of the processed files '
-                                 f'{getattr(self, TabNames.KEY_L)}.'
-                                 )
+                raise IndexError(
+                    'The current file seems to have been extracted already '
+                    '.Please ensure the supplied files are unique. '
+                    f'This is the current file ID {key} and these '
+                    'are the IDs of the processed files '
+                    f'{getattr(self, TabNames.KEY_L)}.'
+                )
             else:
                 getattr(self, TabNames.KEY_L).append(key)
             # Append metadata.
-            no_meta = False
             if getattr(self, TabNames.E_META):
                 try:
-                    # the metadata is first piped through the engineering
-                    # function, so you get a composite: g(f(m)). The wave_list
-                    # and median_list objects are supplied as kwargs.
-                    meta_list.append(
-                        getattr(self, TabNames.ENG_META)(
-                        getattr(ecg_inst, CTypes.MetaData),
-                            wave_list=wave_list, median_list=median_list,
-                        )
-                    )
+                    meta_temp = getattr(ecg_inst, CTypes.MetaData)
+                    meta_available = True
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
-                        no_meta=True
+                        getattr(self,TabNames.NO_DATA_L).append(p)
+                        meta_available = False
                     else:
                         raise AE
+                # skip if there is no metadata
+                if meta_available == True:
+                    try:
+                        # the metadata is first piped through the engineering
+                        # function, so you get a composite: g(f(m)). The wave_list
+                        # and median_list objects are supplied as kwargs.
+                        meta_list.append(
+                            getattr(self, TabNames.ENG_META)(
+                                meta_temp,
+                            )
+                        )
+                    except FileValidationError as FILE_VAL:
+                        getattr(self, TabNames.INVALID_L).append(p)
+                        if getattr(self, TabNames.SKIP_INVALID):
+                            continue
+                        else:
+                            raise FILE_VAL
             # Append waveform signals.
-            no_wave = False
             if getattr(self, TabNames.E_WAVE):
                 try:
                     wave_list.append(
                         getattr(self, TabNames.ENG_WAVE)(
                         getattr(ecg_inst, CTypes.WaveForms),
-                            meta_list=meta_list, median_list=median_list,
+                            meta_dict=meta_list[-1],
                         )
                     )
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
-                        no_wave=True
+                        getattr(self,TabNames.NO_DATA_L).append(p)
                     else:
                         raise AE
             # Append median beat signals.
-            no_median = False
             if getattr(self, TabNames.E_MEDIAN):
                 try:
                     median_list.append(
                         getattr(self, TabNames.ENG_MEDIAN)(
                         getattr(ecg_inst, CTypes.MedianBeats),
-                            meta_list=meta_list, wave_list=wave_list,
+                            meta_dict=meta_list[-1],
                         )
                     )
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
-                        no_median=True
+                        getattr(self,TabNames.NO_DATA_L).append(p)
                     else:
                         raise AE
-            # if there is no data at all record this
-            if no_meta and no_wave and no_median:
-                getattr(self,TabNames.NO_DATA_L).append(p)
+            # make sure no_data_l is unique
+            setattr(self,TabNames.NO_DATA_L, list(np.unique(
+                getattr(self,TabNames.NO_DATA_L))))
         # record update the last ID_START
         setattr(self, TabNames.ID_START, i+1)
+        # to we want to print warnings?
+        if self.verbose == True:
+            if len(getattr(self, TabNames.NO_DATA_L))>0:
+                warnings.warn(
+                    'The following files do not have the requested data: {}.'.\
+                    format(getattr(self, TabNames.NO_DATA_L))
+                )
+            if len(getattr(self, TabNames.INVALID_L))>0:
+                warnings.warn(
+                    'The following XML files have not been validated: {}.'.\
+                    format(getattr(self, TabNames.INVALID_L))
+                )
         # return the list
         return meta_list, wave_list, median_list
     # /////////////////////////////////////////////////////////////////////////

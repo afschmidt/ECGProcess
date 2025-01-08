@@ -300,6 +300,8 @@ def list_xml_paths():
             _ROOT_DATASETS_DIR, FILENAME+'.xml'),
         'example_1_schema': os.path.join(
             _ROOT_DATASETS_DIR, FILENAME+'.xsd'),
+        'example_1_schema_error': os.path.join(
+            _ROOT_DATASETS_DIR, FILENAME+'_error.xsd'),
     }
     # return
     return paths_dict

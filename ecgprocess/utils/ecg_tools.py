@@ -29,9 +29,9 @@ def resampling_500hz(signals:dict[str, np.array],
         as a 1D np.array.
     duration : `int` or `float`
         The represents the duration of the ECG in seconds, which is calculated
-        based on the fraction of number of samples by the sampling frequency.
-        For raw wavefomrs duration determines the number of samples needed to
-        get a 500hz sample: duration times 500.
+        based on the fraction of number of samples by the sampling frequency
+        in seconds.  For raw wavefomrs duration determines the number of
+        samples needed to get a 500hz sample: duration times 500.
     median : `bool`, default `False`
         Set to true to resample a median beat ECG to 500hz. The duration of a
         median beat signal is 1.2 seconds, hence the sampling rate is fixed at:
