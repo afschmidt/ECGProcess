@@ -55,12 +55,15 @@ class TestECGXMLReader(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_ecgxmlreader_error(self):
         reader = pro_xml.ECGXMLReader()
+        # Invalid path type
         with pytest.raises(InputValidationError):
-            reader(123, schema=None, verbose=False)  # Invalid path type
+            reader(123, schema=None, verbose=False)
+        # Invalid schema type
         with pytest.raises(InputValidationError):
-            reader("valid_path.xml", schema=123, verbose=False)  # Invalid schema type
+            reader("valid_path.xml", schema=123, verbose=False)
+        # Invalid verbose type
         with pytest.raises(InputValidationError):
-            reader("valid_path.xml", schema=None, verbose="True")  # Invalid verbose type
+            reader("valid_path.xml", schema=None, verbose="True")
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_ecgxmlreader_call(self):
         # get example XML and XSD

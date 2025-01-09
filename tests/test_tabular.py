@@ -20,7 +20,6 @@ from ecgprocess.process_xml import(
     ECGXMLReader,
 )
 from ecgprocess.tabular import (
-    CTypes,
     ECGTable,
     signal_identity,
     signal_correction,
@@ -37,10 +36,6 @@ from ecgprocess.utils.general import (
     list_tar,
 )
 
-
-# pytestmark = pytest.mark.skip(reason=("Need to refactor to work with the "
-#                                       "updated process_* modules."
-#                                       ))
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # core names
 CLeads = Core.Leads

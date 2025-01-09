@@ -58,7 +58,7 @@ class ECGXMLReader(BaseReader):
     augment_leads : `bool`, default `False`
         Whether the augmented leads should be calculated if these are not
         already available in the source file.
-    resample : `bool`, default `True`
+    resample_500 : `bool`, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz. Note this
         will internally calculate the ECG duration in seconds. For the
         duration to be in seconds the sampling frequency/rate should be in

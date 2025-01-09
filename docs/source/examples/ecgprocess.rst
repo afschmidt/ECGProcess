@@ -7,6 +7,8 @@ the basic features of ECGProcess
 .. toctree::
    :maxdepth: 1
 
-   recipe/process_dicoms.nblink
-   recipe/plot_ecgs.nblink
+   recipe/process_xml.nblink
+   recipe/process_dicom.nblink
+   recipe/tabular.nblink
+   .. recipe/plot_ecgs.nblink
 
