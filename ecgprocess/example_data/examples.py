@@ -74,7 +74,10 @@ import os
 import re
 import pandas as pd
 import numpy as np
-
+import ecgprocess.utils.config_tools as config_utils
+from tempfile import NamedTemporaryFile
+from ecgprocess.constants import CoreData as Core
+CLeads = Core.Leads
 # The name of the example datasets directory
 _EXAMPLE_DATASETS = "example_datasets"
 """The example dataset directory name (`str`)
@@ -377,4 +380,122 @@ def config_file(path=None, text:None | dict[str, list[str]]=None) -> str:
         with open(path, "w", encoding="utf-8") as file:
             file.write(text)
     return text
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@dataset
+def parsed_config():
+    """
+    Returns a dict of parsed and mapped config files.
+    """
+    # #### XML config file
+    config_xml = {
+        "WaveForms": [
+            "I\tStripData.WaveformData_0.#text",
+            "II\tStripData.WaveformData_1.#text",
+        ],
+        "MetaData": [
+            "unique identifier\tUID.DICOMStudyUID",
+            "number of leads\tRestingECGMeasurements.MedianSamples.NumberOfLeads",
+            "resolution unit (waveforms)\tStripData.Resolution.@units",
+            "resolution (waveforms)\tStripData.Resolution.#text",
+            "resolution unit (medianbeats)\tRestingECGMeasurements.MedianSamples.Resolution.@units",
+            "resolution (medianbeats)\tRestingECGMeasurements.MedianSamples.Resolution.#text",
+            "sampling frequency (original)\tRestingECGMeasurements.MedianSamples.SampleRate.#text",
+            "sampling frequency unit\tRestingECGMeasurements.MedianSamples.SampleRate.@units",
+            "sampling number (waveforms)\tStripData.ChannelSampleCountTotal",
+            "sampling number (medianbeats)\tRestingECGMeasurements.MedianSamples.ChannelSampleCountTotal",
+            "age\tPatientInfo.Age.#text",
+            "gender\tPatientInfo.Gender",
+            "birthday day\tPatientInfo.BirthDateTime.Day",
+            "birthday month\tPatientInfo.BirthDateTime.Month",
+            "birthday year\tPatientInfo.BirthDateTime.Year",
+            "sysbp unit\tPatientVisit.SysBP.@units",
+            "diabpb unit\tPatientVisit.DiaBP.@units",
+            "sysbp\tPatientVisit.SysBP.@text",
+            "diabpb\tPatientVisit.DiaBP.@text",
+            "pacemaker\tPatientInfo.PaceMaker",
+        ]
+    }
+    with NamedTemporaryFile("w") as tmp_file:
+        _ = config_file(path=tmp_file.name, text=config_xml)
+        parser_xml = config_utils.ConfigParser(tmp_file.name)()
+    # adding the mapper
+    parser_xml.map(mapper=config_utils.DataMap())
+    
+    # #### XML config file 2
+    config_xml2 = {
+        "WaveForms": [
+            "I\tStripData.WaveformData_0.#text",
+            "II\tStripData.WaveformData_1.#text",
+        ],
+        "MetaData": [
+            "number of leads\tRestingECGMeasurements.MedianSamples.NumberOfLeads",
+            "resolution unit (waveforms)\tStripData.Resolution.@units",
+            "resolution (waveforms)\tStripData.Resolution.#text",
+            "resolution unit (medianbeats)\tRestingECGMeasurements.MedianSamples.Resolution.@units",
+            "resolution (medianbeats)\tRestingECGMeasurements.MedianSamples.Resolution.#text",
+            "sampling frequency (original)\tRestingECGMeasurements.MedianSamples.SampleRate.#text",
+            "sampling frequency unit\tRestingECGMeasurements.MedianSamples.SampleRate.@units",
+            "sampling number (waveforms)\tStripData.ChannelSampleCountTotal",
+            "sampling number (medianbeats)\tRestingECGMeasurements.MedianSamples.ChannelSampleCountTotal",
+            "age\tPatientInfo.Age.#text",
+            "gender\tPatientInfo.Gender",
+            "birthday day\tPatientInfo.BirthDateTime.Day",
+            "birthday month\tPatientInfo.BirthDateTime.Month",
+            "birthday year\tPatientInfo.BirthDateTime.Year",
+            "sysbp unit\tPatientVisit.SysBP.@units",
+            "diabpb unit\tPatientVisit.DiaBP.@units",
+            "sysbp\tPatientVisit.SysBP.@text",
+            "diabpb\tPatientVisit.DiaBP.@text",
+            "pacemaker\tPatientInfo.PaceMaker",
+        ]
+    }
+    with NamedTemporaryFile("w") as tmp_file:
+        _ = config_file(path=tmp_file.name, text=config_xml2)
+        parser_xml2 = config_utils.ConfigParser(tmp_file.name)()
+    # adding the mapper
+    parser_xml2.map(mapper=config_utils.DataMap())
+    
+    # #### DICOM config file
+    leads = [attr for attr in dir(CLeads) if not attr.startswith("__")]
+    config_dicom = {
+        "WaveForms": [
+            f"{getattr(CLeads, lead)}\tWaveformData.ECG_Leads_{idx}"
+            for idx, lead in enumerate(leads)],
+        "MedianBeats": [
+            f"{getattr(CLeads, lead)}\tWaveformData.Median_Beats_{idx}"
+            for idx, lead in enumerate(leads)],
+        "MetaData": [
+            "unique identifier\tSOP Instance UID",
+            "number of leads\tWaveform Sequence_0.Number of Waveform Channels",
+            "resolution unit (waveforms)\tWaveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity Units Sequence_0.Code Value",
+            "resolution (waveforms)\tWaveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity",
+            "resolution unit (medianbeats)\tWaveform Sequence_1.Channel Definition Sequence_0.Channel Sensitivity Units Sequence_0.Code Value",
+            "resolution (medianbeats)\tWaveform Sequence_1.Channel Definition Sequence_0.Channel Sensitivity",
+            "sampling frequency (original)\tWaveform Sequence_0.Sampling Frequency",
+            "sampling number (waveforms)\tWaveform Sequence_0.Number of Waveform Samples",
+            "sampling number (medianbeats)\tWaveform Sequence_1.Number of Waveform Samples",
+            "Softwave version\tSoftware Versions",
+            "Manufacturer\tManufacturer",
+            "Model name\tManufacturer's Model Name",
+        ] +\
+        [
+            f"wave_channel_sens_{idx}\tWaveform Sequence_0.Channel Definition Sequence_{idx}.Channel Sensitivity" for idx, _ in enumerate(leads)] +\
+        [
+            f"wave_channel_correctionfactor_{idx}\tWaveform Sequence_0.Channel Definition Sequence_{idx}.Channel Sensitivity Correction Factor" for idx, _ in enumerate(leads)] +\
+        [
+            f"wave_channel_baseline_{idx}\tWaveform Sequence_0.Channel Definition Sequence_{idx}.Channel Baseline" for idx, _ in enumerate(leads)]
+    }
+    with NamedTemporaryFile("w") as tmp_file:
+        _ = config_file(path=tmp_file.name, text=config_dicom)
+        parser_dicom = config_utils.ConfigParser(tmp_file.name)()
+    # adding the mapper
+    parser_dicom.map(mapper=config_utils.DataMap())
+    
+    # return
+    return {'parsed_dicom1': parser_dicom,
+            'parsed_xml1' : parser_xml,
+            'parsed_xml2' : parser_xml2,
+            }
 

@@ -26,7 +26,7 @@ V5					WaveformData.Median_Beats_10
 V6					WaveformData.Median_Beats_11
 [MetaData]
 # Privileged tags
-unique identifier				SOP Class UID
+unique identifier				SOP Instance UID
 number of leads					Waveform Sequence_0.Number of Waveform Channels
 resolution unit (waveforms)			Waveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity Units Sequence_0.Code Value
 resolution (waveforms)				Waveform Sequence_0.Channel Definition Sequence_0.Channel Sensitivity

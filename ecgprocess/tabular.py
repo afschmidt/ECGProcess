@@ -49,6 +49,9 @@ from ecgprocess.utils.general import (
 from ecgprocess.utils.reader_tools import(
     BaseReader,
 )
+from ecgprocess.utils.ecg_tools import(
+    signal_dicts_to_numpy_array,
+)
 from ecgprocess.utils.config_tools import(
     ConfigParser,
 )
@@ -59,7 +62,11 @@ from ecgprocess.utils.config_tools import(
 CTypes = Core.DataTypes
 CMeta = Core.MetaData
 
-# defaults
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Example engineering functions
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# default
 def metadata_identity(metadata:dict[str, Any], verbose:bool=False,
                       **kwargs) -> dict[str, Any]:
     """
@@ -70,6 +77,8 @@ def metadata_identity(metadata:dict[str, Any], verbose:bool=False,
         print(**kwargs)
     return metadata
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# default
 def signal_identity(signals:dict[str, np.ndarray], verbose:bool=False,
                       **kwargs) -> dict[str, Any]:
     """
@@ -80,6 +89,157 @@ def signal_identity(signals:dict[str, np.ndarray], verbose:bool=False,
         print(**kwargs)
     if not TabNames.META_DICT in kwargs:
         raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
+    return signals
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def metadata_checkversion(metadata:dict[str, Any],
+    expected_version = ['1.02 SP03', 'MUSE_9.0.9.18167'],
+    expected_manufacturer = 'GE Healthcare', expected_model = 'MV360',
+    verbose:bool=False, **kwargs) -> dict[str, Any]:
+    """
+    Validates the DICOM file against the specified software version,
+    manufacturer, and model. If any of these do not match, a
+    FileValidationError is raised.
+    
+    Parameters
+    ----------
+    metadata : `dict` [`str`, `any`]
+        A dictionary containing the metadata for a DICOM file. It must include:
+          - "Softwave version": The software version associated with the file.
+          - "Manufacturer": The manufacturer of the device.
+          - "Model name": The model name of the device.
+    expected_version : `str` or `list` [`str`], default ['1.02 SP03', 'MUSE_9.0.9.18167']
+        The software version.
+    expected_manufacturer : `str` or `list` [`str`], default 'GE Healthcare'
+        The manufacturer.
+    expected_model : `str` or `list` [`str`],  'MV360'
+        The model.
+    
+    Returns
+    -------
+    dict [`str`, `any`]
+        The input `metadata` dictionary if validation is successful.
+    
+    Raises
+    ------
+    FileValidationError
+        If the DICOM metadata's software version, manufacturer, or model
+        does not match the respective expected values.
+    
+    Notes
+    -----
+    Depending on the `ignore_invalid` parameter of `Tabular` the failed
+    filenames will be added to the `invalid_list` attribute.
+    """
+    # just keeping this so kwargs is used and the linter does not complain.
+    if verbose:
+        print(**kwargs)
+    # constant
+    version = "Softwave version"
+    manufact = "Manufacturer"
+    model_name = "Model name"
+    # the algorithm
+    if expected_version != metadata[version] or\
+        expected_manufacturer != metadata[manufact] or\
+        expected_model != metadata[model_name]:
+        raise FileValidationError(
+            f"The version `{metadata[version]}`, manufacturer "
+            f"`{metadata[manufact]}` or model `{metadata[model_name]}` failed "
+            "to validate."
+        )
+    # if all corect simply return meta
+    return metadata
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def signal_correction(signals:dict[str, np.ndarray], verbose:bool=False,
+                      **kwargs) -> dict[str, Any]:
+    """
+    Corrects waveform signals based on sensitivity, correction factor, and
+    baseline values for each channel. These parameters must be provided in
+    `kwargs[TabNames.META_DICT]`.
+    
+    Parameters
+    ----------
+    signals : `dict` [`str`, `np.ndarray`]
+        A dictionary mapping channel names (strings) to waveform arrays.
+    verbose : `bool`, default False
+        If True, prints additional debug information about the correction
+        process.
+    **kwargs
+        Additional keyword arguments, which must include a dictionary under
+        the key `TabNames.META_DICT`. This dictionary should contain:
+        - wave_channel_sens_i : float
+            Sensitivity for channel i.
+        - wave_channel_correctionfactor_i : float
+            Correction factor for channel i.
+        - wave_channel_baseline_i : float
+            Baseline offset for channel i.
+    
+    Returns
+    -------
+    dict [`str`, `np.ndarray`]
+        The input signals dictionary with corrected waveforms. Each signal
+        has the baseline added and is then multiplied by the product of its
+        sensitivity and correction factor.
+    
+    Raises
+    ------
+    KeyError
+        If `TabNames.META_DICT` is not found in **kwargs.
+    
+    Notes
+    -----
+    This function serves as a calibration step that adjusts baseline offsets
+    and applies amplitude scaling to ensure signals are brought into the
+    correct amplitude range and compensates for any instrumental variations,
+    facilitating more accurate downstream processing and interpretation.
+    
+    For each channel i, the correction formula is:
+        corrected_signal_i = (original_signal_i + baseline_i) * factor_i
+    where:
+        factor_i = sensitivity_i * correctionfactor_i
+    
+    Example
+    -------
+    >>> from my_module import signal_correction
+    >>> signals = {'lead1': np.array([0.1, 0.2, 0.3])}
+    >>> meta_dict = {
+    ...     'wave_channel_sens_0': 2.0,
+    ...     'wave_channel_correctionfactor_0': 0.5,
+    ...     'wave_channel_baseline_0': 0.05,
+    ... }
+    >>> corrected = signal_correction(signals,
+    ...     verbose=True,
+    ...     META_DICT=meta_dict
+    ... )
+    Applying baseline: wave_channel_baseline_ and factor: 1.0 corrections
+    to lead: lead1.
+    >>> corrected['lead1']
+    array([0.3 , 0.35, 0.4 ])
+    """
+    # constants - these values should be in meta_dict
+    sens = "wave_channel_sens_"
+    corr = "wave_channel_correctionfactor_"
+    base = "wave_channel_baseline_"
+    # the algorithm
+    is_type(verbose, bool)
+    if not TabNames.META_DICT in kwargs:
+        raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
+    else:
+        meta_dict = kwargs[TabNames.META_DICT]
+    for i, (k, v) in enumerate(signals.items()):
+        # skip of None
+        if v is None:
+            signals[k] = v
+            continue
+        # just to be sure this is an ndarray
+        is_type(v, np.ndarray)
+        fact = meta_dict[sens+str(i)] * meta_dict[corr+str(i)]
+        if verbose:
+            print(f'Applying baseline: {base} and factor: {fact} '
+                  f'corrections to lead: {k}.'
+                  )
+        signals[k] = (v + meta_dict[base+str(i)]) * fact
     return signals
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -343,6 +503,8 @@ class ECGTable(object):
         # loop over individual files
         if hasattr(self, TabNames.ID_START) == False:
             setattr(self, TabNames.ID_START, 1)
+        # if isinstance(path_list, list) == False:
+        #     path_list = [path_list]
         for i, p in enumerate(path_list,
                               start=getattr(self, TabNames.ID_START)):
             if self.verbose == True:
@@ -379,15 +541,19 @@ class ECGTable(object):
                                          'no MetaData to extract the UID from.'
                                          )
                 else:
-                    key = str(
-                        getattr(ecg_inst, CTypes.MetaData)[CMeta.UID])
-            else:
-                key = i
-                try:
                     if not getattr(ecg_inst, CTypes.MetaData)[CMeta.UID] is None:
-                        key = str(getattr(ecg_inst, CTypes.MetaData)[CMeta.UID])
-                except AttributeError or KeyError:
-                    pass
+                        key = str(
+                            getattr(ecg_inst, CTypes.MetaData)[CMeta.UID]
+                        )
+                    else:
+                        raise KeyError(f"`{CMeta.UID}` is None.")
+            else:
+                key = str(i)
+                # try:
+                #     if not getattr(ecg_inst, CTypes.MetaData)[CMeta.UID] is None:
+                #         key = str(getattr(ecg_inst, CTypes.MetaData)[CMeta.UID])
+                # except AttributeError or KeyError:
+                #     pass
             # confirm the key is unique
             if key in getattr(self, TabNames.KEY_L):
                 raise IndexError(
@@ -403,6 +569,8 @@ class ECGTable(object):
             if getattr(self, TabNames.E_META):
                 try:
                     meta_temp = getattr(ecg_inst, CTypes.MetaData)
+                    # add key to meta data
+                    meta_temp[TabNames.KEY] = key
                     meta_available = True
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
@@ -528,6 +696,21 @@ class ECGTable(object):
                 kwargs_reader_call=kwargs_reader_call,
                 kwargs_reader_extract=kwargs_reader_extract,
             )
+            # #### make tables and assign these to self
+            if getattr(self, TabNames.E_META):
+                setattr(self, CTypes.MetaData, pd.DataFrame(
+                    meta_list, index=getattr(self, TabNames.KEY_L)
+                ))
+            if getattr(self, TabNames.E_WAVE):
+                setattr(self, CTypes.WaveForms, self._get_long_table(
+                    wave_list, signal_type=CTypes.WaveForms,
+                    purge_header=True,
+                ))
+            if getattr(self, TabNames.E_MEDIAN):
+                setattr(self, CTypes.MedianBeats, self._get_long_table(
+                    median_list, signal_type=CTypes.MedianBeats,
+                    purge_header=True,
+                ))
         finally:
             # cleaning-up.
             if hasattr(self, TabNames.KEY_L) == True:
@@ -538,21 +721,6 @@ class ECGTable(object):
                 delattr(self, TabNames.INVALID_L)
             if hasattr(self, TabNames.ID_START) == True:
                 delattr(self, TabNames.ID_START)
-        # #### make tables and assign these to self
-        if getattr(self, TabNames.E_META):
-            setattr(self, CTypes.MetaData, pd.DataFrame(
-                meta_list, index=getattr(self, TabNames.KEY_L)
-            ))
-        if getattr(self, TabNames.E_WAVE):
-            setattr(self, CTypes.WaveForms, self._get_long_table(
-                wave_list, signal_type=CTypes.WaveForms,
-                purge_header=True,
-            ))
-        if getattr(self, TabNames.E_MEDIAN):
-            setattr(self, CTypes.MedianBeats, self._get_long_table(
-                median_list, signal_type=CTypes.MedianBeats,
-                purge_header=True,
-            ))
         # #### Return
         setattr(self, TabNames.TABLE_CALLED, 'True')
         return self
@@ -601,7 +769,30 @@ class ECGTable(object):
         table = pd.DataFrame()
         # NOTE w contains a dictionary with k: lead names and v: signals.
         for w, k in zip(lead_list, getattr(self, TabNames.KEY_L), strict=True):
-            # confirm the dictionary keys/lead names are identical
+            # ##### are there leads with None instead of signals
+            # FIRST get the length of the area and make sure this is unique.
+            # SECOND replace these by arrays of NaN
+            array_length = []
+            for value in w.values():
+                if isinstance(value, np.ndarray):
+                    array_length.append(len(value))
+            arr_len = np.unique(array_length)
+            if len(arr_len) == 0:
+                # add a place holder length
+                if self.verbose == True:
+                    warnings.warn('All the signal data is set to None, '
+                                  'replacing these by arrays of length one.')
+                arr_len = 1
+            elif len(arr_len) > 1:
+                raise ValueError('The number of signals differs per lead: '
+                                 f'`{arr_len}`.')
+            for key, sig in w.items():
+                if sig is None:
+                    w[key] = np.full(arr_len, np.nan)
+                    if self.verbose == True and arr_len != 1:
+                        warnings.warn(f"Lead `{key}` had a None value and has "
+                                      "been replaced by an array of NaN.")
+            # ##### confirm the dictionary keys/lead names are identical
             current_keys = list(w.keys())
             if getattr(self, PREV) is not None:
                 if current_keys != getattr(self, PREV):
@@ -609,9 +800,9 @@ class ECGTable(object):
                                    'The last set of valid keys was {}, '
                                    'compared to {}.'.\
                                    format(getattr(self, PREV), current_keys))
-            # if the same map to dataframe
+            # ##### if the same map to dataframe
             temp_df = pd.DataFrame(w, **kwargs_pdd)
-            temp_df[CMeta.UID] = k
+            temp_df[TabNames.KEY] = k
             table = pd.concat([table, temp_df], ignore_index=True)
             # clean
             setattr(self, PREV, current_keys)
@@ -620,9 +811,9 @@ class ECGTable(object):
         # #### formatting to long
         if table.empty == False:
             table[SAMPLING_SEQ] = table.groupby(
-                CMeta.UID).cumcount()
+                TabNames.KEY).cumcount()
             long_table = pd.melt(table, id_vars=\
-                                 [CMeta.UID, SAMPLING_SEQ],
+                                 [TabNames.KEY, SAMPLING_SEQ],
                                  value_vars=getattr(self, PREV),
                                  var_name='Lead',
                                  value_name='Voltage',
@@ -634,7 +825,7 @@ class ECGTable(object):
         return long_table
     # /////////////////////////////////////////////////////////////////////////
     def write_ecg(self, parsed_config=ConfigParser,
-                  chunk:int=256, target_tar: None | str = None,
+                  chunk:int | None=None, target_tar: None | str = None,
                   target_path:str='.', tar_mode:str='w:gz',
                   file_type:Literal['table', 'numpy', 'tensorflow'] = 'table',
                   tab_sep:str='\t', tab_compression:str | None ='gzip',
@@ -653,7 +844,7 @@ class ECGTable(object):
         parsed_config : `ConfigParser`
             A parsed configuration file which was mapped using
             `ConfigParser.map`.
-        chunk : `int`, default 256
+        chunk : `int`, default `NoneType`
             The number of files written to a single file. For `file_type` set
             this to 1 with `tab_append=True` minimise the memory fingerprint.
             Set to `NoneType` to combine all the ECG data into a single target
@@ -731,6 +922,11 @@ class ECGTable(object):
         behaviour does not check feature types and expects the user to
         supply a reader instance which extract the appropriate type of data,
         i.e., excluding string data when not writing to tables.
+        
+        For numpy and tfrecord the signal data will be automatically
+        zero-padded to the longest signal. Missing signals will be presented
+        as np.nan. The array column match the canonical ECG lead order, please
+        refer to `signal_dicts_to_numpy_array` for these.
         '''
         # #### set defaults
         # if kwargs is None assigned an empty dict
@@ -742,6 +938,7 @@ class ECGTable(object):
         EXP_WRITE=[TabNames.WRITE_TAB, TabNames.WRITE_NUMPY,
                    TabNames.WRITE_TFLOW]
         # #### check input
+        is_type(parsed_config, ConfigParser)
         is_type(chunk, (type(None), int))
         is_type(target_tar, (type(None), str))
         is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str))
@@ -783,8 +980,10 @@ class ECGTable(object):
         # chunk data
         if not chunk is None:
             path_list = chunk_list(getattr(self, TabNames.CPATH_L), chunk)
+            
         else:
-            path_list = getattr(self, TabNames.CPATH_L)
+            # making this into  single chunk [[ ]]
+            path_list = [getattr(self, TabNames.CPATH_L)]
         # NOTE First is only relevant when writing to a file using append.
         first=True
         # #### loop over the path_list
@@ -794,7 +993,8 @@ class ECGTable(object):
                 chunk_record[n] = ', '.join(p)
                 # extract data
                 meta_list, wave_list, median_list = self._loop_table(
-                    p, parsed_config=parsed_config, unique=unique,
+                    p, parsed_config=parsed_config,
+                    unique=unique,
                     kwargs_reader_call=kwargs_reader_call,
                     kwargs_reader_extract=kwargs_reader_extract,
                 )
@@ -833,44 +1033,45 @@ class ECGTable(object):
                         meta_list, wave_list, median_list, target,
                         chunk_num=n if chunk is not None else None,
                     )
+                # deleting the current key list
+                if hasattr(self, TabNames.KEY_L) == True:
+                    delattr(self, TabNames.KEY_L)
+            # #### write chunk record
+            if write_chunk_record:
+                chunk_tab = pd.DataFrame.from_dict(chunk_record, orient='index',
+                                       columns=['Files'])
+                chunk_tab.index.name='Chunk number'
+                chunk_tab.to_csv(
+                    os.path.join(target, 'chunkrecord.tsv'), sep='\t', header=True,
+                    index=True)
+            # #### write failed files, note not compressing these
+            if write_failed == True:
+                # adding the reason for failing
+                total_failures =\
+                    [(p, 'File permission') for p in\
+                     getattr(self, TabNames.FPATH_L) ] +\
+                    [ (p, 'No data') for p in\
+                     getattr(self, TabNames.NO_DATA_L)] +\
+                    [(p, 'Invalid data') for p in\
+                     getattr(self, TabNames.INVALID_L)]
+                # writing to text file
+                with open(os.path.join(target, 'FailedFiles.txt'), 'w') as file:
+                    for p, cause in total_failures:
+                        file.write(p + "\t" + cause + "\n")
+            # #### if needed replace directory by a tarball
+            if target_tar is not None:
+                # create the final target path
+                target_final = os.path.join(target_path, target_tar)
+                replace_with_tar(target, target_final, mode=tar_mode)
+                setattr(self, TabNames.WRITE_ECG_PATH, target_final)
         finally:
             # cleaning-up.
-            if hasattr(self, TabNames.KEY_L) == True:
-                delattr(self, TabNames.KEY_L)
             if hasattr(self, TabNames.NO_DATA_L) == True:
                 delattr(self, TabNames.NO_DATA_L)
             if hasattr(self, TabNames.INVALID_L) == True:
                 delattr(self, TabNames.INVALID_L)
             if hasattr(self, TabNames.ID_START) == True:
                 delattr(self, TabNames.ID_START)
-        # #### write chunk record
-        if write_chunk_record:
-            chunk_tab = pd.DataFrame.from_dict(chunk_record, orient='index',
-                                   columns=['Files'])
-            chunk_tab.index.name='Chunk number'
-            chunk_tab.to_csv(
-                os.path.join(target, 'ChunkRecord.tsv'), sep='\t', header=True,
-                index=True)
-        # #### write failed files, note not compressing these
-        if write_failed == True:
-            # adding the reason for failing
-            total_failures =\
-                [(p, 'File permission') for p in\
-                 getattr(self, TabNames.FPATH_L) ] +\
-                [ (p, 'No data') for p in\
-                 getattr(self, TabNames.NO_DATA_L)] +\
-                [(p, 'Invalid data') for p in\
-                 getattr(self, TabNames.INVALID_L)]
-            # writing to text file
-            with open(os.path.join(target, 'FailedFiles.txt'), 'w') as file:
-                for p, cause in total_failures:
-                    file.write(p + "\t" + cause + "\n")
-        # #### if needed replace directory by a tarball
-        if target_tar is not None:
-            # create the final target path
-            target_final = os.path.join(target_path, target_tar)
-            replace_with_tar(target, target_final, mode=tar_mode)
-            setattr(self, TabNames.WRITE_ECG_PATH, target_final)
         # #### return
         return self
     # /////////////////////////////////////////////////////////////////////////
@@ -907,6 +1108,8 @@ class ECGTable(object):
             # is the file compressed?
             try:
                 if kwargs['compression'] == 'gz':
+                    EXT = EXT + '.gz'
+                if kwargs['compression'] == 'gzip':
                     EXT = EXT + '.gz'
                 if kwargs['compression'] == 'bz2':
                     EXT = EXT + '.bz2'
@@ -970,7 +1173,8 @@ class ECGTable(object):
             self._write_file_names(chunk_num=chunk_num, **kwargs_tab_combi)
         # #### write individual files
         if getattr(self, TabNames.E_META):
-            pd.DataFrame([meta_list]).to_csv(
+            pd.DataFrame(meta_list, index=getattr(self, TabNames.KEY_L)
+                         ).to_csv(
                 os.path.join(target, META_FILE),
                 **kwargs_tab_combi,
             )
@@ -995,11 +1199,12 @@ class ECGTable(object):
     # the pandas tables to remove these - as an optional parameter?
     # printing warnings returning the removed columns??
     def _write_numpy(self, meta_list:list[dict[str, Any]],
-                   wave_list:list[dict[str, np.ndarray]],
-                   median_list:list[dict[str, np.ndarray]],
-                   target:str,
-                   chunk_num:int | None,
-                   ) -> None:
+                     wave_list:list[dict[str, np.ndarray]],
+                     median_list:list[dict[str, np.ndarray]],
+                     target:str,
+                     chunk_num:int | None,
+                     numeric_meta:bool = True,
+                     ) -> None:
         """
         Writes data to a compressed numpy file `.npz`.
         
@@ -1016,6 +1221,8 @@ class ECGTable(object):
         chunk_num : `int` or `NoneType`
             Appends the chunk number with a '_' seperator before the file
             extension.
+        numeric_meta : `bool`, default `True`
+            Whether non-numeric data should be dropped from the metadata.
         
         Notes
         -----
@@ -1023,20 +1230,29 @@ class ECGTable(object):
         """
         # #### check input
         is_type(chunk_num, (int, type(None)))
+        is_type(numeric_meta, bool)
         # Set the filenames
         _, _, _, ECG_FILE=\
             self._write_file_names(chunk_num=chunk_num)
         # #### write individual files
         res_dict = {}
         if getattr(self, TabNames.E_META):
-            res_dict[CTypes.MetaData] = pd.DataFrame([meta_list]).to_numpy()
+            tab1  = pd.DataFrame(meta_list)
+            if numeric_meta:
+                tab1 = tab1.select_dtypes(include=[np.number])
+            # get the header
+            tab1_header = list(tab1.columns)
+            res_dict[CTypes.MetaData] = tab1.to_numpy()
         if getattr(self, TabNames.E_WAVE):
-            res_dict[CTypes.WaveForms] = pd.DataFrame([wave_list]).to_numpy()
+            res_dict[CTypes.WaveForms] = signal_dicts_to_numpy_array(wave_list)
         if getattr(self, TabNames.E_MEDIAN):
             res_dict[CTypes.MedianBeats] =\
-                pd.DataFrame([median_list]).to_numpy()
+                signal_dicts_to_numpy_array(median_list)
         # finally write to a single file
         np.savez(os.path.join(target, ECG_FILE), **res_dict)
+        # include the header
+        if getattr(self, TabNames.E_META):
+            type(self)._write_header(target, tab1_header)
     # /////////////////////////////////////////////////////////////////////////
     # NOTE tfrecords cannot handle non-numerical data, might want to filter
     # the pandas tables to remove these - as an optional parameter?
@@ -1045,6 +1261,7 @@ class ECGTable(object):
                    median_list:list[dict[str, np.ndarray]],
                    target:str,
                    chunk_num:int | None,
+                   numeric_meta:bool = True,
                    ) -> None:
         """
         Writes data to a compressed tfrecord.
@@ -1062,6 +1279,8 @@ class ECGTable(object):
         chunk_num : `int` or `NoneType`
             Appends the chunk number with a '_' seperator before the file
             extension.
+        numeric_meta : `bool`, default `True`
+            Whether non-numeric data should be dropped from the metadata.
         
         Notes
         -----
@@ -1069,32 +1288,51 @@ class ECGTable(object):
         """
         # #### check input
         is_type(chunk_num, (int, type(None)))
+        is_type(numeric_meta, bool)
         # Set the filenames
         _, _, _, ECG_FILE=\
             self._write_file_names(chunk_num=chunk_num)
         # #### write individual files
         res_dict = {}
         if getattr(self, TabNames.E_META):
+            tab1  = pd.DataFrame(meta_list)
+            if numeric_meta:
+                tab1 = tab1.select_dtypes(include=[np.number])
+            # get the header
+            tab1_header = list(tab1.columns)
+            # write the dict
             res_dict[CTypes.MetaData] = tf.train.Feature(
                 float_list=tf.train.FloatList(
-                    value=pd.DataFrame([meta_list]).to_numpy().flatten()
+                    value=tab1.to_numpy().flatten()
                 ))
         if getattr(self, TabNames.E_WAVE):
             res_dict[CTypes.WaveForms] = tf.train.Feature(
                 float_list=tf.train.FloatList(
-                    value=pd.DataFrame([wave_list]).to_numpy().flatten()
+                    value=signal_dicts_to_numpy_array(wave_list).flatten()
                 ))
         if getattr(self, TabNames.E_MEDIAN):
             res_dict[CTypes.MedianBeats] = tf.train.Feature(
                 float_list=tf.train.FloatList(
-                    value=pd.DataFrame([median_list]).to_numpy().flatten()
+                    value=signal_dicts_to_numpy_array(median_list).flatten()
                 ))
         # finally write to a single file
         with tf.io.TFRecordWriter(os.path.join(target, ECG_FILE)) as writer:
             writer.write(
-                tf.train.Example(feature=tf.train.Features(feature=res_dict)).\
+                tf.train.Example(features=tf.train.Features(feature=res_dict)).\
                 SerializeToString()
             )
+        # include the header
+        if getattr(self, TabNames.E_META):
+            type(self)._write_header(target, tab1_header)
+    # /////////////////////////////////////////////////////////////////////////
+    @staticmethod
+    def _write_header(target:str, header:list[str]):
+        """Write a list to a file with each entry on a new line"""
+        with open(os.path.join(target, 'header_metadata.txt'), 'w') as file:
+            # Iterate over the list with enumeration starting at 1
+            for line_number, head in enumerate(header, start=1):
+                # Write each element with its line number to the file
+                file.write(f"{line_number}\t{head}\n")
     # # /////////////////////////////////////////////////////////////////////////
     # def write_pdf(self, ecgdrawing:ECGDrawing,
     #               target_path:str='.', write_failed:bool=True,
