@@ -131,7 +131,7 @@ def metadata_checkversion(metadata:dict[str, Any],
     Depending on the `ignore_invalid` parameter of `Tabular` the failed
     filenames will be added to the `invalid_list` attribute.
     """
-    # just keeping this so kwargs is used and the linter does not complain.
+    # just keeping this so kwargs are used and the linter does not complain.
     if verbose:
         print(**kwargs)
     # constant
@@ -147,7 +147,7 @@ def metadata_checkversion(metadata:dict[str, Any],
             f"`{metadata[manufact]}` or model `{metadata[model_name]}` failed "
             "to validate."
         )
-    # if all corect simply return meta
+    # if all corect simply return metadata
     return metadata
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -232,7 +232,7 @@ def signal_correction(signals:dict[str, np.ndarray], verbose:bool=False,
         if v is None:
             signals[k] = v
             continue
-        # just to be sure this is an ndarray
+        # confirming this is a np.array
         is_type(v, np.ndarray)
         fact = meta_dict[sens+str(i)] * meta_dict[corr+str(i)]
         if verbose:
@@ -245,10 +245,10 @@ def signal_correction(signals:dict[str, np.ndarray], verbose:bool=False,
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class ECGTable(object):
     '''
-    Takes an `BaseReader` instance and loops over a list of file paths
+    Takes an `BaseReader` instance and loops over a supplied list of files
     containing ECG data and extract relevant information  using a `Processing`
-    instance and a `Mapping` instance. The extract information can be mapped to
-    a Pandas.DataFrame or saved to disk.
+    instance and a `Configuration` instance. The extracted information can be
+    mapped to a Pandas.DataFrame or saved to disk.
     
     Parameters
     ----------
@@ -264,15 +264,15 @@ class ECGTable(object):
         Whether to extract the median beats.
     engineer_meta : `Callable`, default `metadata_identity`
         A function applied to the internal meta_dict object. Please ensure
-        the function include parameter: `meta_dict`.
+        the function includes parameter: `meta_dict`.
     engineer_wave : `Callable`, default `signal_identity`
         A function applied to the internal wave_dict object. Please ensure
-        the function include parameters: `wave_dict` and `**kwargs`.
+        the function includes parameters: `wave_dict` and `**kwargs`.
     engineer_median : `Callable`, default `signal_identity`
         A function applied to the internal median_dict object. Please ensure
-        the function include parameters: `median_dict` and `**kwargs`.
+        the function includes parameters: `median_dict` and `**kwargs`.
     schema : `str` or `NoneType`, default `NoneType`
-        The path to an optional XSD schema to validate an XML file. Set to
+        The path to an optional XSD schema to validate XML files. Set to
         None to ignore.
     
     Attributes
@@ -291,13 +291,13 @@ class ECGTable(object):
     
     Notes
     -----
-    The engineering parameters can be used to supply function that will be
+    The engineering parameters can be used to supply functions that will be
     applied separately to dictionaries of each processed file before these
-    dictionaries are chunked and written to disk. The functions are applied in
+    dictionaries are combined and written to disk. The functions are applied in
     the following order to the internal objects: meta_dict (for metadata),
     wave_dict (for waveform signals), median_dict (for medianbeats signals).
     Please ensure the waveform and medianbeats functions includes a **kwargs
-    parameter, which will be used internally include the metadata. This
+    parameter. The kwargs will be used internally to include the metadata. This
     ensures for example, that the engineer_wave function will have access to
     the metadata.
     '''
@@ -357,31 +357,32 @@ class ECGTable(object):
         Parameters
         ----------
         ignore_permission : `bool`, default True
-            Skips file permission errors. The failed file names will be recorded
-            for review.
+            Skips file permission errors. The failed file names will be
+            recorded for review.
         ignore_data : `bool`, default False
             Whether files with missing MetaData, WaveForm, or MedianBeat
             attributes should be skipped. The file names for these failures
-            will be recorded.  Note, to limit I/O calls schema validation will
-            not be conducted during __call__ but in methods processing these
-            files.
+            will be recorded.  Note, to limit I/O calls this step will not
+            be conducted during __call__ and instead will be applied when
+            processing data using any method with utilises `_loop_table`.
         ignore_invalid : `bool`, default False
             Whether XML files who failed to an XSD validation schema should
             be skipped. Note, to limit I/O calls schema validation will not be
-            conducted during __call__ but in methods processing these files.
+            conducted during __call__ and instead will be applied when
+            processing data using any method with utilises `_loop_table`.
         verbose : `bool`, default `False`
             Whether to print warnings.
         
         Attributes
         ----------
         failed_path_list : `list` [`str`]
-            File paths which were either absent or without read permission.
+            File paths which are either absent or without read permission.
         curated_path_list : `list` [`str`]
             File paths which are readable.
         
         Returns
         -------
-        self : `ECGTable` instance
+        ECGTable instance
             Returns the class instance with updated attributes.
         """
         # #### check input
@@ -413,7 +414,7 @@ class ECGTable(object):
                     raise PE
         setattr(self, TabNames.FPATH_L, empty_list)
         setattr(self, TabNames.CPATH_L, curated_list)
-        # #### do we want to print empty_list
+        # #### do we want to print the list of invalid files.
         if self.verbose == True:
             if len(getattr(self, TabNames.FPATH_L))>0:
                 warnings.warn(
@@ -431,7 +432,7 @@ class ECGTable(object):
                   ) -> tuple[list[dict[str, Any]], list[dict[str, np.ndarray]],
                              list[dict[str, np.ndarray]]]:
         """
-        Will loop of the supplied files and extract ECG data.
+        Will loop over the supplied files and extract ECG data.
         
         Parameters
         ----------
@@ -442,8 +443,8 @@ class ECGTable(object):
             `ConfigParser.map`.
         unique : `bool`, default `True`
             ensures the `UID` metadata items are unique between files. Please
-            ensure the UID metadata key value pair is appropriately set in
-            the config file. If set to false an file-specific integer key will
+            ensure the UID key-value pair is appropriately set in
+            the config file. If set to false a file-specific integer key will
             be assigned instead.
         kwargs_reader_call: `dict` [`any`, `any`]  or None, default `NoneType`
             passed to the kwargs of the `BaseReader` call method.
@@ -452,7 +453,7 @@ class ECGTable(object):
          
         Attributes
         ----------
-        key_list: list [`str`]
+        key_list: `list` [`str`]
             A list of unique identifiers.
         no_data_list : `list` [`str`]
             A list of files without the requested attributes: MetaData,
@@ -500,11 +501,9 @@ class ECGTable(object):
             setattr(self, TabNames.NO_DATA_L, [])
         if hasattr(self, TabNames.INVALID_L) == False:
             setattr(self, TabNames.INVALID_L, [])
-        # loop over individual files
         if hasattr(self, TabNames.ID_START) == False:
             setattr(self, TabNames.ID_START, 1)
-        # if isinstance(path_list, list) == False:
-        #     path_list = [path_list]
+        # loop over individual files
         for i, p in enumerate(path_list,
                               start=getattr(self, TabNames.ID_START)):
             if self.verbose == True:
@@ -549,16 +548,11 @@ class ECGTable(object):
                         raise KeyError(f"`{CMeta.UID}` is None.")
             else:
                 key = str(i)
-                # try:
-                #     if not getattr(ecg_inst, CTypes.MetaData)[CMeta.UID] is None:
-                #         key = str(getattr(ecg_inst, CTypes.MetaData)[CMeta.UID])
-                # except AttributeError or KeyError:
-                #     pass
             # confirm the key is unique
             if key in getattr(self, TabNames.KEY_L):
                 raise IndexError(
-                    'The current file seems to have been extracted already '
-                    '.Please ensure the supplied files are unique. '
+                    'The current file seems to have been extracted already. '
+                    'Please ensure the supplied files are unique. '
                     f'This is the current file ID {key} and these '
                     'are the IDs of the processed files '
                     f'{getattr(self, TabNames.KEY_L)}.'
@@ -581,9 +575,7 @@ class ECGTable(object):
                 # skip if there is no metadata
                 if meta_available == True:
                     try:
-                        # the metadata is first piped through the engineering
-                        # function, so you get a composite: g(f(m)). The wave_list
-                        # and median_list objects are supplied as kwargs.
+                        # piping the metadata through the engineer function
                         meta_list.append(
                             getattr(self, TabNames.ENG_META)(
                                 meta_temp,
@@ -598,6 +590,8 @@ class ECGTable(object):
             # Append waveform signals.
             if getattr(self, TabNames.E_WAVE):
                 try:
+                    # piping the waveform signals through the engineer function
+                    # metadata is supplied through the function kwargs
                     wave_list.append(
                         getattr(self, TabNames.ENG_WAVE)(
                         getattr(ecg_inst, CTypes.WaveForms),
@@ -612,6 +606,8 @@ class ECGTable(object):
             # Append median beat signals.
             if getattr(self, TabNames.E_MEDIAN):
                 try:
+                    # piping the medianbeats signals through the engineer
+                    # function metadata is supplied through the function kwargs
                     median_list.append(
                         getattr(self, TabNames.ENG_MEDIAN)(
                         getattr(ecg_inst, CTypes.MedianBeats),
@@ -623,10 +619,10 @@ class ECGTable(object):
                         getattr(self,TabNames.NO_DATA_L).append(p)
                     else:
                         raise AE
-            # make sure no_data_l is unique
+            # make sure this object is unique
             setattr(self,TabNames.NO_DATA_L, list(np.unique(
                 getattr(self,TabNames.NO_DATA_L))))
-        # record update the last ID_START
+        # record and update the last ID_START
         setattr(self, TabNames.ID_START, i+1)
         # to we want to print warnings?
         if self.verbose == True:
@@ -637,7 +633,7 @@ class ECGTable(object):
                 )
             if len(getattr(self, TabNames.INVALID_L))>0:
                 warnings.warn(
-                    'The following XML files have not been validated: {}.'.\
+                    'The following XML files could not be validated: {}.'.\
                     format(getattr(self, TabNames.INVALID_L))
                 )
         # return the list
@@ -650,7 +646,7 @@ class ECGTable(object):
                   kwargs_reader_extract:dict[Any, Any] | None = None,
                   ) -> Self:
         """
-        Presents ECG data as pandas.DataFrames.
+        Returns ECG data as pandas.DataFrames.
         
         Parameters
         ----------
@@ -659,8 +655,8 @@ class ECGTable(object):
             `ConfigParser.map`.
         unique : `bool`, default `True`
             ensures the `UID` metadata items are unique between files. Please
-            ensure the UID metadata key value pair is appropriately set in
-            the config file. If set to false an file-specific integer key will
+            ensure the UID key-value pair is appropriately set in
+            the config file. If set to false a file-specific integer key will
             be assigned instead.
         kwargs_reader_call: `dict` [`any`, `any`]  or None, default `NoneType`
             passed to the kwargs of the `BaseReader` call method.
@@ -672,21 +668,21 @@ class ECGTable(object):
         MetaDataTable: pandas.DataFrame
             A table of the metadata.
         WaveFormsTable: pandas.DataFrame
-            A long-format table with waveforms signals.
+            A long-formatted table with waveforms signals.
         MedianBeatsTable: pandas.DataFrame
-            A long-format table with the median beat signals.
+            A long-formatted table with the median beat signals.
         
         Returns
         -------
-        self : `ECGTable` instance
+        `ECGTable` instance
             Returns the class instance with updated attributes.
         
         Notes
         -----
         To keep track of multiple ECG files the function will try to use the
-        the privileged variable UID. If this is not found in the supplied
-        `MetaData` it will instead simply assign a interger starting from 1 for
-        each file processed.
+        privileged variable UID. If this is not found in the supplied
+        `MetaData` the function will instead assign an interger starting from
+        1 as a unique key.
         """
         # #### run loop
         try:
@@ -735,21 +731,21 @@ class ECGTable(object):
         
         Parameters
         ----------
-        lead_list : list [`dict`]
-            A list of dictionaries with the lead mapped to the keys and the
-            voltage mapped to the values.
-        signal_type : str,
+        lead_list : `list` [`dict` [`str`, `np.ndarray`]
+            A list of dictionaries with the lead names mapped to the keys and
+            the voltage mapped to the values.
+        signal_type : `str`,
             Adds a column `Waveform type` containing this string as a constant.
-        purge_header : bool, default True
+        purge_header : `bool`, default True
             Set to `False` to make sure the file header persists between calls.
             This is used to ensure the headers are the same between files.
-        **kwargs : optional
+        kwargs
             keyword arguments passed to pd.DataFrame.
         
         Returns
         -------
-        self : pd.DataFrame
-            A long-formatted table with lead, voltage, sampling indicator
+        pd.DataFrame
+            A long-formatted table with lead, voltage, sampling sequence
             columns grouped by file (including an unique file indicator column)
         '''
         # #### check input and set constants
@@ -759,7 +755,7 @@ class ECGTable(object):
         PREV = 'previous'
         SAMPLING_SEQ = 'Sampling sequence'
         # do we need to purge the header information
-        # otherwise this persists throughout calls
+        # otherwise this persists across repeated calls
         if purge_header == True:
             setattr(self, PREV, None)
         else:
@@ -770,8 +766,8 @@ class ECGTable(object):
         # NOTE w contains a dictionary with k: lead names and v: signals.
         for w, k in zip(lead_list, getattr(self, TabNames.KEY_L), strict=True):
             # ##### are there leads with None instead of signals
-            # FIRST get the length of the area and make sure this is unique.
-            # SECOND replace these by arrays of NaN
+            # FIRST get the length of the array and make sure this is unique.
+            # SECOND replace these by arrays by NaN
             array_length = []
             for value in w.values():
                 if isinstance(value, np.ndarray):
@@ -803,6 +799,7 @@ class ECGTable(object):
             # ##### if the same map to dataframe
             temp_df = pd.DataFrame(w, **kwargs_pdd)
             temp_df[TabNames.KEY] = k
+            # FIXME this will be fairly slow/inefficient
             table = pd.concat([table, temp_df], ignore_index=True)
             # clean
             setattr(self, PREV, current_keys)
@@ -825,7 +822,7 @@ class ECGTable(object):
         return long_table
     # /////////////////////////////////////////////////////////////////////////
     def write_ecg(self, parsed_config=ConfigParser,
-                  chunk:int | None=None, target_tar: None | str = None,
+                  chunk:int | None = None, target_tar: None | str = None,
                   target_path:str='.', tar_mode:str='w:gz',
                   file_type:Literal['table', 'numpy', 'tensorflow'] = 'table',
                   tab_sep:str='\t', tab_compression:str | None ='gzip',
@@ -837,7 +834,7 @@ class ECGTable(object):
                   ) -> Self:
         '''
         Extracts chunks of ECG data, and writes these to a single or multiple
-        target files, which can be optionally tar compressed.
+        target files which can be optionally tar compressed.
         
         Parameters
         ----------
@@ -845,10 +842,10 @@ class ECGTable(object):
             A parsed configuration file which was mapped using
             `ConfigParser.map`.
         chunk : `int`, default `NoneType`
-            The number of files written to a single file. For `file_type` set
-            this to 1 with `tab_append=True` minimise the memory fingerprint.
-            Set to `NoneType` to combine all the ECG data into a single target
-            file.
+            The number of sources files written to a single processed file. For
+            `file_type=table` set this to 1 with `tab_append=True` minimise the
+            memory fingerprint.  Set to `NoneType` to combine all the ECG data
+            into a single target file.
         target_tar : `str`, default `NoneType`
             The `name` of an optional tarfile where the individual files will
             be written to. The target_tar will be concatenated to
@@ -858,7 +855,7 @@ class ECGTable(object):
             Note this will overwrite any potential directory or file with the
             provide name.
         target_path : `str`, default '.'
-            The full path where the files should be written to. if provided
+            The full path where the files should be written to. If provided
             `target_tar` will be created underneath this path, otherwise the
             files will be directly written to the `target_path` terminal
             directory (assuming this is writable).
@@ -878,37 +875,30 @@ class ECGTable(object):
         unique : `bool`, default `True`
             ensures the `UID` metadata items are unique between files. Please
             ensure the UID metadata key value pair is appropriately set in
-            the config file. If set to false an file-specific integer key will
+            the config file. If set to False an file-specific integer key will
             be assigned instead.
         write_failed : `bool`, default `True`
             Whether to write a text file to disk containing the failed file
-            names.
+            names with some information on why these failed.
         write_chunk_record : `bool`, default `True`
             Whether to include a record matching the chunk indicator to the
-            files included.
-        unique : `bool`, default `True`
-            ensures the `UID` metadata items are unique between files. Please
-            ensure the UID metadata key value pair is appropriately set in
-            the config file. If set to false an file-specific integer key will
-            be assigned instead.
-        kwargs_reader_call: `dict` [`any`, `any`]  or None, default `NoneType`
+            files included in each chunk.
+        kwargs_reader_call: `dict` [`any`, `any`]  or `None`, default `NoneType`
             passed to the kwargs of the `BaseReader` call method.
-        kwargs_reader_extract: `dict` [`any`, `any`]  or None, default
-            `NoneType` passed to the `BaseReader` extract method.
-        kwargs_tab : `dict` [`str`, `any`], default `None`
+        kwargs_reader_extract: `dict` [`any`, `any`]  or `None`, default `NoneType`
+            passed to the `BaseReader` extract method.
+        kwargs_tab : `dict` [`str`, `any`] or `None`, default `None`
             Keyword argument for `pd.DataFrame.to_csv`.
         
         Attributes
         ----------
-        target_path : str
+        target_path : `str`
             The directory or tar file path were the files are written to.
-        NoDataList : `list` [`str`]
-            A list of files without any data.
         
         Returns
         -------
-        self : `ECGTable` instance
-            Returns the class instance with updated attributes.
+        `ECGTable` instance
+            The class instance with updated attributes.
         
         Raises
         ------
@@ -918,21 +908,16 @@ class ECGTable(object):
         Notes
         -----
         While file_type='table' can store any kind of information, numpy and
-        tfrecord are best used to store numerical/float data. The current
-        behaviour does not check feature types and expects the user to
-        supply a reader instance which extract the appropriate type of data,
-        i.e., excluding string data when not writing to tables.
+        tfrecord are best used to store numerical/float data. Currenlty
+        non-numerical data are therefore drooped from metadata for these
+        filetypes.
         
         For numpy and tfrecord the signal data will be automatically
         zero-padded to the longest signal. Missing signals will be presented
-        as np.nan. The array column match the canonical ECG lead order, please
-        refer to `signal_dicts_to_numpy_array` for these.
+        as np.nan. The array columns match the canonical ECG lead order, please
+        refer to `ecg_tools.signal_dicts_to_numpy_array` for the exact order.
         '''
         # #### set defaults
-        # if kwargs is None assigned an empty dict
-        # NOTE this is a bit convoluted kwargs_tabs is  assigned to self,
-        # which is used by the _write_tab function which internally
-        # runs an _update_kwargs(**kwargs_tab, **kwargs)
         self.kwargs_tab = kwargs_tab or {}
         # expected file_types
         EXP_WRITE=[TabNames.WRITE_TAB, TabNames.WRITE_NUMPY,
@@ -1042,9 +1027,9 @@ class ECGTable(object):
                                        columns=['Files'])
                 chunk_tab.index.name='Chunk number'
                 chunk_tab.to_csv(
-                    os.path.join(target, 'chunkrecord.tsv'), sep='\t', header=True,
+                    os.path.join(target, 'chunkrecord.txt'), sep='\t', header=True,
                     index=True)
-            # #### write failed files, note not compressing these
+            # #### write failed files
             if write_failed == True:
                 # adding the reason for failing
                 total_failures =\
@@ -1079,8 +1064,8 @@ class ECGTable(object):
                           **kwargs:Optional[Any],
                           ) -> tuple[str, str, str, str]:
         """
-        Creates the filenames with relevant extensions, optionally accounting
-        for chunks.
+        Creates filenames with relevant extensions, optionally accounting
+        for chunks by adding the chunk number as suffix.
         
         Parameters
         ----------
@@ -1129,7 +1114,7 @@ class ECGTable(object):
         if not chunk_num is None:
             SEP = '_'
             CHUNK = str(chunk_num)
-        # the finel file names
+        # the final file names
         META_FILE = META_FILE + SEP + CHUNK + EXT
         WAVE_FILE = WAVE_FILE + SEP + CHUNK + EXT
         MEDIAN_FILE = MEDIAN_FILE + SEP + CHUNK + EXT
@@ -1145,7 +1130,7 @@ class ECGTable(object):
                    **kwargs,
                    ) -> None:
         """
-        Writes data to a flat table.
+        Writes data to a flat tsv table.
         
         Parameters
         ----------
@@ -1195,9 +1180,6 @@ class ECGTable(object):
                 **kwargs_tab_combi,
             )
     # /////////////////////////////////////////////////////////////////////////
-    # NOTE npz is not ideal to store non-numerical data, might want to filter
-    # the pandas tables to remove these - as an optional parameter?
-    # printing warnings returning the removed columns??
     def _write_numpy(self, meta_list:list[dict[str, Any]],
                      wave_list:list[dict[str, np.ndarray]],
                      median_list:list[dict[str, np.ndarray]],
@@ -1254,8 +1236,6 @@ class ECGTable(object):
         if getattr(self, TabNames.E_META):
             type(self)._write_header(target, tab1_header)
     # /////////////////////////////////////////////////////////////////////////
-    # NOTE tfrecords cannot handle non-numerical data, might want to filter
-    # the pandas tables to remove these - as an optional parameter?
     def _write_tfr(self, meta_list:list[dict[str, Any]],
                    wave_list:list[dict[str, np.ndarray]],
                    median_list:list[dict[str, np.ndarray]],
@@ -1327,119 +1307,9 @@ class ECGTable(object):
     # /////////////////////////////////////////////////////////////////////////
     @staticmethod
     def _write_header(target:str, header:list[str]):
-        """Write a list to a file with each entry on a new line"""
+        """Write list entries a file with each entry on a new line"""
         with open(os.path.join(target, 'header_metadata.txt'), 'w') as file:
             # Iterate over the list with enumeration starting at 1
             for line_number, head in enumerate(header, start=1):
                 # Write each element with its line number to the file
                 file.write(f"{line_number}\t{head}\n")
-    # # /////////////////////////////////////////////////////////////////////////
-    # def write_pdf(self, ecgdrawing:ECGDrawing,
-    #               target_path:str='.', write_failed:bool=True,
-    #               kwargs_reader:dict[Any,Any] | None=None,
-    #               kwargs_drawing:dict[Any,Any] | None=None,
-    #               kwargs_savefig:dict[Any,Any] | None=None,
-    #               ) -> Self:
-    #     '''
-    #     Extracts dicom files, and write these one by one to a pdf files
-    #     using a supplied `ECGDrawing` instance.
-        
-    #     Parameters
-    #     ----------
-    #     ecgdrawing : ECGDrawing
-    #         An instance of the ECGDrawing data class.
-    #     target_path : `str`, default '.'
-    #         The full path where the pdfs should be written to.
-    #     write_failed : `bool`, default `True`
-    #         Whether to write a text file to disk containing the failed file
-    #         names.
-    #     kwargs_*: dict [`any`, `any`], default `NoneType`
-    #         dictionaries with keyword arguments for the `plt.savefig`,
-    #         ECGDrawing, or BaseReader instances.
-        
-    #     Attributes
-    #     ----------
-    #     target_path : `str`
-    #         The directory or tar file path were the files are written to.
-    #     NoDataList : `list` [`str`]
-    #         A list of dicom files without a waveform_array.
-        
-    #     Returns
-    #     -------
-    #     self : `ECGDICOMTable` instance
-    #         Returns the class instance with updated attributes.
-        
-    #     Notes
-    #     -----
-    #     The dicom UID instance will be used as file name for the pdfs.
-        
-    #     Raises
-    #     ------
-    #     NotADirectoryError or PermissionError
-    #         If the target directory does not exist or is not writable.
-    #     '''
-    #     # #### check input and set constants
-    #     is_type(kwargs_reader, (type(None), dict))
-    #     is_type(kwargs_drawing, (type(None), dict))
-    #     is_type(kwargs_savefig, (type(None), dict))
-    #     is_type(ecgdrawing, ECGDrawing)
-    #     is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str))
-    #     is_type(write_failed, bool)
-    #     # check readability
-    #     _check_presence(target_path)
-    #     _check_readable(target_path)
-    #     # map None to dict
-    #     kwargs_savefig, kwargs_reader, kwargs_drawing= assign_empty_default(
-    #             [kwargs_savefig, kwargs_reader, kwargs_drawing], dict)
-    #     # map info type to type of plot
-    #     if getattr(self, PDNames.INFO_TYPE) == PDNames.INFO_TYPE_MET:
-    #         raise AttributeError('`info` should be {0} or {1}.'.format(
-    #             PDNames.INFO_TYPE_MED, PDNames.INFO_TYPE_RTM))
-    #     elif getattr(self, PDNames.INFO_TYPE) == PDNames.INFO_TYPE_ALL:
-    #         signal_type = PDNames.WAVETYPE_RHYTHM
-    #     else:
-    #         signal_type = getattr(self, PDNames.INFO_TYPE)
-    #     # #### create target path
-    #     if target_path == '.':
-    #         target_path = os.getcwd()
-    #     # assign to self
-    #     target = target_path
-    #     setattr(self, PDNames.WRITE_ECG_PATH, target)
-    #     # #### check if __call__ has been run
-    #     if not hasattr(self, PDNames.CPATH_L):
-    #         raise NotCalledError()
-    #     # #### extract dicom data
-    #     key_list, no_data_list = [[] for _ in range(2)]
-    #     # loop over individual dcm files
-    #     for p in getattr(self, PDNames.CPATH_L):
-    #         # NOTE _write_internal has been superseded by _loop_table
-    #         no_data_list, key_list, ecg_inst = self._write_internal(
-    #             path=p, no_data_list=no_data_list, key_list=key_list,
-    #             **kwargs_reader,
-    #             )
-    #         if isinstance(ecg_inst, str):
-    #             continue
-    #         # #### updated leads
-    #         # if update_keys is not None:
-    #         #     w = {update_keys.get(k, k): v for k, v in w.items()}
-    #         # ##### draw and write figure
-    #         artist = ecgdrawing(ecgreader=ecg_inst, wave_type=signal_type,
-    #                             **kwargs_drawing)
-    #         filename_pdf = re.sub(r"[ ,\-\(\)\{\}]", '_', key_list[-1]) + '.pdf'
-    #         plt.savefig(fname=os.path.join(target, filename_pdf), **kwargs_savefig)
-    #         plt.close(artist.fig)
-    #     # #### write failed files, note not compressing these
-    #     DELIM = '\t'
-    #     if write_failed == True:
-    #         # adding the reason for failing
-    #         total_failures = [
-    #             (p, PDNames.SKIP_PERMISSIONS) for p in\
-    #             getattr(self, PDNames.FPATH_L) ] + [
-    #             (p, PDNames.SKIP_DATA) for p in\
-    #                 getattr(self, PDNames.FAILED_DATA_L)]
-    #         # writing to text file
-    #         with open(os.path.join(target, PDNames.FAILED_FILE), 'w') as file:
-    #             for p, cause in total_failures:
-    #                 file.write(p + DELIM + cause + "\n")
-    #     # #### return
-    #     return self

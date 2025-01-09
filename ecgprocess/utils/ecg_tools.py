@@ -125,7 +125,7 @@ def signal_dicts_to_numpy_array(
     ----------
     signals : `list` [`dict` [`str`, `np.ndarray`]]
         List where each dictionary represents an ECG sample with lead names
-        as keys and NumPy arrays as values.
+        as keys and numpy arrays as values.
     leads : `list` [`str`] or `None`
         List of lead names to include and their order. If `None`, all unique
         leads across samples are used in sorted order.

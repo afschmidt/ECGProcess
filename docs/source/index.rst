@@ -18,8 +18,10 @@ dicoms and map these to numpy arrays used in ML/AI algorithms.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
+   processing_signal_data
+   configuration_files
    api
 
 .. toctree::

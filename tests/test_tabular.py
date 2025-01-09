@@ -367,7 +367,7 @@ class TestTable(object):
         assert set(content) == set(expected_content)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_write_ecg_wo_compression(self, tmp_path):
-        expected_content = ['chunkrecord.tsv', 'waveforms.tsv',
+        expected_content = ['chunkrecord.txt', 'waveforms.tsv',
                             'medianbeats.tsv', 'metadata.tsv']
         # change current directory
         os.chdir(tmp_path)

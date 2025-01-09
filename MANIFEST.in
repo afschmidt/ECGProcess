@@ -6,4 +6,6 @@ recursive-exclude tests *
 include README.md
 include LICENSE.txt
 include ecgprocess/example_data/example_datasets/*
+include resource/schema/*
+include resource/config/*
 
