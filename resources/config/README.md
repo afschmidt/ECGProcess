@@ -27,7 +27,7 @@ any number of leading spaces or tabs.
 
 The signal configuration structure should follow the below:
 
-```{bash}
+```bash
 [WaveForms]
 I					StripData.WaveformData_0.#text
 II					StripData.WaveformData_1.#text
@@ -94,7 +94,7 @@ Each process class instance (e.g. from `process_xml.py` or `process_dicom.py`)
 has a `tags` attribute which lists the dictionary keys which can be used to
 populate the RHS of the config files. 
 
-The [config](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/xml/resources/config?ref_type=heads) 
+The [config](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/config?ref_type=heads) 
 directory also includes a few example `.cnf` files to get you started. 
 
 
