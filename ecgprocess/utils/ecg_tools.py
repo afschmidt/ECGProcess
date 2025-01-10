@@ -223,3 +223,79 @@ def signal_dicts_to_numpy_array(
                 data_array[i, j, :] = lead_data
     # return
     return data_array
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# TODO add pytest
+def signal_calibration(signal:np.ndarray,
+                       correctionfactor: float,
+                       baseline: float,
+                       ) -> np.ndarray:
+    """
+    Adjusts the ECG signal by subtracting the channel baseline multiplied by
+    the channel correction factor.
+
+    Parameters
+    ----------
+    signal : `np.ndarray`
+        The lead-specific ECG signal.
+    correctionfactor : `float`
+        The channel correction factor.
+    baseline : `float`
+        The channel baseline.
+    
+    Returns
+    -------
+    np.ndarray
+        The recalibrated signal.
+    """
+    is_type(signal, np.ndarray)
+    is_type(correctionfactor, float)
+    is_type(baseline, float)
+    # algorithm
+    new_signal = signal + baseline * correctionfactor
+    # return
+    return new_signal
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def signal_resolution(signal:np.ndarray,
+                      resolution_current: float,
+                      resolution_target: float,
+                       ) -> np.ndarray:
+    """
+    Adjust the amplitude scale of an ECG signal to match a desired resolution.
+    
+    Parameters
+    ----------
+    signal : `np.ndarray`
+        The lead-specific ECG signal.
+    resolution_current : `float`
+        The current resolution.
+    resolution_target : `float`
+        The target resolution.
+    
+    Returns
+    -------
+    np.ndarray
+        The rescaled signal.
+    
+    Example
+    -------
+    >>> import numpy as np
+    >>> ecg_signal = np.array([10, 20, 30, 40, 50])
+    >>> current_res = 2.0  # each digital unit equals 2 μV
+    >>> new_signal = adjust_resolution(
+    ...     ecg_signal,
+    ...     resolution_current=current_res,
+    ...     resolution_target=5
+    ... )
+    >>> print(new_signal)
+    [ 25.  50.  75. 100. 125.]
+    """
+    is_type(signal, np.ndarray)
+    is_type(resolution_current, float)
+    is_type(resolution_target, float)
+    # algorithm
+    new_signal = signal * resolution_target/resolution_current
+    # return
+    return new_signal
+

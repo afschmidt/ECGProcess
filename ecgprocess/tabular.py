@@ -51,6 +51,8 @@ from ecgprocess.utils.reader_tools import(
 )
 from ecgprocess.utils.ecg_tools import(
     signal_dicts_to_numpy_array,
+    signal_calibration,
+    signal_resolution,
 )
 from ecgprocess.utils.config_tools import(
     ConfigParser,
@@ -133,7 +135,7 @@ def metadata_checkversion(metadata:dict[str, Any],
     """
     # just keeping this so kwargs are used and the linter does not complain.
     if verbose:
-        print(**kwargs)
+        print(**kwargs, file=sys.stdout)
     # constant
     version = "Softwave version"
     manufact = "Manufacturer"
@@ -152,10 +154,10 @@ def metadata_checkversion(metadata:dict[str, Any],
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def signal_correction(signals:dict[str, np.ndarray], verbose:bool=False,
-                      **kwargs) -> dict[str, Any]:
+                      **kwargs) -> dict[str, np.ndarray]:
     """
-    Corrects waveform signals based on sensitivity, correction factor, and
-    baseline values for each channel. These parameters must be provided in
+    Adjusts the signals by subtracting the channel baseline multiplied
+    by the channel correcttion factor.  These parameters must be provided in
     `kwargs[TabNames.META_DICT]`.
     
     Parameters
@@ -168,8 +170,6 @@ def signal_correction(signals:dict[str, np.ndarray], verbose:bool=False,
     **kwargs
         Additional keyword arguments, which must include a dictionary under
         the key `TabNames.META_DICT`. This dictionary should contain:
-        - wave_channel_sens_i : float
-            Sensitivity for channel i.
         - wave_channel_correctionfactor_i : float
             Correction factor for channel i.
         - wave_channel_baseline_i : float
@@ -178,47 +178,14 @@ def signal_correction(signals:dict[str, np.ndarray], verbose:bool=False,
     Returns
     -------
     dict [`str`, `np.ndarray`]
-        The input signals dictionary with corrected waveforms. Each signal
-        has the baseline added and is then multiplied by the product of its
-        sensitivity and correction factor.
+        The input signals dictionary with corrected signals.
     
     Raises
     ------
     KeyError
         If `TabNames.META_DICT` is not found in **kwargs.
-    
-    Notes
-    -----
-    This function serves as a calibration step that adjusts baseline offsets
-    and applies amplitude scaling to ensure signals are brought into the
-    correct amplitude range and compensates for any instrumental variations,
-    facilitating more accurate downstream processing and interpretation.
-    
-    For each channel i, the correction formula is:
-        corrected_signal_i = (original_signal_i + baseline_i) * factor_i
-    where:
-        factor_i = sensitivity_i * correctionfactor_i
-    
-    Example
-    -------
-    >>> from my_module import signal_correction
-    >>> signals = {'lead1': np.array([0.1, 0.2, 0.3])}
-    >>> meta_dict = {
-    ...     'wave_channel_sens_0': 2.0,
-    ...     'wave_channel_correctionfactor_0': 0.5,
-    ...     'wave_channel_baseline_0': 0.05,
-    ... }
-    >>> corrected = signal_correction(signals,
-    ...     verbose=True,
-    ...     META_DICT=meta_dict
-    ... )
-    Applying baseline: wave_channel_baseline_ and factor: 1.0 corrections
-    to lead: lead1.
-    >>> corrected['lead1']
-    array([0.3 , 0.35, 0.4 ])
     """
     # constants - these values should be in meta_dict
-    sens = "wave_channel_sens_"
     corr = "wave_channel_correctionfactor_"
     base = "wave_channel_baseline_"
     # the algorithm
@@ -234,12 +201,75 @@ def signal_correction(signals:dict[str, np.ndarray], verbose:bool=False,
             continue
         # confirming this is a np.array
         is_type(v, np.ndarray)
-        fact = meta_dict[sens+str(i)] * meta_dict[corr+str(i)]
         if verbose:
-            print(f'Applying baseline: {base} and factor: {fact} '
-                  f'corrections to lead: {k}.'
+            print(f'Applying baseline: {meta_dict[base+str(i)]} and factor: '
+                  f'{meta_dict[corr+str(i)]} corrections to lead: {k}.',
+                  file=sys.stdout
                   )
-        signals[k] = (v + meta_dict[base+str(i)]) * fact
+        signals[k] = signal_calibration(
+            v, correctionfactor=meta_dict[corr+str(i)],
+            baseline=meta_dict[base+str(i)],
+        )
+    return signals
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def signal_standardise_res(
+    signals:dict[str, np.ndarray], target_resolution:float = 5.,
+    verbose:bool=False, **kwargs,
+) -> dict[str, np.ndarray]:
+    """
+    Standardised the resolution signal.
+    
+    Parameters
+    ----------
+    signals : `dict` [`str`, `np.ndarray`]
+        A dictionary mapping channel names (strings) to waveform arrays.
+    target_resolution : `float`, default 5
+        The target resolution.
+    verbose : `bool`, default False
+        If True, prints additional debug information about the correction
+        process.
+    **kwargs
+        Additional keyword arguments, which must include a dictionary under
+        the key `TabNames.META_DICT`. This dictionary should contain:
+        - wave_channel_sens : float
+            The wave channel sensitivity/resolution for channel i.
+    
+    Returns
+    -------
+    dict [`str`, `np.ndarray`]
+        The input signals dictionary with corrected signals.
+    
+    Raises
+    ------
+    KeyError
+        If `TabNames.META_DICT` is not found in **kwargs.
+    """
+    # constants - these values should be in meta_dict
+    sens = 'wave_channel_sens_'
+    # the algorithm
+    is_type(verbose, bool)
+    if not TabNames.META_DICT in kwargs:
+        raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
+    else:
+        meta_dict = kwargs[TabNames.META_DICT]
+    for i, (k, v) in enumerate(signals.items()):
+        # skip of None
+        if v is None:
+            signals[k] = v
+            continue
+        # confirming this is a np.array
+        is_type(v, np.ndarray)
+        if verbose:
+            if target_resolution/meta_dict[sens+str(i)] != 1.0:
+                print(f'Rescaling lead `{k}` by factor '
+                      f'`{target_resolution/meta_dict[sens+str(i)]}`.',
+                      file=sys.stdout
+                      )
+        signals[k] = signal_resolution(
+            v, resolution_current=meta_dict[sens+str(i)],
+            resolution_target=target_resolution,
+        )
     return signals
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -559,7 +589,10 @@ class ECGTable(object):
                 )
             else:
                 getattr(self, TabNames.KEY_L).append(key)
-            # Append metadata.
+            # empty lists
+            meta_temp, wave_temp, median_temp = ([] for _ in range(3))
+            # append metadata.
+            meta_available = False
             if getattr(self, TabNames.E_META):
                 try:
                     meta_temp = getattr(ecg_inst, CTypes.MetaData)
@@ -569,10 +602,8 @@ class ECGTable(object):
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         getattr(self,TabNames.NO_DATA_L).append(p)
-                        meta_available = False
                     else:
                         raise AE
-                # skip if there is no metadata
                 if meta_available == True:
                     try:
                         # piping the metadata through the engineer function
@@ -592,10 +623,10 @@ class ECGTable(object):
                 try:
                     # piping the waveform signals through the engineer function
                     # metadata is supplied through the function kwargs
+                    wave_temp = getattr(ecg_inst, CTypes.WaveForms)
                     wave_list.append(
                         getattr(self, TabNames.ENG_WAVE)(
-                        getattr(ecg_inst, CTypes.WaveForms),
-                            meta_dict=meta_list[-1],
+                            wave_temp, meta_dict=meta_temp
                         )
                     )
                 except AttributeError as AE:
@@ -608,10 +639,10 @@ class ECGTable(object):
                 try:
                     # piping the medianbeats signals through the engineer
                     # function metadata is supplied through the function kwargs
+                    median_temp = getattr(ecg_inst, CTypes.MedianBeats)
                     median_list.append(
                         getattr(self, TabNames.ENG_MEDIAN)(
-                        getattr(ecg_inst, CTypes.MedianBeats),
-                            meta_dict=meta_list[-1],
+                        median_temp, meta_dict=meta_temp,
                         )
                     )
                 except AttributeError as AE:

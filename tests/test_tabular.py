@@ -22,7 +22,7 @@ from ecgprocess.process_xml import(
 from ecgprocess.tabular import (
     ECGTable,
     signal_identity,
-    signal_correction,
+    signal_standardise_res,
 )
 # from ecgprocess.plot_ecgs import (
 #     ECGDrawing,
@@ -86,9 +86,9 @@ class TestTable(object):
         assert getattr(ecgtable, TabNames.E_MEDIAN) == True
         # testing the engineer parameters
         ecgtable = ECGTable(ecgreader, path_list=[xml_file_path],
-                            engineer_wave=signal_correction)
+                            engineer_wave=signal_standardise_res)
         assert getattr(ecgtable, TabNames.ENG_MEDIAN) == signal_identity
-        assert getattr(ecgtable, TabNames.ENG_WAVE) == signal_correction
+        assert getattr(ecgtable, TabNames.ENG_WAVE) == signal_standardise_res
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_call(self):
         ecgreader = ECGXMLReader()
@@ -205,14 +205,14 @@ class TestTable(object):
     def test_loop_table_engineer_func(self):
         ecgreader = ECGDICOMReader()
         ecgtable = ECGTable(ecgreader, path_list=[dicom_file_path],
-                            engineer_wave=signal_correction,
+                            engineer_wave=signal_standardise_res,
                             )
         res = ecgtable()
         _, wave, _ = res._loop_table(
             getattr(res, TabNames.CPATH_L),
             parsed_config=parser_dicom,
         )
-        assert wave[0]['I'][2] == 142.8864
+        assert np.round(wave[0]['I'][2], 1) == 30.0
         assert wave[0]['I'][2] != 29.28, 'still has the orignal value'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_get_table(self):
