@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.0.0a - 10-12-2024
+
+### Fixed
+
+- Bug fixes to FixedDICOMReader - the older ECGDICOMReader. 
+- Document improvements/errors. 
+
+### Added
+
+- A tabular module containing the ECGTable class. This class is a file type agnostic class mapping ECG data to table or files. 
+- A reader classes for XML and DICOM files, see the various process_\*.py files. 
+- Extensive utils modules. 
+- Example configuration files for XML and DICOMs.
+- Example XML schema, for XML validation.
+- Added TensorFlow as dependency.
+
+### Changed
+
+- process_dicom has been refactored. The previous ECGDICOMReader class has been renamed to FixedDICOMReader which was slightly optimised. 
+  The new ECGDICOMReader is now in-line with the process_xml ECGXMLReader class. 
+- Changed the base docker environment to allow for tensorflow. 
+
+### Deprecated
+
+- FixedDICOMReader, will be deprecated in futre. 
+
+### Removed
+
+- ECGDICOMTable has been removed, please use `ECGTable` instead. 
+
 ## v0.2.2 - 20-12-2024
 
 ### Fixed
