@@ -23,22 +23,23 @@ tabular
 ..    :special-members:
 
 
-process_dicoms.utils.config_tools
----------------------------------
+utils.general
+-------------
+.. automodule:: ecgprocess.utils.general
+   :members:
+
+utils.config_tools
+------------------
 .. automodule:: ecgprocess.utils.config_tools
    :members:
 
-process_dicoms.utils.reader_tools
----------------------------------
+utils.reader_tools
+------------------
 .. automodule:: ecgprocess.utils.reader_tools
    :members:
 
-process_dicoms.utils.ecg_tools
-------------------------------
+utils.ecg_tools
+---------------
 .. automodule:: ecgprocess.utils.ecg_tools
    :members:
 
-process_dicoms.utils.general
-----------------------------
-.. automodule:: ecgprocess.utils.general
-   :members:
