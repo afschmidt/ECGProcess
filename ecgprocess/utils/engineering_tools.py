@@ -194,7 +194,8 @@ def signal_standardise_res(
     target_resolution:float = 5., verbose:bool=False, **kwargs,
 ) -> dict[str, np.ndarray]:
     """
-    Standardised the resolution signal.
+    Standardise the resolution signal by adjusting the amplitude scale by the
+    ratio of the source and target solution.
     
     Parameters
     ----------
@@ -224,6 +225,12 @@ def signal_standardise_res(
     KeyError
         If `TabNames.META_DICT` is not found in **kwargs.
         If resolution_name+str(i) is not found in `TabNames.META_DICT`.
+    
+    Notes
+    -----
+    The function will apply a scaling factor of
+    source_resolution/target_resolution to ensure the returned signal has the
+    desired target uV.
     """
     # constants - these values should be in meta_dict
     sens = resolution_name

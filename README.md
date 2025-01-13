@@ -1,3 +1,5 @@
+![Schematic](.ECGProcessSchematic.png)
+
 # An ECG processing module
 __version__: `1.0.0`
 
