@@ -8,7 +8,21 @@ python --version
 git branch
 
 # Needed for Sphinx (make in build-base) and pysam (build-base + others)
-apk add build-base bzip2-dev zlib-dev xz-dev openblas-dev linux-headers openssh
+apt-get update && apt-get install -y build-essential \
+                bzip2 \
+                zlib1g-dev \
+                xz-utils \
+                libssl-dev \
+                libcurl4-openssl-dev \
+                gfortran \
+                libopenblas-dev \
+                libffi-dev \
+                cmake \
+                make \
+                pkg-config \
+                git \
+                llvm-11-dev \
+                python3-dev
 
 # start ssh-agent
 eval `ssh-agent -s`

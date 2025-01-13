@@ -231,9 +231,10 @@ def signal_calibration(signal:np.ndarray,
                        baseline: float,
                        ) -> np.ndarray:
     """
-    Adjusts the ECG signal by subtracting the channel baseline multiplied by
-    the channel correction factor.
-
+    Adjusts the ECG signal by subtracting the channel baseline from the signal,
+    followed by multiplying the adjusted singal by the channel correction
+    factor.
+    
     Parameters
     ----------
     signal : `np.ndarray`
@@ -252,7 +253,7 @@ def signal_calibration(signal:np.ndarray,
     is_type(correctionfactor, float)
     is_type(baseline, float)
     # algorithm
-    new_signal = signal + baseline * correctionfactor
+    new_signal = (signal - baseline) * correctionfactor
     # return
     return new_signal
 

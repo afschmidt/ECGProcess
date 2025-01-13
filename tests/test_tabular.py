@@ -22,6 +22,8 @@ from ecgprocess.process_xml import(
 from ecgprocess.tabular import (
     ECGTable,
     signal_identity,
+)
+from ecgprocess.utils.engineering_tools import(
     signal_standardise_res,
 )
 # from ecgprocess.plot_ecgs import (
