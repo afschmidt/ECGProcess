@@ -33,7 +33,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
-    'sphinxarg.ext',
+    # 'sphinxarg.ext',
     'sphinx_rtd_theme',
     'sphinx.ext.mathjax',
     # 'sphinx_chang
