@@ -97,4 +97,4 @@ T wave offset				RestingECGMeasurements.TOffset.#text
 Fist valid sample unit (medianbeats)	RestingECGMeasurements.MedianSamples.FirstValid.@units
 Fist valid sample(medianbeats)		RestingECGMeasurements.MedianSamples.FirstValid.#text
 Last valid sample unit (medianbeats)	RestingECGMeasurements.MedianSamples.LastValid.@units
-Last valid sample unit (medianbeats)	RestingECGMeasurements.MedianSamples.LastValid.#text
+Last valid sample (medianbeats)	RestingECGMeasurements.MedianSamples.LastValid.#text
