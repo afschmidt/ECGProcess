@@ -250,7 +250,7 @@ class STDOUT_MSG(object):
     '''
     A collection of stdout messages.
     '''
-    PROCESSING_PATH = 'Processing path: {}.'
+    PROCESSING_PATH = 'Processing file: {}'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class MissingTagError(Exception):

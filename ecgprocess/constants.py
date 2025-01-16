@@ -140,6 +140,7 @@ class TabularNames(object):
     WRITE_TYPE     = 'file_type'
     ID_START       = '_id_start_number'
     KEY            = 'key'
+    FILENAM        = 'filename'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass

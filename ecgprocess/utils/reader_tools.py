@@ -96,8 +96,13 @@ def validate_xml(xml_path:str|Path, xsd_path:str|Path, strict:bool=True,
         schema_root = etree.XML(xsd.read())
     schema = etree.XMLSchema(schema_root)
     # #### Parse the XML file
-    with open(xml_path, 'rb') as xml:
-        xml_doc = etree.parse(xml)
+    try:
+        with open(xml_path, 'rb') as xml:
+            xml_doc = etree.parse(xml)
+    except etree.XMLSyntaxError:
+        parser = etree.XMLParser(resolve_entities=False, huge_tree=True)
+        with open(xml_path, 'rb') as xml:
+            xml_doc = etree.parse(xml, parser=parser,)
     # #### Compare XML against XSD
     is_valid = schema.validate(xml_doc)
     # #### Do we want to raise errors when XML elements are absent in the XSD

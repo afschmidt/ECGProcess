@@ -417,6 +417,9 @@ class ECGTable(object):
                     meta_temp = getattr(ecg_inst, CTypes.MetaData)
                     # add key to meta data
                     meta_temp[TabNames.KEY] = key
+                    # add filename
+                    meta_temp[TabNames.FILENAM] = p
+                    # available.
                     meta_available = True
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
@@ -478,12 +481,14 @@ class ECGTable(object):
         if self.verbose == True:
             if len(getattr(self, TabNames.NO_DATA_L))>0:
                 warnings.warn(
-                    'The following files do not have the requested data: {}.'.\
+                    'The following files do not have the requested data: {}.'
+                    '\n\n'.\
                     format(getattr(self, TabNames.NO_DATA_L))
                 )
             if len(getattr(self, TabNames.INVALID_L))>0:
                 warnings.warn(
-                    'The following XML files could not be validated: {}.'.\
+                    'The following XML files could not be validated: {}.'
+                    '\n\n'.\
                     format(getattr(self, TabNames.INVALID_L))
                 )
         # return the list
