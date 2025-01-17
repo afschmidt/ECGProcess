@@ -308,10 +308,17 @@ def get_ecg_data(data_dict:dict[str, Any],
     Returns
     -------
     dict
-        A dictionary with the extracted signal data as numpy.ndarray.
+        A dictionary with the extracted signal data or metadata.
     list
         A list with `config` values which did not match `data_dict` keys.
     
+    Notes
+    -----
+    Whenever a config value starts with "[STARTSWITH]", the algorithm gathers
+    all relevant values in data_dict that share the specific prefix remaining
+    after stripping the quoted text. These values are concatenated into a
+    single string, where the original breaks between the values is indicated
+    by `[DELIM]`.
     '''
     # #### check input
     is_type(data_dict, dict)
@@ -319,34 +326,55 @@ def get_ecg_data(data_dict:dict[str, Any],
     is_type(skip_empty, bool)
     is_type(as_array, bool)
     is_type(parse_numeric, bool)
+    STARTS = '[STARTSWITH]'
+    DELIM = '[DELIM]'
     # #### initialise object
     results_dict = {}
     results_missing = []
     # #### extract signal data
     for t, s in config.items():
-        if s in data_dict:
-            # Check if numerics are accidentally strings.
-            if parse_numeric:
-                parsed_string = parse_number(data_dict[s], **kwargs)
-                results_dict[t] = parsed_string
-                if isinstance(parsed_string, list):
-                    if len(parsed_string) == 1:
-                        results_dict[t] = parsed_string[0]
+        # cutting this in half using HIT
+        HIT = False
+        if not s is None:
+            if s.startswith(STARTS):
+                HIT = True
+                # Strip the [STARTSWITH] part
+                prefix = s[len(STARTS):]
+                # extracting entries which start with STARTS
+                combi = DELIM.join(str(v) for k, v in data_dict.items()\
+                                   if k.startswith(prefix)) or None
+                if combi is None:
+                    results_missing.append(s)
+                    if skip_empty == False:
+                        # Should an Error be returned
+                        raise MissingTagError(s)
+                # otherwise just add to results
+                results_dict[t] = combi
+        if HIT == False:
+            if s in data_dict:
+            # if s in data_dict:
+                # Check if numerics are accidentally strings.
+                if parse_numeric:
+                    parsed_string = parse_number(data_dict[s], **kwargs)
+                    results_dict[t] = parsed_string
+                    if isinstance(parsed_string, list):
+                        if len(parsed_string) == 1:
+                            results_dict[t] = parsed_string[0]
+                else:
+                    results_dict[t] = data_dict[s]
+                # Do we want to extract signals and store these in a numpy array..
+                if as_array == True:
+                    try:
+                        results_dict[t] = np.array(results_dict[t], dtype=bits)
+                    except ValueError:
+                        pass
+            elif skip_empty == False and not s is None:
+                # Should an Error be returned
+                raise MissingTagError(s)
             else:
-                results_dict[t] = data_dict[s]
-            # Do we want to extract signals and store these in a numpy array..
-            if as_array == True:
-                try:
-                    results_dict[t] = np.array(results_dict[t], dtype=bits)
-                except ValueError:
-                    pass
-        elif skip_empty == False and not s is None:
-            # Should an Error be returned
-            raise MissingTagError(s)
-        else:
-            # assign None and append missing metadata
-            results_dict[t] = None
-            results_missing.append(s)
+                # assign None and append missing metadata
+                results_dict[t] = None
+                results_missing.append(s)
     # return
     return results_dict, results_missing
 

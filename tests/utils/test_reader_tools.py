@@ -319,6 +319,22 @@ class TestGetECGData(object):
             reader_utils.get_ecg_data(data_dict, config, skip_empty=False)
         with pytest.raises(InputValidationError):
             reader_utils.get_ecg_data(data_dict, config, as_array='False')
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_startswith(self):
+        K='output1'
+        data_dict = {"signal1": [1, 2, 3], "signal_other": "This is a string"}
+        config = {K: "[STARTSWITH]signal"}
+        res, _ = reader_utils.get_ecg_data(data_dict, config)
+        assert res[K] == '[DELIM]'.join(str(v) for v in data_dict.values())
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_startswith_none(self):
+        K='output1'
+        data_dict = {"signal1": [1, 2, 3], "signal_other": "This is a string"}
+        config = {"output0": None, K: "[STARTSWITH]signal", "output2": None}
+        res, _ = reader_utils.get_ecg_data(data_dict, config)
+        assert res[K] == '[DELIM]'.join(str(v) for v in data_dict.values())
+        assert res['output0'] is None
+        assert res['output2'] is None
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # subset_dict

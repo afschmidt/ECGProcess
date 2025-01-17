@@ -94,6 +94,18 @@ Each process class instance (e.g. from `process_xml.py` or `process_dicom.py`)
 has a `tags` attribute which lists the dictionary keys which can be used to
 populate the RHS of the config files. 
 
+### Combining string collected across multiple tags
+
+Both XML and DICOM files typically collect free text, for example including things like 
+diagnoses or conclusions. 
+Internally these strings are broken down into chunks and assigned multiple tags. 
+While these tags often have very similar names e.g., `conclusion_1, conclusion_2` 
+the number of tags is essentially unlimited.
+This unknown number of tags is difficult to capture in a rigid configuration file. 
+To handle this the reader classes will recognise configuration entries prefixed with the 
+`[STARTSWITH]` keyword, and will concatenate the content of all the matching tags 
+inserting a `[DELIM]` keyword between the original text chunks. 
+
 The [config](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/config?ref_type=heads) 
 directory also includes a few example `.cnf` files to get you started. 
 
