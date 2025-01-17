@@ -134,7 +134,6 @@
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>
-
                 <!-- PatientInfo section -->
                 <xs:element name="PatientInfo">
                     <xs:complexType>
@@ -185,7 +184,7 @@
                 <xs:element name="Interpretation">
                     <xs:complexType>
                         <xs:sequence>
-                            <xs:element name="Diagnosis">
+                            <xs:element name="Diagnosis" minOccurs="0">
                                 <xs:complexType>
                                     <xs:sequence>
                                         <xs:element name="DiagnosisText" type="xs:string"
@@ -193,7 +192,7 @@
                                     </xs:sequence>
                                 </xs:complexType>
                             </xs:element>
-                            <xs:element name="Conclusion">
+                            <xs:element name="Conclusion" minOccurs="0">
                                 <xs:complexType>
                                     <xs:sequence>
                                         <xs:element name="ConclusionText" type="xs:string"
@@ -240,7 +239,7 @@
                             minOccurs="0" nillable="true"/>
                             <xs:element name="QRSNum" type="xs:int"
                             minOccurs="0" nillable="true"/>
-                            <xs:element name="MeasurementTable">
+                            <xs:element name="MeasurementTable" minOccurs="0">
                                 <xs:complexType>
                                     <xs:sequence>
                                         <xs:element name="LeadOrder" type="xs:string"/>
@@ -294,7 +293,7 @@
                             minOccurs="0" nillable="true"/>
                             <xs:element name="TOffset" type="DecimalMeasurementType"
                             minOccurs="0" nillable="true"/>
-                            <xs:element name="MedianSamples">
+                            <xs:element name="MedianSamples" minOccurs="0">
                                 <xs:complexType>
                                     <xs:sequence>
                                         <xs:element name="NumberOfLeads" type="xs:int"/>
@@ -302,11 +301,11 @@
                                           type="IntegerMeasurementType"/>
                                         <xs:element name="ChannelSampleCountTotal"
                                           type="xs:int"/>
-                                        <xs:element name="Resolution" 
+                                        <xs:element name="Resolution"
                                           type="DecimalMeasurementType"/>
-                                        <xs:element name="FirstValid" 
+                                        <xs:element name="FirstValid"
                                           type="IntegerMeasurementType"/>
-                                        <xs:element name="LastValid" 
+                                        <xs:element name="LastValid"
                                           type="IntegerMeasurementType"/>
                                         <xs:element name="WaveformData" maxOccurs="12">
                                             <xs:complexType>
@@ -325,7 +324,7 @@
                     </xs:complexType>
                 </xs:element>
                 <!-- Vectorloops -->
-                <xs:element name="VectorLoops">
+                <xs:element name="VectorLoops" minOccurs="0">
                     <xs:complexType>
                         <xs:sequence>
                             <xs:element name="Resolution" type="DecimalMeasurementType"/>
@@ -383,7 +382,7 @@
                 <!-- FullDisclosure -->
                 <xs:element name="FullDisclosure">
                     <xs:complexType>
-                        <xs:sequence>
+                        <xs:sequence minOccurs="0">
                             <xs:element name="NumberOfChannels" type="xs:int"/>
                             <xs:element name="SampleRate" type="IntegerMeasurementType"/>
                             <xs:element name="Resolution" type="DecimalMeasurementType"/>
@@ -398,7 +397,7 @@
                             <xs:element name="EventList">
                                 <xs:complexType>
                                     <xs:sequence>
-                                        <xs:choice maxOccurs="unbounded">
+                                        <xs:choice minOccurs="0" maxOccurs="unbounded">
                                             <xs:element name="Event" type="xs:string"/>
                                             <xs:element name="Time">
                                                 <xs:complexType>
@@ -413,13 +412,7 @@
                                     </xs:sequence>
                                 </xs:complexType>
                             </xs:element>
-                            <xs:element name="ArrhythmiaResults">
-                                <xs:complexType>
-                                    <xs:sequence>
-                                        <xs:element name="QRS" type="xs:int"/>
-                                    </xs:sequence>
-                                </xs:complexType>
-                            </xs:element>
+                            <xs:element name="ArrhythmiaResults" type="ArrhythmiaType"/>
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>
@@ -511,6 +504,16 @@
             <xs:attribute name="Lead" type="xs:string" use="required"/>
         </xs:extension>
     </xs:simpleContent>
+</xs:complexType>
+
+<xs:complexType name="ArrhythmiaType">
+  <xs:sequence>
+    <xs:any
+        namespace="##targetNamespace"
+        processContents="lax"
+        minOccurs="0"
+        maxOccurs="unbounded" />
+  </xs:sequence>
 </xs:complexType>
 <!-- End re-usable Types, Start XSD schema -->
 
