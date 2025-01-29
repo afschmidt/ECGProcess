@@ -1,4 +1,5 @@
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self, Literal
 from ecgprocess.constants import (
@@ -391,9 +392,8 @@ class ConfigParser(object):
                                 "supplied for each variable."
                             )
                     else:
-                        # simply skip if no \t is found
-                        # NOTE might want to raise a warining at some point.
-                        pass
+                        warnings.warn('Encountered a line without tab '
+                                      'delimitation.')
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def map(self, mapper:DataMap) -> None:
