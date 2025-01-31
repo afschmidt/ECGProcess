@@ -351,6 +351,10 @@ class ConfigParser(object):
         This method reads the configuration file specified during
         initialization, validates its structure, and stores the data in a
         dictionary. It supports sections with key-value pairs.
+        
+        Raises
+        ------
+        ValueError: if a parsed line does not contain a tab delimiter.
         """
         current = None
         with open(getattr(self, ConfigNames.path), "r", encoding="utf-8") as file:
@@ -392,8 +396,7 @@ class ConfigParser(object):
                                 "supplied for each variable."
                             )
                     else:
-                        warnings.warn('Encountered a line without tab '
-                                      'delimitation.')
+                        raise ValueError("Missing tab delimiter.")
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def map(self, mapper:DataMap) -> None:
