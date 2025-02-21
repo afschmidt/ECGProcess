@@ -250,7 +250,7 @@ def signal_standardise_res(
         # check key is in dict
         key_name = sens+str(i)
         if not key_name in meta_dict:
-            raise KeyError(f"`{key_name}` not found in `{TabNames.Meta_DICT}`.")
+            raise KeyError(f"`{key_name}` not found in `{TabNames.META_DICT}`.")
         if verbose:
             if target_resolution/meta_dict[key_name] != 1.0:
                 print(f'Rescaling lead `{k}` by factor '

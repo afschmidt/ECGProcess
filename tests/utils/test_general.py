@@ -2,6 +2,7 @@
 # import shutil
 import pytest
 import tarfile
+import warnings
 import numpy as np
 from ecgprocess.utils import general as gen_utils
 from ecgprocess.errors import  InputValidationError
@@ -220,3 +221,20 @@ class TestChunkList(object):
         with pytest.raises(exception):
             list(gen_utils.chunk_list(lst, size))
     
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def test_update_dict_with_warning():
+    d1 = {"a": 1, "b": 2}
+    d2 = {"b": 3, "c": 4}
+    # Test with verbose=True, expect a warning for the duplicate 'b'
+    with warnings.catch_warnings(record=True) as w:
+        updated_dict = gen_utils.update_dict_with_warning(
+            d1.copy(), d2, verbose=True)
+    assert len(w) == 1, "Expected exactly one warning for duplicate keys"
+    assert "Duplicate key 'b' found." in str(w[0].message)
+    assert updated_dict == {"a": 1, "b": 3, "c": 4}
+    # Test with verbose=False, expect no warnings
+    with warnings.catch_warnings(record=True) as w:
+        updated_dict_no_warn = gen_utils.update_dict_with_warning(
+            d1.copy(), d2, verbose=False)
+    assert len(w) == 0, "Did not expect a warning when verbose=False"
+    assert updated_dict_no_warn == {"a": 1, "b": 3, "c": 4}

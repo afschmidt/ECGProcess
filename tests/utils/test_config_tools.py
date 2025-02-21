@@ -178,9 +178,6 @@ class TestBaseExtraction(object):
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name, text=config_comment)
             parser3 = config_utils.ConfigParser(tmp_file.name)()
-        with NamedTemporaryFile("w") as tmp_file:
-            _ = config_file(path=tmp_file.name, text=config_no_lhs)
-            parser4 = config_utils.ConfigParser(tmp_file.name)()
         with pytest.raises(InputValidationError):
             with NamedTemporaryFile("w") as tmp_file:
                 _ = config_file(path=tmp_file.name, text=config_duplicates)
@@ -188,10 +185,14 @@ class TestBaseExtraction(object):
         # the wrong config
         with pytest.raises(KeyError):
             parser1.map(mapper=config_utils.DataMap())
+        # without tab a tab delimiter
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=config_no_lhs)
+            with pytest.raises(ValueError):
+                config_utils.ConfigParser(tmp_file.name)()
         # the correct config
         parser2.map(mapper=config_utils.DataMap())
         assert len(parser2._data) > 0
         assert len(parser2.get_section('WaveForms')) == 12
         assert parser3 == parser2
-        assert parser4 == parser2
 

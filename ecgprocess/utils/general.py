@@ -5,6 +5,7 @@ import os
 import shutil
 import tarfile
 import numpy as np
+import warnings
 from typing import Any, Callable, Optional, Type, Generator
 from ecgprocess.errors import (
     is_type,
@@ -364,3 +365,26 @@ def chunk_list(lst:list[Any], size:int) -> Generator[list[Any], None, None]:
     # #### The algorithm
     for i in range(0, len(lst), size):
         yield lst[i:i + size]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def update_dict_with_warning(d1:dict, d2:dict, verbose:bool=True) -> dict:
+    """
+    Dictionary update while raising a warning for key duplication.
+    
+    Notes
+    -----
+    The value from d2 overwrites the value from d1 in the final result.
+    """
+    # Find keys that appear in both dictionaries
+    if verbose == True:
+        duplicates = d1.keys() & d2.keys()
+        [
+        warnings.warn(
+            (f"Duplicate key '{key}' found. Old value: {d1[key]}, "
+             f"new value: {d2[key]} (retained)."),
+            UserWarning
+        ) for key in duplicates
+        ]
+    # Overwrite d1 with d2’s key-value pairs
+    d1.update(d2)
+    return d1

@@ -1,13 +1,13 @@
 import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import pytest
 import numpy as np
 import pandas as pd
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-import tensorflow as tf
-from typing import Any
+import pydicom
+# import tensorflow as tf
+# from typing import Any
 from ecgprocess.errors import (
     MissingTagError, XMLValidationError,
-    is_type,
 )
 from ecgprocess.constants import (
     CoreData as Core,
@@ -59,6 +59,25 @@ xml_schema_error_path = list_xml_paths()['example_1_schema_error']
 parser_dicom = parsed_config()['parsed_dicom1']
 parser_xml = parsed_config()['parsed_xml1']
 parser_xml2 = parsed_config()['parsed_xml2']
+
+# #### remove waveform and use this in a fixture
+def remove_waveform(in_path, out_path):
+    ds = pydicom.dcmread(in_path)
+    if "WaveformSequence" in ds:
+        del ds.WaveformSequence
+    ds.save_as(out_path)
+
+@pytest.fixture
+def dicom_no_waveform(tmp_path):
+    """
+    Reads dicom file and removes the waveforms from the second one.
+    """
+    # Adjust these paths as necessary for your local setup
+    first_path = dicom_path_list[0]
+    second_path = dicom_path_list[1]
+    out_path = tmp_path / "second_no_waveform.dcm"
+    remove_waveform(second_path, out_path)
+    return [first_path, str(out_path)]
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest
@@ -216,6 +235,19 @@ class TestTable(object):
         )
         assert np.round(wave[0]['I'][2], 1) == 30.0
         assert wave[0]['I'][2] != 29.28, 'still has the orignal value'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_loop_table_confirm(self, dicom_no_waveform):
+        dicom_path_list_no_wave = dicom_no_waveform
+        ecgreader = ECGDICOMReader(resample_500=False)
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list_no_wave,
+                            )
+        res = ecgtable(confirm_median=True, confirm_wave=True)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L),
+            parsed_config=parser_dicom,
+        )
+        # confirming only one file is extracted
+        assert len(meta) == len(median) == len(wave) == 1
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_get_table(self):
         # testing with unique true

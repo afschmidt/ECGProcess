@@ -41,7 +41,7 @@ from ecgprocess.utils.general import (
     replace_with_tar,
     _update_kwargs,
     chunk_list,
-    # assign_empty_default,
+    update_dict_with_warning,
 )
 # from ecgprocess.plot_ecgs import (
 #     ECGDrawing,
@@ -195,8 +195,9 @@ class ECGTable(object):
                 f"path_list={getattr(self, TabNames.RPATH_L)})"
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-    def __call__(self, ignore_permission:bool = True,
-                 ignore_data:bool = False, ignore_invalid:bool = False,
+    def __call__(self, ignore_permission:bool = True, ignore_data:bool = False,
+                 ignore_invalid:bool = False, confirm_meta:bool=False,
+                 confirm_wave:bool=False, confirm_median=False,
                  verbose:bool=False,
                  ) -> Self:
         """
@@ -219,6 +220,9 @@ class ECGTable(object):
             be skipped. Note, to limit I/O calls schema validation will not be
             conducted during __call__ and instead will be applied when
             processing data using any method with utilises `_loop_table`.
+        confirm_meta, confirm_wave, confirm_meta : `bool`, default False
+            Whether to skip extraction the entire file when the indicated
+            attribute is empty.
         verbose : `bool`, default `False`
             Whether to print warnings.
         
@@ -244,6 +248,9 @@ class ECGTable(object):
         setattr(self, TabNames.SKIP_PERM, ignore_permission)
         setattr(self, TabNames.SKIP_DATA, ignore_data)
         setattr(self, TabNames.SKIP_INVALID, ignore_invalid)
+        setattr(self, TabNames.CONFIRM_META, confirm_meta)
+        setattr(self, TabNames.CONFIRM_WAVE, confirm_wave)
+        setattr(self, TabNames.CONFIRM_MEDIAN, confirm_median)
         # #### loop over path
         empty_list = []
         curated_list = []
@@ -408,8 +415,9 @@ class ECGTable(object):
                 )
             else:
                 getattr(self, TabNames.KEY_L).append(key)
-            # empty lists
-            meta_temp, wave_temp, median_temp = ([] for _ in range(3))
+            # empty objects
+            meta_temp = []
+            wave_temp, median_temp = ({} for _ in range(2))
             # append metadata.
             meta_available = False
             if getattr(self, TabNames.E_META):
@@ -424,16 +432,25 @@ class ECGTable(object):
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         getattr(self,TabNames.NO_DATA_L).append(p)
+                        # skip the entire run there is no metadata
+                        if getattr(self, TabNames.CONFIRM_META):
+                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            continue
                     else:
                         raise AE
                 if meta_available == True:
                     try:
                         # piping the metadata through the engineer function
-                        meta_list.append(
+                        meta_org = meta_temp.copy()
+                        meta_temp =\
                             getattr(self, TabNames.ENG_META)(
                                 meta_temp,
                             )
-                        )
+                        # update meta_temp - accounting for potential
+                        # duplicate keys - the second entry takes
+                        # precedence.
+                        meta_temp = update_dict_with_warning(
+                            meta_org, meta_temp, verbose=self.verbose)
                     except FileValidationError as FILE_VAL:
                         getattr(self, TabNames.INVALID_L).append(p)
                         if getattr(self, TabNames.SKIP_INVALID):
@@ -446,14 +463,22 @@ class ECGTable(object):
                     # piping the waveform signals through the engineer function
                     # metadata is supplied through the function kwargs
                     wave_temp = getattr(ecg_inst, CTypes.WaveForms)
-                    wave_list.append(
+                    wave_temp =\
                         getattr(self, TabNames.ENG_WAVE)(
                             wave_temp, meta_dict=meta_temp
                         )
-                    )
+                    if getattr(self, TabNames.CONFIRM_WAVE):
+                        # skip if everything is None
+                        if all(v is None for v in wave_temp.values()):
+                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            continue
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         getattr(self,TabNames.NO_DATA_L).append(p)
+                        # do we want to skip the entire file?
+                        if getattr(self, TabNames.CONFIRM_WAVE):
+                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            continue
                     else:
                         raise AE
             # Append median beat signals.
@@ -462,16 +487,31 @@ class ECGTable(object):
                     # piping the medianbeats signals through the engineer
                     # function metadata is supplied through the function kwargs
                     median_temp = getattr(ecg_inst, CTypes.MedianBeats)
-                    median_list.append(
+                    median_temp =\
                         getattr(self, TabNames.ENG_MEDIAN)(
                         median_temp, meta_dict=meta_temp,
                         )
-                    )
+                    if getattr(self, TabNames.CONFIRM_MEDIAN):
+                        # skip if everything is None
+                        if all(v is None for v in median_temp.values()):
+                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            continue
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         getattr(self,TabNames.NO_DATA_L).append(p)
+                        # do we want to skip the entire file?
+                        if getattr(self, TabNames.CONFIRM_MEDIAN):
+                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            continue
                     else:
                         raise AE
+            # append to lists
+            if getattr(self, TabNames.E_META):
+                meta_list.append(meta_temp)
+            if getattr(self, TabNames.E_WAVE):
+                wave_list.append(wave_temp)
+            if getattr(self, TabNames.E_MEDIAN):
+                median_list.append(median_temp)
             # make sure this object is unique
             setattr(self,TabNames.NO_DATA_L, list(np.unique(
                 getattr(self,TabNames.NO_DATA_L))))
@@ -491,7 +531,7 @@ class ECGTable(object):
                     '\n\n'.\
                     format(getattr(self, TabNames.INVALID_L))
                 )
-        # return the list
+        # check data and return
         return meta_list, wave_list, median_list
     # /////////////////////////////////////////////////////////////////////////
     def get_table(self,
