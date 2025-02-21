@@ -354,7 +354,10 @@ class ConfigParser(object):
         
         Raises
         ------
-        ValueError: if a parsed line does not contain a tab delimiter.
+        ValueError
+            if a parsed line does not contain a tab delimiter.
+        InputValidationError
+            If a value-key pair is duplicated within the same section.
         """
         current = None
         with open(getattr(self, ConfigNames.path), "r", encoding="utf-8") as file:
