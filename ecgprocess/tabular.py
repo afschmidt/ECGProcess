@@ -251,6 +251,21 @@ class ECGTable(object):
         setattr(self, TabNames.CONFIRM_META, confirm_meta)
         setattr(self, TabNames.CONFIRM_WAVE, confirm_wave)
         setattr(self, TabNames.CONFIRM_MEDIAN, confirm_median)
+        # #### confirm internal logic
+        MSG_LOGIC="`{}` is True but `{}` is False, please adjust."
+        if getattr(self, TabNames.CONFIRM_META) == True and\
+                getattr(self, TabNames.E_META) == False:
+                    raise ValueError(MSG_LOGIC.format(
+                        TabNames.CONFIRM_META, TabNames.E_META))
+        if getattr(self, TabNames.CONFIRM_WAVE) == True and\
+                getattr(self, TabNames.E_WAVE) == False:
+                    raise ValueError(MSG_LOGIC.format(
+                        TabNames.CONFIRM_WAVE, TabNames.E_WAVE))
+        if getattr(self, TabNames.CONFIRM_MEDIAN) == True and\
+                getattr(self, TabNames.E_MEDIAN) == False:
+                    raise ValueError(MSG_LOGIC.format(
+                        TabNames.CONFIRM_MEDIAN, TabNames.E_MEDIAN))
+                                                      
         # #### loop over path
         empty_list = []
         curated_list = []
