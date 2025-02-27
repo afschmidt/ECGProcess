@@ -371,20 +371,32 @@ def update_dict_with_warning(d1:dict, d2:dict, verbose:bool=True) -> dict:
     """
     Dictionary update while raising a warning for key duplication.
     
+    Parameters
+    ----------
+    d1 : `dict`
+        The dictionary with `old` data.
+    d2 : `dict`
+        The dictionary with `new` data.
+    verbose : `bool`, default `True`
+        Whether to print a warning when there are dupplicated keys with
+        distinct values.
+    
     Notes
     -----
-    The value from d2 overwrites the value from d1 in the final result.
+    The value from d2 overwrites the value from d1 in the final result. The
+    warning will only be raised when the values are distinct.
     """
     # Find keys that appear in both dictionaries
     if verbose == True:
         duplicates = d1.keys() & d2.keys()
-        [
-        warnings.warn(
-            (f"Duplicate key '{key}' found. Old value: {d1[key]}, "
-             f"new value: {d2[key]} (retained)."),
-            UserWarning
-        ) for key in duplicates
-        ]
+        # Only raise a warning if the values are distinct
+        for key in duplicates:
+            if d1[key] != d2[key]:
+                warnings.warn(
+                    (f"Duplicate key '{key}' found. Old value: {d1[key]}, "
+                     f"new value: {d2[key]} (retained)."),
+                    UserWarning
+                )
     # Overwrite d1 with d2’s key-value pairs
     d1.update(d2)
     return d1
