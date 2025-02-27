@@ -446,8 +446,8 @@ class ECGTable(object):
                     meta_available = True
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
+                        # skip the entire run there if there is metadata
                         getattr(self,TabNames.NO_DATA_L).append(p)
-                        # skip the entire run there is no metadata
                         if getattr(self, TabNames.CONFIRM_META):
                             getattr(self,TabNames.NO_DATA_L).append(p)
                             continue
@@ -457,15 +457,18 @@ class ECGTable(object):
                     try:
                         # piping the metadata through the engineer function
                         meta_org = meta_temp.copy()
-                        meta_temp =\
+                        meta_new =\
                             getattr(self, TabNames.ENG_META)(
                                 meta_temp,
                             )
-                        # update meta_temp - accounting for potential
-                        # duplicate keys - the second entry takes
-                        # precedence.
+                        if getattr(self, TabNames.CONFIRM_META):
+                            # skip if everything is None
+                            if all(v is None for v in meta_new.values()):
+                                getattr(self,TabNames.NO_DATA_L).append(p)
+                                continue
+                        # `meta_temp` is supplied to the wave/median functions
                         meta_temp = update_dict_with_warning(
-                            meta_org, meta_temp, verbose=self.verbose)
+                            meta_org, meta_new, verbose=self.verbose)
                     except FileValidationError as FILE_VAL:
                         getattr(self, TabNames.INVALID_L).append(p)
                         if getattr(self, TabNames.SKIP_INVALID):
@@ -522,7 +525,7 @@ class ECGTable(object):
                         raise AE
             # append to lists
             if getattr(self, TabNames.E_META):
-                meta_list.append(meta_temp)
+                meta_list.append(meta_new)
             if getattr(self, TabNames.E_WAVE):
                 wave_list.append(wave_temp)
             if getattr(self, TabNames.E_MEDIAN):
