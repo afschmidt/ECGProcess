@@ -936,12 +936,14 @@ class ECGTable(object):
                     delattr(self, TabNames.KEY_L)
             # #### write chunk record
             if write_chunk_record:
-                chunk_tab = pd.DataFrame.from_dict(chunk_record, orient='index',
-                                       columns=['Files'])
-                chunk_tab.index.name='Chunk number'
-                chunk_tab.to_csv(
-                    os.path.join(target, 'chunkrecord.txt'), sep='\t', header=True,
-                    index=True)
+                chnk_lst = []
+                for cnum, fpaths in chunk_record.items():
+                    # Ensure file_paths is a list or iterable of file paths:
+                    for fp in fpaths:
+                        chnk_lst.append({'Chunk number': cnum, 'Files': fp})
+                chunk_tab = pd.DataFrame(chnk_lst)
+                chunk_tab.to_csv(os.path.join(target, 'chunkrecord.txt'),
+                                 sep='\t', header=True, index=False)
             # #### write failed files
             if write_failed == True:
                 # adding the reason for failing
