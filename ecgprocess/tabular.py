@@ -29,6 +29,7 @@ from ecgprocess.errors import (
     NotCalledError,
     is_type,
     Error_MSG,
+    Warn_MSG,
     STDOUT_MSG,
     _check_readable,
     _check_presence,
@@ -1136,7 +1137,12 @@ class ECGTable(object):
         if getattr(self, TabNames.E_META):
             tab1  = pd.DataFrame(meta_list)
             if numeric_meta:
+                old_cols = set(tab1.columns)
                 tab1 = tab1.select_dtypes(include=[np.number])
+                new_cols = set(tab1.columns)
+                drop_cols = old_cols - new_cols
+                if self.verbose == True and len(drop_cols) > 0:
+                    warnings.warn(Warn_MSG.DROP_NONE_NUMERIC.format(drop_cols))
             # get the header
             tab1_header = list(tab1.columns)
             res_dict[CTypes.MetaData] = tab1.to_numpy()
@@ -1192,7 +1198,12 @@ class ECGTable(object):
         if getattr(self, TabNames.E_META):
             tab1  = pd.DataFrame(meta_list)
             if numeric_meta:
+                old_cols = set(tab1.columns)
                 tab1 = tab1.select_dtypes(include=[np.number])
+                new_cols = set(tab1.columns)
+                drop_cols = old_cols - new_cols
+                if self.verbose == True and len(drop_cols) > 0:
+                    warnings.warn(Warn_MSG.DROP_NONE_NUMERIC.format(drop_cols))
             # get the header
             tab1_header = list(tab1.columns)
             # write the dict

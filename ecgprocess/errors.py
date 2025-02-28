@@ -243,6 +243,9 @@ class Warn_MSG(object):
     '''
     MISSING_TAG='The following tags could not be found: {}.'
     NUMB_IS_NONE = '`{}` is NoneType, cannot convert to numerical.'
+    DROP_NONE_NUMERIC = ('The following non-numerical columns were '
+                         'dropped when converting data to numpy '
+                         'arrays: {}.')
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages
