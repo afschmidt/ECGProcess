@@ -889,7 +889,8 @@ class ECGTable(object):
         try:
             for n, p in enumerate(path_list, start=1):
                 # record the chunk_number and the files included
-                chunk_record[n] = ', '.join(p)
+                # NOTE `p` is a list and `n` an interger
+                chunk_record[n] = p
                 # extract data
                 meta_list, wave_list, median_list = self._loop_table(
                     p, parsed_config=parsed_config,
@@ -939,6 +940,18 @@ class ECGTable(object):
             if write_chunk_record:
                 chnk_lst = []
                 for cnum, fpaths in chunk_record.items():
+                    if isinstance(fpaths, str):
+                        raise ValueError('`fpaths` should be a list, not '
+                                         f'type(fpaths).')
+                    # if a string check if it is `, ` seperated and map to
+                    # list
+                    # CHUNK_SPLIT = ', '
+                    # if CHUNK_SPLIT in chunk_record:
+                    #     # NOTE using strip to remove redudant white space
+                    #     fpaths = [s.strip() for s in fpaths.split(CHUNK_SPLIT)]
+                    print('fpaths: ')
+                    print(fpaths)
+                    print(type(fpaths))
                     # Ensure file_paths is a list or iterable of file paths:
                     for fp in fpaths:
                         chnk_lst.append({'Chunk number': cnum, 'Files': fp})
