@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ECGProcess"
+version = "1.0.0a0"
+description = "A python module to process and standardise ECG data"
+readme = "README.md"
+authors = [{ name = "A. Floriaan Schmidt", email = "floriaanschmidt@gmail.com" }]
+license = { text = "GPLv3+" }
+requires-python = ">=3.11.0, <3.13"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "pydicom",
+    "tensorflow",
+    "matplotlib",
+    "lxml",
+    "xmltodict"
+]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: PyPy"
+]
+
+[project.optional-dependencies]
+dev = ["twine", "build"]
+
+[project.urls]
+Homepage = "https://gitlab.com/SchmidtAF/ECGProcess"
+
+[tool.setuptools.packages.find]
+include = ["ecgprocess*"]
+exclude = ["tests", "*.tests", "*.tests.*", "tests.*"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"ecgprocess" = ["*.md", "*.txt", "*.rst"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["tests/*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "datafiles: load datafiles"
+]
+testpaths = ["tests"]

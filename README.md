@@ -33,19 +33,19 @@ cd ECGProcess
 
 ### Installation using conda dependencies
 A conda environment is provided in a `yaml` file in the directory 
-`./resources/conda_env/`.
+`./resources/conda/envs/`.
 A new conda environment called `ecgprocess` can be built using the command:
 
 ```sh
 # From the root of the repository
-conda env create --file ./resources/conda_env/conda_create.yml
+conda env create --file ./resources/conda/envs/conda_create.yaml
 ```
 
 To add to an existing environment use:
 
 ```sh
 # From the root of the repository
-conda env update --file ./resources/conda_env/conda_update.yml
+conda env update --file ./resources/conda/envs/conda_update.yaml
 ```
 
 Next the package can be installed: 
