@@ -35,24 +35,24 @@ def resampling_500hz(signals:dict[str, np.array],
         samples needed to get a 500hz sample: duration times 500.
     median : `bool`, default `False`
         Set to true to resample a median beat ECG to 500hz. The duration of a
-        median beat signal is 1.2 seconds, hence the sampling rate is fixed at:
+        median beat signal is 1.2 seconds, hence the number of samples is fixed at:
         1.2 times 500 = 600.
     
     """
     is_type(signals, dict)
     is_type(duration, (type(None), int, float))
     is_type(median, bool)
-    # #### get sampling rate
-    samp_rate = 600
+    # #### get number of samples
+    num_samples = 600
     if median == False:
         if duration is None:
             raise ValueError('`duration` should not be `NoneType` when `median` '
                              'is `False`.')
-        samp_rate = duration * 500
+        num_samples = int(duration * 500)
     # #### resample
     new_dict = {}
     for l, sig in signals.items():
-        new_dict[l] = signal.resample(sig, samp_rate)
+        new_dict[l] = signal.resample(sig, num_samples)
     # return
     return new_dict
 
