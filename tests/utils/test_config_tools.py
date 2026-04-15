@@ -4,7 +4,7 @@ from ecgprocess.constants import (
     CoreData as Core,
     UtilsConfigData as ConfigNames,
 )
-from ecgprocess.errors import InputValidationError
+from ecgprocess.errors import InputValidationError, NotCalledError
 from ecgprocess.example_data.examples import config_file
 from tempfile import NamedTemporaryFile
 
@@ -98,7 +98,7 @@ class TestBaseExtraction(object):
             _ = config_file(path=tmp_file.name)
             parser = config_utils.ConfigParser(tmp_file.name)()
         assert len(parser._data) > 0
-        with pytest.raises(AttributeError):
+        with pytest.raises(NotCalledError):
             parser.get_section('WaveForms')
         # add mapper
         parser.map(mapper=config_utils.DataMap())
