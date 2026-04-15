@@ -104,16 +104,21 @@ def metadata_checkversion(
     version = version_name
     manufact = manufacturer_name
     model_name = model_name
-    # the algorithm
-    if expected_version != metadata[version] or\
-        expected_manufacturer != metadata[manufact] or\
-        expected_model != metadata[model_name]:
-        raise FileValidationError(
-            f"The version `{metadata[version]}`, manufacturer "
-            f"`{metadata[manufact]}` or model `{metadata[model_name]}` failed "
-            "to validate."
-        )
-    # if all corect simply return metadata
+    # the algorithm: check each expected field independently so the error
+    # message identifies which field failed. expected_* may be a single
+    # string or a list of strings; normalise to a list so membership tests
+    # work in both cases.
+    def _check(field_label: str, got: Any, expected: Any) -> None:
+        expected_list = expected if isinstance(expected, list) else [expected]
+        if got not in expected_list:
+            raise FileValidationError(
+                f"{field_label} `{got}` failed to validate; "
+                f"expected one of {expected_list}."
+            )
+    _check("Version", metadata[version], expected_version)
+    _check("Manufacturer", metadata[manufact], expected_manufacturer)
+    _check("Model", metadata[model_name], expected_model)
+    # if all correct simply return metadata
     return metadata
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -124,7 +129,7 @@ def signal_correction(
     **kwargs) -> dict[str, np.ndarray]:
     """
     Adjusts the signals by subtracting the channel baseline multiplied
-    by the channel correcttion factor.  These parameters must be provided in
+    by the channel correction factor.  These parameters must be provided in
     `kwargs[TabNames.META_DICT]`.
     
     Parameters
