@@ -31,19 +31,8 @@ eval `ssh-agent -s`
 # Upgrade pip first
 pip install --upgrade pip
 
-# Sphinx doc building requirements
-pip install -r resources/ci_cd/sphinx.txt
-
-# install cython to support statsmodels and scipy installs.
-# pip install Cython --no-binary :all:
-# # install merit requirements
-# git clone git@gitlab.com:cfinan/merit.git
-# cd merit
-# python -m pip install --upgrade -r requirements.txt
-# cd ..
-# rm -rf merit
-
-# Package requirements
+# Package and dev requirements (includes sphinx)
+pip install -r requirements-dev.txt
 pip install -r requirements.txt
 
 

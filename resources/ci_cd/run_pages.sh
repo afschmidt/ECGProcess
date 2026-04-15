@@ -10,6 +10,17 @@ if [ -e ./docs/build ]; then
     rm -r ./docs/build
 fi
 
+# removing cache
+for cache_dir in \
+    ./docs/.jupyter_cache \
+    ./docs/source/.jupyter_cache \
+    ./.jupyter_cache; do
+    if [ -e "$cache_dir" ]; then
+        echo "[run_pages] removing $cache_dir"
+        rm -rf "$cache_dir"
+    fi
+done
+
 # This is the directory where all the CI/CD scripts are located
 ci_cd="resources/ci_cd"
 

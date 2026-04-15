@@ -29,7 +29,7 @@ cd ..
 echo "[pages] removing public"
 
 echo "[pages] removing public"
-if [[ -e public ]]; then
+if [ -e public ]; then
     rm -r public
 fi
 echo "[pages] creating public"
