@@ -179,7 +179,7 @@ class DataMap(object):
     >>> data_map = DataMap()
     >>> data_map.get_attributes()
     ['WaveForms', 'MedianBeats', 'MetaData']
-
+    
     Notes
     -----
     The class is intended to work in conjunction with a config file processed
@@ -316,6 +316,16 @@ class ConfigParser(object):
     ----------
     path : str
         Path to the configuration file to be parsed.
+    
+    Notes
+    -----
+    Required call sequence::
+    
+        parser = ConfigParser(path)()   # parse the file
+        parser.map(mapper)              # map sections to a DataMap
+        parser.get_section(name)        # retrieve a section
+    
+    Calling `get_section()` before `map()` raises `NotCalledError`.
     """
     # properties
     path = ManagedProperty(ConfigNames.path)
@@ -502,8 +512,17 @@ class ConfigParser(object):
         
         Returns
         -------
-        dict
+        section : `dict` [`str`, `str`]
             A dictionary of key-value pairs for the requested section.
+        
+        Raises
+        ------
+        NotCalledError
+            If `map()` has not been called before this method.
+        ValueError
+            If `section_name` is not one of the allowed section names.
+        KeyError
+            If the requested section has no data.
         """
         is_type(section_name, str)
         SECTION_NAME = [ConfigNames.OtherData, ConfigNames.WaveForms,
@@ -514,7 +533,7 @@ class ConfigParser(object):
                              format('section_name', ', '.join(SECTION_NAME)))
         # confirm mapper has been run
         if not hasattr(self, ConfigNames.MAPPER):
-            raise AttributeError('`map` has not been run.')
+            raise NotCalledError('`map()` must be called before `get_section()`.')
         # get the correct attribute
         res = getattr(getattr(self, ConfigNames.MAPPER), section_name)
         if res is None:

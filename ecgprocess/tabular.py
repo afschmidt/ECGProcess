@@ -151,7 +151,6 @@ class ECGTable(object):
     ensures for example, that the engineer_wave function will have access to
     the metadata.
     '''
-    
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __init__(self, ecgreader:BaseReader, path_list:list[str],
                  extract_meta:bool=True, extract_wave:bool=True,

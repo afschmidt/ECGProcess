@@ -263,7 +263,7 @@ class ECGXMLReader(BaseReader):
         # only run when the parameter is True, SF is not 500 and there
         # is a duration
         meta_data[CProc.SF_NEW] = None
-        if getattr(self, PXMLNam.RESAMPLE) == True:
+        if getattr(self, PXMLNam.RESAMPLE):
             # confirm SF is present
             if not CMeta.SF in meta_data or meta_data[CMeta.SF] is None:
                 raise KeyError(f'`{CMeta.SF}` is necessary to resample '
@@ -275,7 +275,7 @@ class ECGXMLReader(BaseReader):
                 meta_data[CProc.SF_NEW] = 500
                 # confirm there is waveform data
                 if len(wave_missing) == 12:
-                    if skip_empty == False:
+                    if not skip_empty:
                         raise AttributeError(
                             Error_MSG.MISSING_SIGNAL.format('waveform'))
                 else:
@@ -283,18 +283,18 @@ class ECGXMLReader(BaseReader):
                         wave_data, duration=meta_data[CProc.Duration])
                 # confirm there is median beats data
                 if len(median_missing) == 12:
-                    if skip_empty == False:
+                    if not skip_empty:
                         raise AttributeError(
                             Error_MSG.MISSING_SIGNAL.format('median beat'))
                 else:
                     median_data = ecg_utils.resampling_500hz(
                         median_data, median=True)
         # ### See if we need to get the augmented leads
-        if getattr(self, PXMLNam.AUG_LEADS) == True and len(wave_missing) > 0:
+        if getattr(self, PXMLNam.AUG_LEADS) and len(wave_missing) > 0:
             wave_data = ecg_utils.get_limb_leads(wave_data)
             median_data = ecg_utils.get_limb_leads(median_data)
         # ### do we print missing tags
-        if self.verbose == True:
+        if self.verbose:
             missing_tags = [tag for tag in (
                 meta_missing + wave_missing + median_missing + other_missing
             ) if tag is not None]
