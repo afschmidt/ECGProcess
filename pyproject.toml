@@ -9,7 +9,7 @@ description = "A python module to process and standardise ECG data"
 readme = "README.md"
 authors = [{ name = "A. Floriaan Schmidt", email = "floriaanschmidt@gmail.com" }]
 license = { text = "GPLv3+" }
-requires-python = ">=3.11.0, <3.13"
+requires-python = ">=3.11.0, <3.14"
 dependencies = [
     "numpy",
     "pandas",
@@ -26,6 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: PyPy"
 ]
 
