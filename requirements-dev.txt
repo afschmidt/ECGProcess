@@ -1,0 +1,8 @@
+pytest>=6
+pytest-mock>=3.0
+pytest-dependency>=0.5
+codespell
+bump2version>=1
+twine
+build
+ruff

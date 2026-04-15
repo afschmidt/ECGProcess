@@ -7,21 +7,14 @@ name = "ECGProcess"
 version = "1.0.0a0"
 description = "A python module to process and standardise ECG data"
 readme = "README.md"
-authors = [{ name = "A. Floriaan Schmidt", email = "floriaanschmidt@gmail.com" }]
-license = { text = "GPLv3+" }
-requires-python = ">=3.11.0, <3.14"
-dependencies = [
-    "numpy",
-    "pandas",
-    "scipy",
-    "pydicom",
-    "tensorflow",
-    "matplotlib",
-    "lxml",
-    "xmltodict"
+authors = [
+    {name = "A. Floriaan Schmidt", email = "floriaanschmidt@gmail.com"},
 ]
+license = "GPL-3.0-or-later"
+license-files = ["LICENCE.txt"]
+requires-python = ">=3.11, <3.14"
+dynamic = ["dependencies", "optional-dependencies"]
 classifiers = [
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -30,11 +23,15 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy"
 ]
 
-[project.optional-dependencies]
-dev = ["twine", "build"]
-
 [project.urls]
 Homepage = "https://gitlab.com/SchmidtAF/ECGProcess"
+Documentation = "https://SchmidtAF.gitlab.io/ECGProcess/"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements-dev.txt"] }
 
 [tool.setuptools.packages.find]
 include = ["ecgprocess*"]
@@ -50,7 +47,8 @@ include-package-data = true
 "*" = ["tests/*"]
 
 [tool.pytest.ini_options]
-markers = [
-    "datafiles: load datafiles"
-]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 79
+target-version = "py311"
