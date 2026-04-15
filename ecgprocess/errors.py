@@ -1,11 +1,10 @@
 '''
-Error handeling for ECGProcess.
+Error handling for ECGProcess.
 '''
 import os
 import inspect
 import warnings
 import pandas as pd
-# import numpy as np
 from packaging import version
 from typing import Any, Type, Union
 
@@ -94,7 +93,7 @@ def is_series_type(column: Union[pd.Series, pd.DataFrame],
         [is_type(col, types) for col in column]
     elif isinstance(column, pd.DataFrame):
         if version.parse('2.0.3') <= version.parse(pd.__version__):
-            # iteritems got depricated.
+            # iteritems got deprecated.
             column.iteritems = column.items
         for _, col in column.items():
             [is_type(co, types) for co in col]
@@ -160,7 +159,7 @@ def are_columns_in_df(
     message = "The following columns are missing from the pandas.DataFrame: {}"
     res = True
     # tests
-    expected_columns_set: Set[str] = set(expected_columns) if isinstance(
+    expected_columns_set: set[str] = set(expected_columns) if isinstance(
         expected_columns, list
     ) else set([expected_columns])
     
@@ -276,7 +275,7 @@ class NotCalledError(Exception):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class FileValidationError(Exception):
     '''
-    General expection raised when a file was not valid
+    General exception raised when a file was not valid
     '''
     def __init__(self, message="File failed to validate."):
         self.message = message
@@ -285,7 +284,7 @@ class FileValidationError(Exception):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class XMLValidationError(FileValidationError):
     """
-    Expection raised when the XML and XSD file are incompatible.
+    Exception raised when the XML and XSD file are incompatible.
     """
     def __init__(self, errors: list[str]):
         custom_message = (

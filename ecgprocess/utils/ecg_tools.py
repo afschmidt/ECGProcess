@@ -11,6 +11,7 @@ from ecgprocess.errors import (
     is_type,
 )
 from typing import Any
+import warnings
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # constants
@@ -83,7 +84,7 @@ def get_limb_leads(signals:dict[str, np.array],
     -----
     please see this
     `url <https://ecgwaves.com/topic/ekg-ecg-leads-electrodes-systems-limb-chest-precordial/>`_
-     for the relevant explantion about the relationships between leads I and II
+     for the relevant explanation about the relationships between leads I and II
     and the limb leads.
     """
     # #### check input and set constants
@@ -93,6 +94,8 @@ def get_limb_leads(signals:dict[str, np.array],
     if not {lead_I, lead_II}.issubset(signals):
         raise KeyError('leads I and/or II are not available in `signals`: '
                        f'{signals.keys()}')
+    # making sure we do not affect the original parsed signals
+    signals = dict(signals)
     # #### get limb leads
     if not CLeads.III in signals:
         signals[CLeads.III] = np.subtract(signals[CLeads.II],
@@ -170,7 +173,7 @@ def signal_dicts_to_numpy_array(
     # set the samples and lead numbers
     num_samples = len(signals)
     num_leads = len(leads)
-    # do we want to padd the signals if needed.
+    # do we want to pad the signals if needed.
     if padding:
         # Find the maximum length among all leads in all samples
         signal_length = max(
@@ -207,7 +210,7 @@ def signal_dicts_to_numpy_array(
                 if current_length > signal_length:
                     # Truncate the signal if it's longer than signal_length
                     warnings.warn('Signal is longer than the max length '
-                                  'this is unexpeted, please check input.')
+                                  'this is unexpected, please check input.')
                     data_array[i, j, :] = lead_data[:signal_length]
                 else:
                     # Pad the signal with NaNs if it's shorter than
@@ -232,7 +235,7 @@ def signal_calibration(signal:np.ndarray,
                        ) -> np.ndarray:
     """
     Adjusts the ECG signal by subtracting the channel baseline from the signal,
-    followed by multiplying the adjusted singal by the channel correction
+    followed by multiplying the adjusted signal by the channel correction
     factor.
     
     Parameters
