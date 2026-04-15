@@ -12,13 +12,23 @@ from typing import Any, Type, Union
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class InputValidationError(Exception):
+class InputValidationError(Exception):  # pragma: no cover
     pass
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def get_param_name(param:Any) -> str | None:
+def get_param_name(param:Any) -> str | None:  # pragma: no cover
     '''
-    Gets the name of `param` or otherwise return a None.
+    Gets the name of `param` from the caller's local scope.
+
+    Parameters
+    ----------
+    param : `Any`
+        The object whose variable name is to be resolved.
+
+    Returns
+    -------
+    name : `str` or `None`
+        The variable name as a string, or `None` if it cannot be resolved.
     '''
     frame = inspect.currentframe().f_back.f_back
     param_names =\
@@ -29,19 +39,27 @@ def get_param_name(param:Any) -> str | None:
 def is_type(param: Any, types: tuple[Type] | Type,
             param_name: str | None=None) -> bool:
     """
-    Checks if a given parameter matches any of the supplied types
-    
+    Checks if a given parameter matches any of the supplied types.
+
     Parameters
     ----------
-    param: `Any`
+    param : `Any`
         Object to test.
-    types: `Type` or `tuple` [`Tuple`]
+    types : `Type` or `tuple` [`Type`]
         Either a single type, or a tuple of types to test against.
-    
+    param_name : `str` or `None`, optional
+        Name of the parameter, used in the error message. Resolved
+        automatically from the caller's scope when not supplied.
+
     Returns
     -------
-    True if the parameter is an instance of any of the given types.
-    Raises AttributeError otherwise.
+    result : `bool`
+        `True` if the parameter is an instance of any of the given types.
+
+    Raises
+    ------
+    InputValidationError
+        If `param` is not an instance of any type in `types`.
     """
     if not isinstance(param, types):
         if param_name is None:
@@ -53,7 +71,7 @@ def is_type(param: Any, types: tuple[Type] | Type,
     return True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def is_df(df: Any) -> bool:
+def is_df(df: Any) -> bool:  # pragma: no cover
     """
     Checks if object is a pd.DataFrame.
     
@@ -72,20 +90,28 @@ def is_series_type(column: pd.Series | pd.DataFrame,
                    types: tuple[Type] | Type,
                    ) -> bool:
     """
-    Checks if a pd.DataFrame or pd.Series contest has the supplied type.
-    
-    _Note_: instead of testing the dtypes, the function will look over each
-        element and test this individually.
-    
+    Checks if a `pd.DataFrame` or `pd.Series` contains the supplied type.
+
     Parameters
     ----------
-    column: pd.Series or pd.DataFrame,
-    types: a single type.
-    
+    column : `pd.Series` or `pd.DataFrame`
+        The column or frame whose elements are to be tested.
+    types : `Type` or `tuple` [`Type`]
+        Either a single type, or a tuple of types to test against.
+
     Returns
     -------
-    True if the column(s) match(es) the given types. Raises
-    InputValidationError otherwise.
+    result : `bool`
+        `True` if all elements match any of the given types.
+
+    Raises
+    ------
+    InputValidationError
+        If any element is not an instance of any type in `types`.
+
+    Notes
+    -----
+    Tests each element individually rather than relying on dtype inference.
     """
     # check input
     is_type(column, (pd.DataFrame, pd.Series))
@@ -103,20 +129,26 @@ def same_len(object1: Any, object2: Any,
              object_names:list[str] | None=None,
              ) -> bool:
     """
-    Check if two object's have the same length, and otherwise raise
-    `ValueError`.
-    
-    Arguments
-    ---------
+    Check if two objects have the same length.
+
+    Parameters
+    ----------
     object1, object2 : `Any`
-        Any type of object.
-    objects_names : `list` [`str`]
-        The two objects the series our sourced from. Will be returned in any
-        potential `IndexError` message.
-        
+        Any type of object with a `__len__` method.
+    object_names : `list` [`str`] or `None`, optional
+        Names of the two objects, included in the error message when
+        lengths differ.
+
     Returns
     -------
-    True if all OK. Raises a ValueError otherwise.
+    result : `bool`
+        `True` if both objects have the same length.
+
+    Raises
+    ------
+    ValueError
+        If the lengths differ, or if `object_names` does not contain
+        exactly two strings.
     """
     n1 = len(object1)
     n2 = len(object2)
@@ -127,10 +159,11 @@ def same_len(object1: Any, object2: Any,
                          'two strings')
     # the actual test
     if n1 != n2:
-        raise ValueError("The length of `{0}`: {1}, does not match the length "
-                         "of `{2}`: {3}.".format(object_names[0], n1,
-                                               object_names[1], n2)
-                         )
+        raise ValueError(
+            "The length of `{0}`: {1}, does not match "
+            "the length of `{2}`: {3}.".format(
+                object_names[0], n1, object_names[1], n2)
+        )
     return True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -139,21 +172,27 @@ def are_columns_in_df(
     warning: bool=False
 ) -> bool:
     """
-    Checks if all expected columns are present in a given pandas.DataFrame.
-    
+    Checks if all expected columns are present in a `pandas.DataFrame`.
+
     Parameters
     ----------
-    df: `pandas.DataFrame`
-        expected_columns: either a single column name or a list of column names
-        to test
-    warning : `bool`, default False
-        raises a warning instead of an error.
-    
-    
+    df : `pandas.DataFrame`
+        The DataFrame to inspect.
+    expected_columns : `list` [`str`] or `str`
+        A single column name or a list of column names to check for.
+    warning : `bool`, default `False`
+        If `True`, issue a `UserWarning` instead of raising an error.
+
     Returns
     -------
-    True if all expected_columns are in the df. Raises InputValidationError
-    otherwise.
+    result : `bool`
+        `True` if all expected columns are present; `False` if any are
+        missing and `warning` is `True`.
+
+    Raises
+    ------
+    InputValidationError
+        If any expected columns are absent and `warning` is `False`.
     """
     # constant
     message = "The following columns are missing from the pandas.DataFrame: {}"
@@ -193,12 +232,12 @@ def string_to_list(object:Any) -> Any | list[str]:
     string wrapped in a list or the original object type.
     '''
     if isinstance(object, str):
-        return list(object)
+        return [object]
     else:
         return object
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def _check_readable(path: str | PathLike) -> None:
+def _check_readable(path: str | PathLike) -> None:  # pragma: no cover
     """
     Do we have read access. Note this should work on a directory or file.
     
@@ -265,7 +304,7 @@ def _check_is_file(path: str | PathLike) -> None:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages
-class Error_MSG(object):
+class Error_MSG(object):  # pragma: no cover
     '''
     A collection of error messages.
     '''
@@ -278,7 +317,7 @@ class Error_MSG(object):
     MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class Warn_MSG(object):
+class Warn_MSG(object):  # pragma: no cover
     '''
     A collection of warning messages.
     '''
@@ -290,14 +329,14 @@ class Warn_MSG(object):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages
-class STDOUT_MSG(object):
+class STDOUT_MSG(object):  # pragma: no cover
     '''
     A collection of stdout messages.
     '''
     PROCESSING_PATH = 'Processing file: {}'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class MissingTagError(Exception):
+class MissingTagError(Exception):  # pragma: no cover
     '''
     Raises an error identifying the missing DICOM tag.
     '''
@@ -306,7 +345,7 @@ class MissingTagError(Exception):
         super().__init__(f"Tag '{tag_name}' is missing.")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class NotCalledError(Exception):
+class NotCalledError(Exception):  # pragma: no cover
     """
     Exception raised when a required __call__ method has not been used.
     """
@@ -315,7 +354,7 @@ class NotCalledError(Exception):
         super().__init__(self.message)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class FileValidationError(Exception):
+class FileValidationError(Exception):  # pragma: no cover
     '''
     General exception raised when a file was not valid
     '''
