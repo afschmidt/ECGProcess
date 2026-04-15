@@ -10,7 +10,8 @@ We welcome contributions from all users to the project:
 3. Bug fixes
 4. New code
 
-However, we ask that contributors please follow these guidelines when contributing to the package. This allows us to retain some level of homogenerity throughout a project and will make it easiy to maintain and improve in the long run.
+However, we ask that contributors please follow these guidelines when contributing to the package.
+This allows us to retain some level of homogeneity throughout a project and will make it easily to maintain and improve in the long run.
 
 A list of current contributors can be found in the project root. 
 
