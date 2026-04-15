@@ -78,7 +78,7 @@ def assign_empty_default(arguments:list[Any], empty_object:Callable[[],Any],
                          ) -> list[Any]:
     '''
     Takes a list of `arguments`, checks if these are `NoneType` and if so
-    asigns them 'empty_object'.
+    assigns them 'empty_object'.
     
     Parameters
     ----------
@@ -152,6 +152,12 @@ class ManagedProperty(object):
     A generic property factory defining setters and getters, with optional
     type validation.
     
+    Properties are read-only by default. Use `set_with_setter` to write a
+    value; this temporarily unlocks the property on the specific instance
+    using a per-instance lock key stored in the instance's ``__dict__``,
+    avoiding the shared-state bug that arises when the lock flag is stored
+    on the descriptor object itself (which is shared across all instances).
+    
     Parameters
     ----------
     name : `str`
@@ -161,13 +167,9 @@ class ManagedProperty(object):
     
     Methods
     -------
-    enable_setter()
-        Enables the setter for the property, allowing attribute assignment.
-    disable_setter()
-        Disables the setter for the property, making the property read-only.
     set_with_setter(instance, value)
-        Enables the setter, sets the property value, and then disables
-        the setter, ensuring controlled updates.
+        Temporarily unlocks the property on `instance`, sets the value,
+        then re-locks it.
     
     Returns
     -------
@@ -181,7 +183,10 @@ class ManagedProperty(object):
         """
         self.name = name
         self.types = types
-        self._setter_enabled = True
+        # per-instance lock key stored in the instance __dict__, not on the
+        # descriptor, so concurrent or nested calls on different instances
+        # cannot interfere with each other.
+        self._lock_key = f"__{name}_locked"
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __get__(self, instance, owner):
         """Getter for the property."""
@@ -190,8 +195,8 @@ class ManagedProperty(object):
         return instance.__dict__.get(self.name)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __set__(self, instance, value):
-        """Setter for the property."""
-        if not self._setter_enabled:
+        """Setter for the property — unlocked until set_with_setter is called."""
+        if instance.__dict__.get(self._lock_key, False):
             raise AttributeError(f"The property '{self.name}' is read-only.")
         if self.types and not isinstance(value, self.types):
             raise ValueError(
@@ -200,17 +205,9 @@ class ManagedProperty(object):
             )
         instance.__dict__[self.name] = value
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def enable_setter(self):
-        """Enable the setter for the property."""
-        self._setter_enabled = True
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def disable_setter(self):
-        """Disable the setter for the property."""
-        self._setter_enabled = False
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def set_with_setter(self, instance, value):
         """
-        Enable the setter, set the property value, and then disable the setter.
+        Unlock the property on `instance`, set the value, then re-lock it.
         
         Parameters
         ----------
@@ -219,11 +216,11 @@ class ManagedProperty(object):
         value : `any`
             The value to assign to the property.
         """
+        instance.__dict__[self._lock_key] = False
         try:
-            self.enable_setter()
             setattr(instance, self.name, value)
         finally:
-            self.disable_setter()
+            instance.__dict__[self._lock_key] = True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def parse_number(string:Any, sep:str=',', dec:str='.',
@@ -247,7 +244,7 @@ def parse_number(string:Any, sep:str=',', dec:str='.',
     -------
     `list` [`int` | `float`] or `any`
         A list of parsed integers or floats or the original input.
-
+    
     Examples
     --------
     >>> gen_utils.parse_number("1;2;3,5", sep=";", dec=",")
@@ -313,9 +310,9 @@ def string_concat(old:str , new: str, sep:str=', ') -> list[str]:
     
     Notes
     -----
-    In general NaN is concidered a float and missing string information is
-    better reflected by `NoneType`. Nevertheless one does find strings may
-    be setted to NaN which is what this function deals with.
+    In general NaN is considered a float and missing string information is
+    better reflected by `NoneType`. Nevertheless one does find strings which
+    are set to `NaN` which is what this function deals with.
     '''
     # #### check input.
     # np.nan is a float, so testing for float
@@ -378,7 +375,7 @@ def update_dict_with_warning(d1:dict, d2:dict, verbose:bool=True) -> dict:
     d2 : `dict`
         The dictionary with `new` data.
     verbose : `bool`, default `True`
-        Whether to print a warning when there are dupplicated keys with
+        Whether to print a warning when there are duplicated keys with
         distinct values.
     
     Notes
