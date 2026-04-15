@@ -83,7 +83,7 @@ class UtilsGeneralNames(object):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsConfigData(object):
     '''
-    Names used in the Utils Cofig Data module
+    Names used in the Utils Config Data module
     '''
     MetaData    = CoreData.DataTypes.MetaData
     OtherData   = CoreData.DataTypes.OtherData
@@ -106,13 +106,6 @@ class ProcessDicomNames(object):
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
     
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-class FixedReaderNames(object):
-    ORIG_DCMREAD_INST     = 'DMCReadInstance'
-    WAVE_FORM_SEQ         = 'WaveformSequence'
-    CHANNEL_DEF_SEQ       = 'ChannelDefinitionSequence'
-    CHANNEL_NUMBER        = 'ChannelNumber'
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class TabularNames(object):
     E_META         = 'extract_'+CoreData.DataTypes.MetaData
@@ -193,7 +186,7 @@ class DICOMTags(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     WAVE_FORMS = {
         'TimeOffset'                : 'MultiplexGroupTimeOffset',
-        FixedReaderNames.CHANNEL_NUMBER : 'NumberOfWaveformChannels',
+        'ChannelNumber' : 'NumberOfWaveformChannels',
         CoreData.MetaData.SN_W      : 'NumberOfWaveformSamples',
         CoreData.MetaData.SF        : 'SamplingFrequency',
         'ChannelSensitivity'        : 'ChannelSensitivity',
@@ -224,7 +217,7 @@ class DICOMTags(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MEDIAN_BEATS = {
         'TimeOffset'                      : 'MultiplexGroupTimeOffset',
-        FixedReaderNames.CHANNEL_NUMBER  : 'NumberOfWaveformChannels',
+        'ChannelNumber'  : 'NumberOfWaveformChannels',
         CoreData.MetaData.SN_M : 'NumberOfWaveformSamples',
         'ChannelSensitivity'              : 'ChannelSensitivity',
         'ChannelBaseline'                 : 'ChannelBaseline',

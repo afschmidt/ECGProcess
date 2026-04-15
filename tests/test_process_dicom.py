@@ -6,7 +6,6 @@ from tempfile import NamedTemporaryFile
 from ecgprocess.errors import MissingTagError
 from ecgprocess.process_dicom import (
     ECGDICOMReader,
-    FixedDICOMReader,
 )
 from ecgprocess.example_data.examples import (
     list_dicom_paths as list_data_paths,
@@ -138,101 +137,3 @@ class TestECGDICOMReader(object):
         assert extract2.WaveForms['II'] is None
         assert extract2.WaveForms['aVL'].ndim == 1
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# FixedDICOMReader
-class TestFixedDICOMReader(object):
-    """
-    Testing FixedDICOMReader
-    """
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_default(self):
-        ECG_DCM = FixedDICOMReader()
-        res = ECG_DCM(path=dicom_file_path)
-        assert len(getattr(res, CTypes.MetaData)) > 0
-        assert isinstance(getattr(res,CTypes.MetaData), dict)
-        assert isinstance(getattr(res,CTypes.WaveForms), dict)
-        assert isinstance(getattr(res,CTypes.MedianBeats), dict)
-        assert len(getattr(res,CTypes.WaveForms)) == 12
-        assert getattr(res,CTypes.MetaData)['MedianWaveformUnits']==\
-                       'microvolt'
-        assert getattr(res,CTypes.MetaData)['sampling number (medianbeats)']==\
-            600
-        assert getattr(res,CTypes.MetaData)['sampling number (waveforms)']==5000
-        assert getattr(res,'augment_leads') == False
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_augment_leads(self):
-        ECG_DCM = FixedDICOMReader(augment_leads=True)
-        res = ECG_DCM(path=dicom_file_path)
-        assert len(getattr(res,CTypes.MetaData)) > 0
-        assert isinstance(getattr(res,CTypes.MetaData), dict)
-        assert isinstance(getattr(res,CTypes.WaveForms), dict)
-        assert isinstance(getattr(res,CTypes.MedianBeats), dict)
-        assert len(getattr(res,CTypes.WaveForms)) == 12
-        assert len(getattr(res,CTypes.MedianBeats)) == 12
-        assert getattr(res,'augment_leads') == True
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_augment_resample(self):
-        ECG_DCM = FixedDICOMReader(resample_500=False)
-        res = ECG_DCM(path=dicom_file_path)
-        assert len(getattr(res,CTypes.MetaData)) > 0
-        assert isinstance(getattr(res,CTypes.MetaData), dict)
-        assert isinstance(getattr(res,CTypes.WaveForms), dict)
-        assert isinstance(getattr(res,CTypes.MedianBeats), dict)
-        assert len(getattr(res,CTypes.WaveForms)) == 12
-        assert len(getattr(res,CTypes.MedianBeats)) == 12
-        assert getattr(res,'resample_500') == False
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_ecg_trait(self):
-        ECG_DCM = FixedDICOMReader()
-        # mess-up the name to check case sensitivity (should not be)
-        QT_NAM = 'QT Interval'
-        w_qt_int = 'qt interval'
-        ECG_DCM.ECG_TRAIT_DICT[QT_NAM] = [QT_NAM, w_qt_int]
-        res = ECG_DCM(path=list_data_paths()['example_dicom_2'])
-        assert isinstance(getattr(res, CTypes.MetaData), dict)
-        assert getattr(res, CTypes.MetaData)['QRS Duration'] == 92
-        assert getattr(res, CTypes.MetaData)['QT Interval UNIT'] ==\
-            'millisecond'
-        assert getattr(res, CTypes.MetaData)[QT_NAM] == 378
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_ecg_trait_value_conversion_with_null(self):
-        """
-        Test ECG trait value extraction when the `ECG_TRAIT_VALUE` is set to
-        None.
-        """
-        # Load the DICOM file
-        ECG_DCM = FixedDICOMReader(retain_raw=True)
-        ecg_instance = ECG_DCM(path=dicom_file_path2)
-        # turn on verbose
-        ecg_instance.verbose = True
-        # get raw ECG
-        ECG = ecg_instance.DMCReadInstance
-        # Simulate setting the specific attribute to None
-        for waveform_annotation in getattr(ECG, 'WaveformAnnotationSequence'):
-            if hasattr(waveform_annotation, 'NumericValue'):
-                setattr(waveform_annotation, 'NumericValue', None)
-        # make sure we get warnings
-        with warnings.catch_warnings(record=True) as w:
-            # warnings.simplefilter("always")
-            _, _, miss  = ecg_instance._get_waveform_annotation(
-                dicom_instance=ECG, skip_empty=True,
-            )
-            # warnings.resetwarnings()
-        # Confirm warnings were raised and there are missing
-        assert len(w) > 0
-        assert len(miss) > 0
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_augment_verbose(self):
-        ECG_DCM = FixedDICOMReader()
-        with pytest.warns(UserWarning):
-            _ = ECG_DCM(path=dicom_file_path, verbose=True)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_errors(self):
-        ECG_DCM = FixedDICOMReader()
-        with pytest.raises(MissingTagError):
-            _ = ECG_DCM(path=dicom_file_path, skip_empty=False)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_wrong_path(self):
-        ECG_DCM = FixedDICOMReader()
-        with pytest.raises(PermissionError):
-            _ = ECG_DCM(path='wrong', skip_empty=False)
