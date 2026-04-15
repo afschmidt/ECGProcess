@@ -1,2 +1,3 @@
-#!/bin/bash
-docker build -t floriaan1/ecgprocess:master .
+#!/usr/bin/env bash
+set -euo pipefail
+docker buildx build --load -t floriaan1/ecgprocess:master .
