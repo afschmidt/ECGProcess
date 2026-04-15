@@ -41,7 +41,8 @@ ENV PERSISTENT_DEPS="libdeflate0 \
     libssl3 \
     libcurl4 \
     git \
-    sed"
+    sed \
+    make"
 
 WORKDIR /data
 
