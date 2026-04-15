@@ -1,5 +1,25 @@
 # Changelog
 
+### [Unreleased]
+
+#### Added
+
+* `Makefile` with common dev targets
+* Git hooks (`commit-msg`, `pre-commit`) with setup script and codespell ignore-words list
+* `resources/build/inc_version.sh` version bump helper script and accompanying README
+* Python 3.13 classifier and support in `pyproject.toml`
+
+#### Changed
+
+* `bump2version` config migrated from `.bumpversion.cfg` to `pyproject.toml`; now also updates `CHANGELOG.md`
+* `pyproject.toml` aligned with scaffold template: dynamic deps via `requirements.txt`/`requirements-dev.txt`, SPDX license string, `[tool.ruff]` config, Documentation URL
+* Split `requirements.txt` into core runtime deps and new `requirements-dev.txt` for dev/test tooling
+
+#### Removed
+
+* `FixedDICOMReader` legacy DICOM reader class. Use `ECGDICOMReader` instead.
+* `FixedReaderNames` constants class (served `FixedDICOMReader` only).
+
 ## v1.0.0a0 - 10-12-2024
 
 ### Fixed
@@ -24,7 +44,7 @@
 
 ### Deprecated
 
-- FixedDICOMReader, will be deprecated in futre. 
+- FixedDICOMReader, will be deprecated in future. 
 
 ### Removed
 
@@ -34,8 +54,8 @@
 
 ### Fixed
 
-- Fixed ECGDICOMTable bug when the metadata is empy. 
-- Bug fix for ECGDICOMReader to handle NoneType ECG measurments.
+- Fixed ECGDICOMTable bug when the metadata is empty. 
+- Bug fix for ECGDICOMReader to handle NoneType ECG measurements.
 
 ### Added
 
