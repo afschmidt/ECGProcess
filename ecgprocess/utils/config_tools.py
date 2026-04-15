@@ -11,6 +11,7 @@ from ecgprocess.errors import (
     is_type,
     Error_MSG,
     NotCalledError,
+    _check_is_file,
 )
 from ecgprocess.utils.general import ManagedProperty
 
@@ -62,7 +63,7 @@ class PrivilegedData(object):
     units (medianbeats)
     '''
     # Defaults, using default_factory and lambda to make sure default do not
-    # presist between instances.
+    # persist between instances.
     # NOTE using a single _ instead of __ to prevent name mangling.
     _data: dict[str, str] = field(default_factory=lambda: {
         CMeta.UID     : None,
@@ -183,7 +184,7 @@ class DataMap(object):
     -----
     The class is intended to work in conjunction with a config file processed
     using `ConfigParser.map(DataMap)`. DataMap ensures any privileged
-    attributes ommited from the config are added and set to None, and prevents
+    attributes omitted from the config are added and set to None, and prevents
     the config file to be altered after processing.
     """
     # setting attributes
@@ -354,13 +355,19 @@ class ConfigParser(object):
         
         Raises
         ------
+        FileNotFoundError
+            If the configuration file does not exist.
+        IsADirectoryError
+            If the configuration path exists but is not a regular file.
         ValueError
-            if a parsed line does not contain a tab delimiter.
+            If a parsed line does not contain a tab delimiter.
         InputValidationError
             If a value-key pair is duplicated within the same section.
         """
         current = None
-        with open(getattr(self, ConfigNames.path), "r", encoding="utf-8") as file:
+        path = getattr(self, ConfigNames.path)
+        _check_is_file(path)
+        with open(path, "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if line.startswith("[") and line.endswith("]"):

@@ -18,7 +18,7 @@ CMeta = Core.MetaData
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class TestBaseExtraction(object):
     """
-    Testing classses related to Extraction.
+    Testing classes related to Extraction.
     """ # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_required_data(self):
         required = config_utils.PrivilegedData()
@@ -195,4 +195,10 @@ class TestBaseExtraction(object):
         assert len(parser2._data) > 0
         assert len(parser2.get_section('WaveForms')) == 12
         assert parser3 == parser2
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_parse_missing_file_raises(self):
+        """ConfigParser.parse() must raise FileNotFoundError for absent config."""
+        missing = "/tmp/ecgprocess_nonexistent_config_abc123.cfg"
+        with pytest.raises(FileNotFoundError):
+            config_utils.ConfigParser(missing)()
 

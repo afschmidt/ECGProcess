@@ -5,7 +5,8 @@ import os
 import inspect
 import warnings
 import pandas as pd
-from packaging import version
+
+from os import PathLike
 from typing import Any, Type, Union
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -25,16 +26,16 @@ def get_param_name(param:Any) -> str | None:
     return param_names[0] if param_names else None
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def is_type(param: Any, types: Union[tuple[Type], Type],
-            param_name: Union[str, None]=None) -> bool:
+def is_type(param: Any, types: tuple[Type] | Type,
+            param_name: str | None=None) -> bool:
     """
     Checks if a given parameter matches any of the supplied types
     
     Parameters
     ----------
-    param: Any
+    param: `Any`
         Object to test.
-    types: Type
+    types: `Type` or `tuple` [`Tuple`]
         Either a single type, or a tuple of types to test against.
     
     Returns
@@ -58,7 +59,7 @@ def is_df(df: Any) -> bool:
     
     Parameters
     ----------
-    df: object
+    df: `Any`
     
     Returns
     -------
@@ -67,8 +68,8 @@ def is_df(df: Any) -> bool:
     return is_type(df, pd.DataFrame)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def is_series_type(column: Union[pd.Series, pd.DataFrame],
-                   types: Union[tuple[Type], Type],
+def is_series_type(column: pd.Series | pd.DataFrame,
+                   types: tuple[Type] | Type,
                    ) -> bool:
     """
     Checks if a pd.DataFrame or pd.Series contest has the supplied type.
@@ -92,9 +93,6 @@ def is_series_type(column: Union[pd.Series, pd.DataFrame],
     if isinstance(column, pd.Series):
         [is_type(col, types) for col in column]
     elif isinstance(column, pd.DataFrame):
-        if version.parse('2.0.3') <= version.parse(pd.__version__):
-            # iteritems got deprecated.
-            column.iteritems = column.items
         for _, col in column.items():
             [is_type(co, types) for co in col]
     # return
@@ -102,7 +100,7 @@ def is_series_type(column: Union[pd.Series, pd.DataFrame],
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def same_len(object1: Any, object2: Any,
-             object_names:Union[list[str], None]=None,
+             object_names:list[str] | None=None,
              ) -> bool:
     """
     Check if two object's have the same length, and otherwise raise
@@ -110,9 +108,9 @@ def same_len(object1: Any, object2: Any,
     
     Arguments
     ---------
-    object1, object2 : Any
+    object1, object2 : `Any`
         Any type of object.
-    objects_names : list of strings
+    objects_names : `list` [`str`]
         The two objects the series our sourced from. Will be returned in any
         potential `IndexError` message.
         
@@ -137,7 +135,7 @@ def same_len(object1: Any, object2: Any,
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def are_columns_in_df(
-    df: pd.DataFrame, expected_columns: Union[list[str], str],
+    df: pd.DataFrame, expected_columns: list[str] | str,
     warning: bool=False
 ) -> bool:
     """
@@ -145,15 +143,17 @@ def are_columns_in_df(
     
     Parameters
     ----------
-    df: pandas.DataFrame
-    expected_columns: either a single column name or a list of column names to test
-    warning : bool, default False
+    df: `pandas.DataFrame`
+        expected_columns: either a single column name or a list of column names
+        to test
+    warning : `bool`, default False
         raises a warning instead of an error.
     
     
     Returns
     -------
-    True if all expected_columns are in the df. Raises InputValidationError otherwise.
+    True if all expected_columns are in the df. Raises InputValidationError
+    otherwise.
     """
     # constant
     message = "The following columns are missing from the pandas.DataFrame: {}"
@@ -178,14 +178,14 @@ def are_columns_in_df(
     return res
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def string_to_list(object:Any) -> Union[Any, list[str]]:
+def string_to_list(object:Any) -> Any | list[str]:
     '''
     Checks if `object` is a string and wraps this in a list, returns the
     original object if it is not a string.
     
     Parameters
     ----------
-    object : Any
+    object : `Any`
         Any object that might be a string.
     
     Returns
@@ -198,13 +198,13 @@ def string_to_list(object:Any) -> Union[Any, list[str]]:
         return object
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def _check_readable(path):
+def _check_readable(path: str | PathLike) -> None:
     """
     Do we have read access. Note this should work on a directory or file.
     
     Parameters
     ----------
-    path: str
+    path: `str` or `PathLike`
         A path to a directory or file.
     """
     if os.access(path, os.R_OK) == False:
@@ -212,14 +212,56 @@ def _check_readable(path):
                               format(path))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def _check_presence(path):
+def _check_presence(path: str | PathLike) -> None:
     """
-    Check if the path exists.
+    Check if a directory path exists.
+    
+    Parameters
+    ----------
+    path : `str` or `PathLike`
+        Path to a directory.
+    
+    Raises
+    ------
+    FileNotFoundError
+        If the path does not exist.
+    NotADirectoryError
+        If the path exists but is not a directory.
     """
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f'The path `{path}` does not exist.'
+        )
     if not os.path.isdir(path):
         raise NotADirectoryError(
-            'The path `{}` does not exist or does not lead to a directory.'.\
-            format(path))
+            f'The path `{path}` exists but is not a directory.'
+        )
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _check_is_file(path: str | PathLike) -> None:
+    """
+    Check if a file path exists.
+    
+    Parameters
+    ----------
+    path : `str` or `PathLike`
+        Path to a file.
+    
+    Raises
+    ------
+    FileNotFoundError
+        If the path does not exist.
+    IsADirectoryError
+        If the path exists but is not a regular file.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f'The file `{path}` does not exist.'
+        )
+    if not os.path.isfile(path):
+        raise IsADirectoryError(
+            f'The path `{path}` exists but is not a regular file.'
+        )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages
