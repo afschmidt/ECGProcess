@@ -42,7 +42,8 @@ ENV PERSISTENT_DEPS="libdeflate0 \
     libcurl4 \
     git \
     sed \
-    make"
+    make \
+    openssh-client"
 
 WORKDIR /data
 
