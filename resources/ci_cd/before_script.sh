@@ -21,7 +21,6 @@ apt-get update && apt-get install -y build-essential \
                 make \
                 pkg-config \
                 git \
-                llvm-11-dev \
                 python3-dev
 
 # start ssh-agent
