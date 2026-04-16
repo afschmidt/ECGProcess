@@ -72,7 +72,7 @@ class TestECGXMLReader(object):
         # run reader
         reader = pro_xml.ECGXMLReader()
         parsed_xml1 = reader(path, schema, verbose=False)
-        # without shema
+        # without schema
         parsed_xml2 = reader(path,  verbose=False)
         # NOTE verbose is directly piped to reader_tools.validate_xml so should
         # be tested there.
@@ -108,3 +108,64 @@ class TestECGXMLReader(object):
         parsed_xml = reader(path=path, schema=schema, verbose=False)
         extract = parsed_xml.extract(config=parsed_confg, parse_numeric=False)
         assert extract.MetaData[n_leads] == '12'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_augment_leads_raises_when_src_missing(self):
+        """KeyError raised when derived leads absent and source leads missing.
+        
+        Augmentation is both needed (III, aVR, aVL, aVF absent from
+        wave_data) and impossible (I or II also absent). get_limb_leads()
+        raises KeyError in this case.
+        
+        Test data: ``example_config`` — WaveForms contains only lead I
+        (``StripData.WaveformData_0``). Lead II is not mapped so its value
+        is None in wave_data, satisfying both aug_missing=True and
+        src_available=False conditions that trigger the KeyError.
+        """
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=example_config)
+            parsed_confg = config_utils.ConfigParser(tmp_file.name)()
+        parsed_confg.map(mapper=config_utils.DataMap())
+        path = list_xml_paths()['example_1']
+        schema = list_xml_paths()['example_1_schema']
+        reader = pro_xml.ECGXMLReader(augment_leads=True, resample_500=False)
+        parsed_xml = reader(path=path, schema=schema, verbose=False)
+        with pytest.raises(KeyError):
+            parsed_xml.extract(config=parsed_confg, skip_empty=True)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_augment_leads_derives_missing_leads(self):
+        """Derived leads are computed when src leads present but aug leads absent.
+        
+        With augment_leads=True, when I and II are mapped and return data but
+        III, aVR, aVL, aVF are not in the config, get_limb_leads() is called
+        and the four derived leads must be present in the result.
+        
+        Test data: WaveForms and MedianBeats each map only I
+        (``WaveformData_0`` / ``MedianSamples.WaveformData_0``) and II
+        (``WaveformData_1`` / ``MedianSamples.WaveformData_1``). III, aVR,
+        aVL, aVF are absent from both sections so aug_missing=True with
+        source leads available, triggering augmentation for both datasets.
+        """
+        aug_config = {
+            "WaveForms": [
+                "I\tStripData.WaveformData_0.#text",
+                "II\tStripData.WaveformData_1.#text",
+            ],
+            "MedianBeats": [
+                "I\tRestingECGMeasurements.MedianSamples.WaveformData_0.#text",
+                "II\tRestingECGMeasurements.MedianSamples.WaveformData_1.#text",
+            ],
+            "MetaData": example_config["MetaData"],
+        }
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=aug_config)
+            parsed_confg = config_utils.ConfigParser(tmp_file.name)()
+        parsed_confg.map(mapper=config_utils.DataMap())
+        path = list_xml_paths()['example_1']
+        schema = list_xml_paths()['example_1_schema']
+        reader = pro_xml.ECGXMLReader(augment_leads=True, resample_500=False)
+        parsed_xml = reader(path=path, schema=schema, verbose=False)
+        extract = parsed_xml.extract(config=parsed_confg, skip_empty=True)
+        for lead in ('III', 'aVR', 'aVL', 'aVF'):
+            assert lead in extract.WaveForms, f"derived lead {lead!r} missing"
+            assert extract.WaveForms[lead] is not None
+

@@ -104,7 +104,7 @@ class ECGXMLReader(BaseReader):
         path : `str`
             The path to the .xml file.
         schema : `str`, default `NoneType`
-            A path to an XML schema which will be used to valudate the XML file
+            A path to an XML schema which will be used to validate the XML file
             against.
         verbose : `bool`, default `False`
             Whether warnings and process info should be printed.
@@ -274,7 +274,7 @@ class ECGXMLReader(BaseReader):
                 # set the new SF
                 meta_data[CProc.SF_NEW] = 500
                 # confirm there is waveform data
-                if len(wave_missing) == 12:
+                if all(v is None for v in wave_data.values()):
                     if not skip_empty:
                         raise AttributeError(
                             Error_MSG.MISSING_SIGNAL.format('waveform'))
@@ -282,7 +282,7 @@ class ECGXMLReader(BaseReader):
                     wave_data = ecg_utils.resampling_500hz(
                         wave_data, duration=meta_data[CProc.Duration])
                 # confirm there is median beats data
-                if len(median_missing) == 12:
+                if all(v is None for v in median_data.values()):
                     if not skip_empty:
                         raise AttributeError(
                             Error_MSG.MISSING_SIGNAL.format('median beat'))
@@ -290,9 +290,15 @@ class ECGXMLReader(BaseReader):
                     median_data = ecg_utils.resampling_500hz(
                         median_data, median=True)
         # ### See if we need to get the augmented leads
-        if getattr(self, PXMLNam.AUG_LEADS) and len(wave_missing) > 0:
-            wave_data = ecg_utils.get_limb_leads(wave_data)
-            median_data = ecg_utils.get_limb_leads(median_data)
+        # leads that can be derived from I and II
+        _aug = {CLeads.III, CLeads.aVR, CLeads.aVL, CLeads.aVF}
+        if getattr(self, PXMLNam.AUG_LEADS):
+            # augment each dataset when any derived lead is absent;
+            # get_limb_leads raises KeyError if source leads I/II are missing
+            if any(wave_data.get(l) is None for l in _aug):
+                wave_data = ecg_utils.get_limb_leads(wave_data)
+            if any(median_data.get(l) is None for l in _aug):
+                median_data = ecg_utils.get_limb_leads(median_data)
         # ### do we print missing tags
         if self.verbose:
             missing_tags = [tag for tag in (
@@ -300,7 +306,7 @@ class ECGXMLReader(BaseReader):
             ) if tag is not None]
             if len(missing_tags)>0:
                 warnings.warn(Warn_MSG.MISSING_TAG.format(missing_tags))
-        # #### assing stuff to attributes
+        # #### assign stuff to attributes
         setattr(self, CTypes.MetaData, meta_data)
         setattr(self, CTypes.OtherData, other_data)
         setattr(self, CTypes.WaveForms, wave_data)
