@@ -15,7 +15,9 @@ function environment making it available to alter the signal data.
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
+import re
 import sys
+import logging
 import numpy as np
 from typing import (
     Callable, Self, Optional, Any, Literal,
@@ -267,3 +269,141 @@ def signal_standardise_res(
         )
     return signals
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class LeadMapper(object):
+    """
+    Normalise ECG lead ordering when a device writes channels out of sequence.
+    
+    Some DICOM devices store channels in a non-standard order (e.g. Lead II
+    data in channel-0 slot). ``LeadMapper`` reads ``signal name X`` entries
+    from ``meta_dict``, builds an actual-label-to-key mapping, then reassigns
+    each canonical key in ``signals`` to the correct array.
+    
+    Parameters
+    ----------
+    accepted_mappings : `dict` [`str`, `list` [`str`]]
+        Maps each canonical lead key (e.g. ``'I'``) to a list of device
+        label strings that are acceptable for that lead
+        (e.g. ``['I', 'Lead I', 'Lead I (Einthoven)']``).
+    
+    Attributes
+    ----------
+    accepted_mappings : `dict` [`str`, `list` [`str`]]
+        The accepted lead label mappings supplied at initialisation.
+    
+    Methods
+    -------
+    __call__(signals, verbose, **kwargs)
+        Reassign signal arrays to their canonical lead keys.
+    
+    Raises
+    ------
+    TypeError
+        If ``accepted_mappings`` is not a ``dict``, or if any value is
+        not a ``list``.
+    
+    Notes
+    -----
+    The callable works for both ``engineer_wave`` and ``engineer_median``
+    call sites in ``tabular.py`` since both share the same signature
+    ``(signals, meta_dict=meta_temp)``.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __init__(self, accepted_mappings: dict[str, list[str]]) -> None:
+        """Initialise LeadMapper."""
+        is_type(accepted_mappings, dict)
+        for key, val in accepted_mappings.items():
+            if not isinstance(val, list):
+                raise TypeError(
+                    f"accepted_mappings values must be lists; "
+                    f"key '{key}' has type {type(val)}"
+                )
+        self.accepted_mappings = accepted_mappings
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __call__(
+        self,
+        signals: dict[str, np.ndarray],
+        verbose: bool = False,
+        **kwargs,
+    ) -> dict[str, np.ndarray]:
+        """
+        Reassign signal arrays to their canonical lead keys.
+        
+        Parameters
+        ----------
+        signals : `dict` [`str`, `np.ndarray`]
+            Dict mapping canonical key names to waveform arrays, as parsed
+            by the config parser (keys correct, values potentially in wrong
+            channel order).
+        verbose : `bool`, default `False`
+            If ``True``, log accepted and actual mappings at DEBUG level.
+        **kwargs
+            Must include ``meta_dict`` (keyed by ``TabNames.META_DICT``),
+            a dict containing ``'signal name N'`` entries that map channel
+            indices to device lead labels.
+        
+        Returns
+        -------
+        mapped_signals : `dict` [`str`, `np.ndarray`]
+            Shallow copy of ``signals`` with arrays reassigned to the correct
+            canonical keys.
+        
+        Raises
+        ------
+        KeyError
+            If ``TabNames.META_DICT`` is absent from ``kwargs``, or if no
+            device label matches a required canonical key.
+        """
+        # check input
+        is_type(signals, dict)
+        is_type(verbose, bool)
+        # set up logger
+        _log = logging.getLogger(__name__)
+        if TabNames.META_DICT not in kwargs:
+            raise KeyError(
+                f"`{TabNames.META_DICT}` should be included as kwargs"
+            )
+        # map data
+        meta_dict = kwargs[TabNames.META_DICT]
+        mapped_signals = dict(signals)
+        signal_keys = list(mapped_signals.keys())
+         # Map each canonical slot key to the device label the device wrote
+         # there; e.g. {'I': 'Lead II'} means channel 0 holds 'Lead II' data.
+        actual_mappings = {
+            signal_keys[int(re.sub(r"^signal name\s*", "", k))]: v
+            for k, v in meta_dict.items()
+            if k.startswith('signal name')
+        }
+        if verbose:
+            _log.debug('Accepted lead mappings: %s', self.accepted_mappings)
+            _log.debug('Actual lead mappings: %s', actual_mappings)
+        # Now apply the mappings
+        for accepted_key, accepted_vals in self.accepted_mappings.items():
+            match = False
+            for actual_key, actual_val in actual_mappings.items():
+                if actual_val in accepted_vals:
+                    if verbose:
+                        _log.debug(
+                            "Mapping '%s' (%s) <- actual '%s' (%s)",
+                            accepted_key, accepted_vals, actual_key, actual_val,
+                        )
+                    mapped_signals[accepted_key] = signals[actual_key]
+                    match = True
+                    break
+            if not match:
+                raise KeyError(
+                    f"No device label found for canonical key '{accepted_key}' "
+                    f"(accepted: {accepted_vals})"
+                )
+        return mapped_signals
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __repr__(self) -> str:
+        """Return unambiguous string representation."""
+        CLASS_NAME = type(self).__name__
+        return f"{CLASS_NAME}(accepted_mappings={self.accepted_mappings!r})"
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __str__(self) -> str:
+        """Return human-readable string representation."""
+        CLASS_NAME = type(self).__name__
+        leads = list(self.accepted_mappings.keys())
+        return f"{CLASS_NAME} with {len(leads)} canonical leads: {leads}"

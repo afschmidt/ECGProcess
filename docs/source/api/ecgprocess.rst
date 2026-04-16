@@ -43,3 +43,8 @@ utils.ecg_tools
 .. automodule:: ecgprocess.utils.ecg_tools
    :members:
 
+utils.engineering_tools
+-----------------------
+.. automodule:: ecgprocess.utils.engineering_tools
+   :members:
+

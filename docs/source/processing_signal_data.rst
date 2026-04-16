@@ -33,8 +33,11 @@ To process ECG data ECGprocess leverages three key components
   class included engineering parameters which take callable/function 
   objects which are applied to the reader class data attributes. 
   This can be used to perform additional data cleaning such as 
-  signal calibration, low/high-pass filtering, or informal 
-  file validation based on version/manufacturer tags. 
+  signal calibration, low/high-pass filtering, or informal
+  file validation based on version/manufacturer tags. The built-in
+  ``LeadMapper`` callable (``ecgprocess.utils.engineering_tools``) handles
+  lead-order normalisation for devices that write channels in a non-standard
+  sequence.
 
 Please consult the following section on setting up a configuration file, 
 as well as the example Jupyter notebooks. 

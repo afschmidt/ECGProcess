@@ -86,6 +86,79 @@ class TestSignalStandardiseRes(object):
             )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestLeadMapper(object):
+    """Test LeadMapper callable for lead-order normalisation."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _make_signals(self) -> dict:
+        """Return a three-lead signals dict with distinct arrays."""
+        return {
+            'I':   np.array([1.0], dtype=np.float64),
+            'II':  np.array([2.0], dtype=np.float64),
+            'III': np.array([3.0], dtype=np.float64),
+        }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _make_meta(self, order: list[str] | None = None) -> dict:
+        """Return a meta_dict with 'signal name N' keys.
+
+        Defaults to ['Lead II', 'Lead I', 'Lead III'] — non-standard device
+        ordering that the mapper must correct.
+        """
+        if order is None:
+            order = ['Lead II', 'Lead I', 'Lead III']
+        return {f'signal name {i}': label for i, label in enumerate(order)}
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _make_accepted_mappings(self) -> dict:
+        """Return accepted_mappings for three leads."""
+        return {
+            'I':   ['I', 'Lead I', 'Lead I (Einthoven)'],
+            'II':  ['II', 'Lead II'],
+            'III': ['III', 'Lead III'],
+        }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_happy_path_reorders_signals(self):
+        """LeadMapper reassigns arrays to canonical keys.
+
+        Device order [Lead II, Lead I, Lead III] means:
+        canonical 'I' <- channel 1 (2.0), 'II' <- channel 0 (1.0).
+        """
+        signals = self._make_signals()
+        mapper = eng_tools.LeadMapper(self._make_accepted_mappings())
+        result = mapper(signals, **{TabNames.META_DICT: self._make_meta()})
+        np.testing.assert_array_equal(result['I'],   np.array([2.0]))
+        np.testing.assert_array_equal(result['II'],  np.array([1.0]))
+        np.testing.assert_array_equal(result['III'], np.array([3.0]))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_does_not_mutate_input(self):
+        """Input signals dict must be unchanged after the call."""
+        signals = self._make_signals()
+        original_ids = {k: id(v) for k, v in signals.items()}
+        mapper = eng_tools.LeadMapper(self._make_accepted_mappings())
+        mapper(signals, **{TabNames.META_DICT: self._make_meta()})
+        for k, orig_id in original_ids.items():
+            assert id(signals[k]) == orig_id
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_missing_meta_dict_raises_key_error(self):
+        """KeyError raised when meta_dict kwarg is absent."""
+        mapper = eng_tools.LeadMapper(self._make_accepted_mappings())
+        with pytest.raises(KeyError):
+            mapper(self._make_signals())
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_unmapped_lead_raises_key_error(self):
+        """KeyError raised when a required lead has no match in meta_dict."""
+        bad_meta = {'signal name 0': 'Lead X', 'signal name 1': 'Lead Y',
+                    'signal name 2': 'Lead Z'}
+        mapper = eng_tools.LeadMapper(self._make_accepted_mappings())
+        with pytest.raises(KeyError):
+            mapper(self._make_signals(), **{TabNames.META_DICT: bad_meta})
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_init_invalid_accepted_mappings_raises_type_error(self):
+        """TypeError raised when accepted_mappings is not a dict of lists."""
+        with pytest.raises(TypeError):
+            eng_tools.LeadMapper(['I', 'II'])
+        with pytest.raises(TypeError):
+            eng_tools.LeadMapper({'I': 'Lead I'})
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestMetadataCheckversion(object):
     """Test metadata_checkversion"""
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
