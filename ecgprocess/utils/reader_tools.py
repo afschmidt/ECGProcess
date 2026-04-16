@@ -15,7 +15,7 @@ import numpy as np
 from lxml import etree
 from pathlib import Path
 from typing import (
-    Optional, Self, Any, Literal, Type,
+    Optional, Any,
 )
 from ecgprocess.utils.general import(
     parse_number,
@@ -27,7 +27,6 @@ from ecgprocess.constants import (
 from ecgprocess.errors import (
     is_type,
     MissingTagError,
-    Error_MSG,
 )
 from ecgprocess.constants import UtilsGeneralNames as UGNames
 from ecgprocess.errors import XMLValidationError
@@ -345,11 +344,13 @@ def get_ecg_data(data_dict:dict[str, Any],
                                    if k.startswith(prefix)) or None
                 if combi is None:
                     results_missing.append(s)
+                    # setting these to none to ensure key consistency
+                    results_dict[t] = None
                     if skip_empty == False:
                         # Should an Error be returned
                         raise MissingTagError(s)
-                # otherwise just add to results
-                results_dict[t] = combi
+                else:
+                    results_dict[t] = combi
         if HIT == False:
             if s in data_dict:
             # if s in data_dict:
@@ -407,7 +408,7 @@ def subset_dict(data:dict[str, Any], pattern:dict[str, str],
         This substitution is applied to the remaining portion of the `data` key
         after removing the matching prefix.
     character_trim : int, default `0`
-        The number of charecters which should be removed from the right-hand
+        The number of characters which should be removed from the right-hand
         side of the `data` key which did not match the `pattern` key.
     verbose : `bool`, default `True`
         Whether warnings should be issued.

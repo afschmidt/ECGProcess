@@ -335,6 +335,19 @@ class TestGetECGData(object):
         assert res[K] == '[DELIM]'.join(str(v) for v in data_dict.values())
         assert res['output0'] is None
         assert res['output2'] is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_startswith_miss_key_present(self):
+        """
+        Key must exist in results_dict with None value when STARTSWITH misses.
+        """
+        K = 'output1'
+        data_dict = {"signal1": [1, 2, 3]}
+        config = {K: "[STARTSWITH]missing_prefix"}
+        res, missing = reader_utils.get_ecg_data(
+            data_dict, config, skip_empty=True)
+        assert K in res
+        assert res[K] is None
+        assert config[K] in missing
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # subset_dict
