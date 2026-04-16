@@ -2,6 +2,25 @@
 
 ### [Unreleased]
 
+#### Added
+
+* Tests for `signal_calibration` and `signal_resolution` in `test_ecg_tools.py`
+* Tests for `metadata_checkversion` in `test_engineering_tools.py`
+* Tests for augment-leads behaviour (`KeyError` on missing source leads; correct derivation of III, aVR, aVL, aVF) in `test_process_xml.py`
+* Tests for `get_limb_leads` None-value source lead and `signal_dicts_to_numpy_array` in `test_ecg_tools.py`
+* Test for `get_ecg_data` STARTSWITH miss key presence in `test_reader_tools.py`
+
+#### Fixed
+
+* `get_ecg_data`: STARTSWITH miss now always writes `None` to `results_dict` before the `skip_empty` guard
+* `get_limb_leads`: keys present with `None` values are now treated as absent; error message names the specific missing source leads
+* `signal_correction` and `signal_standardise_res`: operate on a local dict copy to prevent caller mutation
+* `process_xml`: empty-waveform detection replaced `len(wave_missing)==12` with `all(v is None)`; augment-leads guard now checks per derived lead rather than any missing lead
+
+#### Changed
+
+* `signal_dicts_to_numpy_array`: `_STANDARD_LEADS` extracted as an immutable module-level constant; `leads` parameter now accepts `list` or `tuple`
+
 ### [1.0.0] - 2026-04-15
 
 #### Added
