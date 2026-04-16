@@ -2,6 +2,8 @@
 
 ### [Unreleased]
 
+### [1.0.1] - 2026-04-16
+
 #### Added
 
 * Tests for `signal_calibration` and `signal_resolution` in `test_ecg_tools.py`

@@ -1,7 +1,7 @@
 ![Schematic](https://ecgprocess-schmidtaf-f9abe0f74d20c469a1e6cca62c7f636ef6bf6b9ffe.gitlab.io/_static/ECGProcessSchematic.png)
 
 # An ECG processing module
-__version__: `1.0.0`
+__version__: `1.0.1`
 
 
 This repository host a mixture of function dealing with processing 
