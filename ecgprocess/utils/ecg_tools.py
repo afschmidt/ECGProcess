@@ -235,7 +235,6 @@ default ``_STANDARD_LEADS``
     return data_array
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# TODO add pytest
 def signal_calibration(signal:np.ndarray,
                        correctionfactor: float,
                        baseline: float,

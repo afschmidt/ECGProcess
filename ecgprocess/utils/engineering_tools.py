@@ -13,9 +13,6 @@ Tabular to pass meta_dict (the metadata of the file being processed) to the
 function environment making it available to alter the signal data.
 """
 
-#NOTE
-# write pytests.
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import sys
@@ -175,6 +172,7 @@ def signal_correction(
         raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
     else:
         meta_dict = kwargs[TabNames.META_DICT]
+    signals = dict(signals)
     for i, (k, v) in enumerate(signals.items()):
         # skip of None
         if v is None:
@@ -245,6 +243,7 @@ def signal_standardise_res(
         raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
     else:
         meta_dict = kwargs[TabNames.META_DICT]
+    signals = dict(signals)
     for i, (k, v) in enumerate(signals.items()):
         # skip of None
         if v is None:
