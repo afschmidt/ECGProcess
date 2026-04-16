@@ -16,6 +16,9 @@ import warnings
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # constants
 CLeads = Core.Leads
+_STANDARD_LEADS: tuple[str, ...] = (
+    'I', 'II', 'III', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'aVF', 'aVL', 'aVR'
+)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def resampling_500hz(signals:dict[str, np.array],
@@ -91,33 +94,33 @@ def get_limb_leads(signals:dict[str, np.array],
     is_type(signals, dict)
     is_type(lead_I, str)
     is_type(lead_II, str)
-    if not {lead_I, lead_II}.issubset(signals):
-        raise KeyError('leads I and/or II are not available in `signals`: '
-                       f'{signals.keys()}')
+    missing_src = [l for l in (lead_I, lead_II) if signals.get(l) is None]
+    if missing_src:
+        raise KeyError(
+            f'Source leads {missing_src} are not available in `signals`.'
+        )
     # making sure we do not affect the original parsed signals
     signals = dict(signals)
     # #### get limb leads
-    if not CLeads.III in signals:
+    if signals.get(CLeads.III) is None:
         signals[CLeads.III] = np.subtract(signals[CLeads.II],
                                               signals[CLeads.I])
-    if not CLeads.aVR in signals:
+    if signals.get(CLeads.aVR) is None:
         signals[CLeads.aVR] = np.add(signals[CLeads.I],
                                         signals[CLeads.II]) * (-0.5)
-    if not CLeads.aVL in signals:
+    if signals.get(CLeads.aVL) is None:
         signals[CLeads.aVL] = np.subtract(signals[CLeads.I],
                                    0.5 * signals[CLeads.II])
-    if not CLeads.aVF in signals:
+    if signals.get(CLeads.aVF) is None:
         signals[CLeads.aVF] = np.subtract(signals[CLeads.II],
                                    0.5 * signals[CLeads.I])
     # return
     return signals
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# TODO write pytest
 def signal_dicts_to_numpy_array(
     signals: list[dict[str, np.ndarray]],
-    leads: list[str] | None = ['I', 'II', 'III', 'V1', 'V2', 'V3', 'V4',
-                               'V5', 'V6', 'aVF', 'aVL', 'aVR'],
+    leads: list[str] | tuple[str, ...] | None = _STANDARD_LEADS,
     padding: bool = True,
 ) -> np.ndarray:
     """
@@ -129,9 +132,12 @@ def signal_dicts_to_numpy_array(
     signals : `list` [`dict` [`str`, `np.ndarray`]]
         List where each dictionary represents an ECG sample with lead names
         as keys and numpy arrays as values.
-    leads : `list` [`str`] or `None`
-        List of lead names to include and their order. If `None`, all unique
-        leads across samples are used in sorted order.
+    leads : `list` [`str`] or `tuple` [`str`, ...] or `None`, \
+default ``_STANDARD_LEADS``
+        Lead names to include and their order. Defaults to the standard
+        12-lead set defined in ``_STANDARD_LEADS`` (an immutable tuple).
+        Pass `None` to collect all unique leads found across samples in
+        sorted order.
     padding : `bool`, default `True`
         Whether to pad shorter signals to the length of the longest signal.
         If `False`, all signals must have the same length. Default is `True`.
@@ -160,16 +166,17 @@ def signal_dicts_to_numpy_array(
     # Determine the list of leads
     if leads is None:
         # Collect all unique leads across samples
-        unique_leads = set()
+        unique_leads: set[str] = set()
         for sample in signals:
             unique_leads.update(sample.keys())
         leads = sorted(unique_leads)
     else:
-        # Ensure leads is a list of strings
-        if not isinstance(leads, list) or not all(
+        # Ensure leads is a sequence of strings
+        if not isinstance(leads, (list, tuple)) or not all(
             isinstance(lead, str) for lead in leads
         ):
-            raise TypeError("`leads` must be a list of strings.")
+            raise TypeError("`leads` must be a list or tuple of strings.")
+        leads = list(leads)
     # set the samples and lead numbers
     num_samples = len(signals)
     num_leads = len(leads)

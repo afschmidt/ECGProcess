@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from ecgprocess.utils import ecg_tools as ecg_utils
+from ecgprocess.errors import InputValidationError
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest
@@ -52,6 +53,18 @@ class TestLimbLeads(object):
         with pytest.raises(KeyError):
             ecg_utils.get_limb_leads(signals)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_none_value_src_lead_raises(self):
+        """
+        KeyError raised when a source lead key exists but its value is None.
+        
+        Test data: lead I has a valid array; lead II key is present but its
+        value is None (simulating a lead that was in the config but absent
+        from the XML). Both key-absent and None-value cases must raise.
+        """
+        signals = {"I": np.array([1.0, 2.0, 3.0]), "II": None}
+        with pytest.raises(KeyError):
+            ecg_utils.get_limb_leads(signals)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_existing_limb_leads(self):
         signals = {
             "I": np.array([1.0, 2.0, 3.0]),
@@ -62,3 +75,100 @@ class TestLimbLeads(object):
         assert np.array_equal(result["III"], np.array([3.0, 3.0, 3.0]))
         np.testing.assert_array_almost_equal(result["aVR"],
                                              np.array([-2.5, -3.5, -4.5]))
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestSignalDictsToNumpyArray(object):
+    """Test signal_dicts_to_numpy_array"""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _make_sample(self, length: int = 10) -> dict:
+        """Return a single-sample dict with the standard 12 leads."""
+        leads = ['I', 'II', 'III', 'V1', 'V2', 'V3',
+                 'V4', 'V5', 'V6', 'aVF', 'aVL', 'aVR']
+        return {l: np.ones(length, dtype=np.float32) * i
+                for i, l in enumerate(leads)}
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_default_leads_uses_standard_12(self):
+        """Default leads (_STANDARD_LEADS tuple) must produce shape (1, 12, N)."""
+        result = ecg_utils.signal_dicts_to_numpy_array([self._make_sample()])
+        assert result.shape == (1, 12, 10)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_none_collects_all_unique_leads(self):
+        """
+        leads=None must gather all unique lead names from the samples.
+        
+        Test data: single sample with two custom leads 'A' and 'B', each of
+        length 5. Expected output shape: (1, 2, 5).
+        """
+        sample = {'A': np.ones(5), 'B': np.ones(5)}
+        result = ecg_utils.signal_dicts_to_numpy_array([sample], leads=None)
+        assert result.shape == (1, 2, 5)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_explicit_leads(self):
+        """Explicit lead list controls column count and order."""
+        result = ecg_utils.signal_dicts_to_numpy_array(
+            [self._make_sample()], leads=['I', 'II'])
+        assert result.shape == (1, 2, 10)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_empty_signals_raises(self):
+        with pytest.raises(ValueError):
+            ecg_utils.signal_dicts_to_numpy_array([])
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestSignalCalibration(object):
+    """Test signal_calibration"""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_correct_output(self):
+        """
+        Output equals (signal - baseline) * correctionfactor.
+        
+        Test data: signal=[0,1,2], baseline=1.0, correctionfactor=2.0.
+        Expected: [-2.0, 0.0, 2.0].
+        """
+        signal = np.array([0.0, 1.0, 2.0])
+        result = ecg_utils.signal_calibration(
+            signal, correctionfactor=2.0, baseline=1.0)
+        np.testing.assert_array_almost_equal(result, [-2.0, 0.0, 2.0])
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_invalid_type(self):
+        """InputValidationError raised when correctionfactor is not a float."""
+        signal = np.array([1.0, 2.0, 3.0])
+        with pytest.raises(InputValidationError):
+            ecg_utils.signal_calibration(signal, correctionfactor=2, baseline=0.0)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_no_mutation(self):
+        """signal_calibration must not modify the caller's array in-place."""
+        signal = np.array([1.0, 2.0, 3.0])
+        original_id = id(signal)
+        ecg_utils.signal_calibration(signal, correctionfactor=1.0, baseline=0.0)
+        assert id(signal) == original_id
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestSignalResolution(object):
+    """Test signal_resolution"""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_correct_output(self):
+        """
+        Output matches the docstring example.
+        
+        Test data: signal=[10,20,30], current=2.0, target=5.0.
+        Expected: [25.0, 50.0, 75.0].
+        """
+        signal = np.array([10.0, 20.0, 30.0])
+        result = ecg_utils.signal_resolution(
+            signal, resolution_current=2.0, resolution_target=5.0)
+        np.testing.assert_array_almost_equal(result, [25.0, 50.0, 75.0])
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_invalid_type(self):
+        """InputValidationError raised when resolution_current is not a float."""
+        signal = np.array([1.0, 2.0, 3.0])
+        with pytest.raises(InputValidationError):
+            ecg_utils.signal_resolution(
+                signal, resolution_current=2, resolution_target=5.0)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_no_mutation(self):
+        """signal_resolution must not modify the caller's array in-place."""
+        signal = np.array([1.0, 2.0, 3.0])
+        original_id = id(signal)
+        ecg_utils.signal_resolution(
+            signal, resolution_current=1.0, resolution_target=1.0)
+        assert id(signal) == original_id
