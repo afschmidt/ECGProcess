@@ -16,7 +16,6 @@ function environment making it available to alter the signal data.
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import re
-import sys
 import logging
 import numpy as np
 from typing import (
@@ -24,6 +23,7 @@ from typing import (
 )
 from ecgprocess.errors import (
     FileValidationError,
+    InputValidationError,
     is_type,
 )
 from ecgprocess.utils.ecg_tools import(
@@ -36,6 +36,7 @@ from ecgprocess.constants import (
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+_log = logging.getLogger(__name__)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def metadata_checkversion(
@@ -46,7 +47,7 @@ def metadata_checkversion(
     version_name:str = "Softwave version",
     manufacturer_name:str = "Manufacturer",
     model_name = "Model name",
-    verbose:bool=False, **kwargs,
+    **kwargs,
 ) -> dict[str, Any]:
     """
     Validates the DICOM file against the specified software version,
@@ -92,13 +93,6 @@ def metadata_checkversion(
     is_type(manufacturer_name, str)
     is_type(version_name, str)
     is_type(model_name, str)
-    # TODO
-    # add a test to confirm these keys are in meta_dict and raise a KeyError
-    # otherwise.
-    # NOTE
-    # just keeping this so kwargs are used and the linter does not complain.
-    if verbose:
-        print(**kwargs, file=sys.stdout)
     # constant
     version = version_name
     manufact = manufacturer_name
@@ -124,7 +118,6 @@ def metadata_checkversion(
 def signal_correction(
     signals:dict[str, np.ndarray], baseline_name:str='wave_channel_baseline_',
     correctionfactor_name:str='wave_channel_correctionfactor_',
-    verbose:bool=False,
     **kwargs) -> dict[str, np.ndarray]:
     """
     Adjusts the signals by subtracting the channel baseline multiplied
@@ -141,9 +134,6 @@ def signal_correction(
     correctionfactor_name : str
         The dictionary key name for the channel correctionfactor. Will
         internally add a numeric suffix ranging from 0 to 11 (inclusive).
-    verbose : `bool`, default False
-        If True, prints additional debug information about the correction
-        process.
     **kwargs
         Additional keyword arguments, which must include a dictionary under
         the key `TabNames.META_DICT`. This dictionary should contain:
@@ -169,7 +159,6 @@ def signal_correction(
     # add a check/raise error for the presence or absence of these keys in
     # meta_dict.
     # the algorithm
-    is_type(verbose, bool)
     if not TabNames.META_DICT in kwargs:
         raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
     else:
@@ -182,11 +171,10 @@ def signal_correction(
             continue
         # confirming this is a np.array
         is_type(v, np.ndarray)
-        if verbose:
-            print(f'Applying baseline: {meta_dict[base+str(i)]} and factor: '
-                  f'{meta_dict[corr+str(i)]} corrections to lead: {k}.',
-                  file=sys.stdout
-                  )
+        _log.debug(
+            'Applying baseline: %s and factor: %s corrections to lead: %s.',
+            meta_dict[base+str(i)], meta_dict[corr+str(i)], k,
+        )
         signals[k] = signal_calibration(
             v, correctionfactor=meta_dict[corr+str(i)],
             baseline=meta_dict[base+str(i)],
@@ -196,7 +184,7 @@ def signal_correction(
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def signal_standardise_res(
     signals:dict[str, np.ndarray], resolution_name:str = 'wave_channel_sens_',
-    target_resolution:float = 5., verbose:bool=False, **kwargs,
+    target_resolution:float = 5., **kwargs,
 ) -> dict[str, np.ndarray]:
     """
     Standardise the resolution signal by adjusting the amplitude scale by the
@@ -211,9 +199,6 @@ def signal_standardise_res(
         internally add a numeric suffix ranging from 0 to 11 (inclusive).
     target_resolution : `float`, default 5
         The target resolution.
-    verbose : `bool`, default False
-        If True, prints additional debug information about the correction
-        process.
     **kwargs
         Additional keyword arguments, which must include a dictionary under
         the key `TabNames.META_DICT`. This dictionary should contain:
@@ -240,7 +225,6 @@ def signal_standardise_res(
     # constants - these values should be in meta_dict
     sens = resolution_name
     # the algorithm
-    is_type(verbose, bool)
     if not TabNames.META_DICT in kwargs:
         raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
     else:
@@ -257,12 +241,11 @@ def signal_standardise_res(
         key_name = sens+str(i)
         if not key_name in meta_dict:
             raise KeyError(f"`{key_name}` not found in `{TabNames.META_DICT}`.")
-        if verbose:
-            if target_resolution/meta_dict[key_name] != 1.0:
-                print(f'Rescaling lead `{k}` by factor '
-                      f'`{target_resolution/meta_dict[key_name]}`.',
-                      file=sys.stdout
-                      )
+        if target_resolution/meta_dict[key_name] != 1.0:
+            _log.debug(
+                'Rescaling lead `%s` by factor `%s`.',
+                k, target_resolution/meta_dict[key_name],
+            )
         signals[k] = signal_resolution(
             v, resolution_current=meta_dict[key_name],
             resolution_target=target_resolution,
@@ -293,12 +276,12 @@ class LeadMapper(object):
     
     Methods
     -------
-    __call__(signals, verbose, **kwargs)
+    __call__(signals, **kwargs)
         Reassign signal arrays to their canonical lead keys.
     
     Raises
     ------
-    TypeError
+    InputValidationError
         If ``accepted_mappings`` is not a ``dict``, or if any value is
         not a ``list``.
     
@@ -314,7 +297,7 @@ class LeadMapper(object):
         is_type(accepted_mappings, dict)
         for key, val in accepted_mappings.items():
             if not isinstance(val, list):
-                raise TypeError(
+                raise InputValidationError(
                     f"accepted_mappings values must be lists; "
                     f"key '{key}' has type {type(val)}"
                 )
@@ -323,7 +306,6 @@ class LeadMapper(object):
     def __call__(
         self,
         signals: dict[str, np.ndarray],
-        verbose: bool = False,
         **kwargs,
     ) -> dict[str, np.ndarray]:
         """
@@ -335,8 +317,6 @@ class LeadMapper(object):
             Dict mapping canonical key names to waveform arrays, as parsed
             by the config parser (keys correct, values potentially in wrong
             channel order).
-        verbose : `bool`, default `False`
-            If ``True``, log accepted and actual mappings at DEBUG level.
         **kwargs
             Must include ``meta_dict`` (keyed by ``TabNames.META_DICT``),
             a dict containing ``'signal name N'`` entries that map channel
@@ -356,9 +336,6 @@ class LeadMapper(object):
         """
         # check input
         is_type(signals, dict)
-        is_type(verbose, bool)
-        # set up logger
-        _log = logging.getLogger(__name__)
         if TabNames.META_DICT not in kwargs:
             raise KeyError(
                 f"`{TabNames.META_DICT}` should be included as kwargs"
@@ -374,19 +351,17 @@ class LeadMapper(object):
             for k, v in meta_dict.items()
             if k.startswith('signal name')
         }
-        if verbose:
-            _log.debug('Accepted lead mappings: %s', self.accepted_mappings)
-            _log.debug('Actual lead mappings: %s', actual_mappings)
+        _log.debug('Accepted lead mappings: %s', self.accepted_mappings)
+        _log.debug('Actual lead mappings: %s', actual_mappings)
         # Now apply the mappings
         for accepted_key, accepted_vals in self.accepted_mappings.items():
             match = False
             for actual_key, actual_val in actual_mappings.items():
                 if actual_val in accepted_vals:
-                    if verbose:
-                        _log.debug(
-                            "Mapping '%s' (%s) <- actual '%s' (%s)",
-                            accepted_key, accepted_vals, actual_key, actual_val,
-                        )
+                    _log.debug(
+                        "Mapping '%s' (%s) <- actual '%s' (%s)",
+                        accepted_key, accepted_vals, actual_key, actual_val,
+                    )
                     mapped_signals[accepted_key] = signals[actual_key]
                     match = True
                     break
@@ -407,3 +382,4 @@ class LeadMapper(object):
         CLASS_NAME = type(self).__name__
         leads = list(self.accepted_mappings.keys())
         return f"{CLASS_NAME} with {len(leads)} canonical leads: {leads}"
+

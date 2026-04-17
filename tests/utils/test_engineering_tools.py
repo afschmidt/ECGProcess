@@ -1,8 +1,9 @@
+import logging
 import pytest
 import numpy as np
 from ecgprocess.utils import engineering_tools as eng_tools
 from ecgprocess.constants import TabularNames as TabNames
-from ecgprocess.errors import FileValidationError
+from ecgprocess.errors import FileValidationError, InputValidationError
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest
@@ -151,12 +152,30 @@ class TestLeadMapper(object):
         with pytest.raises(KeyError):
             mapper(self._make_signals(), **{TabNames.META_DICT: bad_meta})
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_init_invalid_accepted_mappings_raises_type_error(self):
-        """TypeError raised when accepted_mappings is not a dict of lists."""
-        with pytest.raises(TypeError):
+    def test_init_invalid_accepted_mappings_raises_input_validation_error(self):
+        """InputValidationError raised when accepted_mappings is not a dict of lists."""
+        with pytest.raises(InputValidationError):
             eng_tools.LeadMapper(['I', 'II'])
-        with pytest.raises(TypeError):
+        with pytest.raises(InputValidationError):
             eng_tools.LeadMapper({'I': 'Lead I'})
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_debug_logging_emitted(self, caplog):
+        """LeadMapper emits DEBUG records for mappings and each lead.
+        
+        Test data: three-lead non-standard order. With the logger set to DEBUG
+        we expect the 'Accepted lead mappings', 'Actual lead mappings', and
+        per-lead mapping records to appear.
+        """
+        mapper = eng_tools.LeadMapper(self._make_accepted_mappings())
+        with caplog.at_level(
+            logging.DEBUG,
+            logger='ecgprocess.utils.engineering_tools',
+        ):
+            mapper(self._make_signals(), **{TabNames.META_DICT: self._make_meta()})
+        messages = [r.message for r in caplog.records]
+        assert any('Accepted lead mappings' in m for m in messages)
+        assert any('Actual lead mappings' in m for m in messages)
+        assert any("Mapping 'I'" in m for m in messages)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestMetadataCheckversion(object):
@@ -201,3 +220,16 @@ class TestMetadataCheckversion(object):
         meta['Manufacturer'] = 'unknown_manufacturer'
         with pytest.raises(FileValidationError):
             eng_tools.metadata_checkversion(meta)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_missing_required_key_raises_key_error(self):
+        """KeyError raised when any required metadata key is absent.
+        
+        Test data: each required key ('Softwave version', 'Manufacturer',
+        'Model name') is removed in turn from an otherwise valid dict.
+        """
+        for key in ('Softwave version', 'Manufacturer', 'Model name'):
+            meta = self._make_meta()
+            del meta[key]
+            with pytest.raises(KeyError):
+                eng_tools.metadata_checkversion(meta)
+
