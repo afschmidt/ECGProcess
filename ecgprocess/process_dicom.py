@@ -35,7 +35,6 @@ from ecgprocess.utils.general import(
 from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
     CoreData as Core,
-    DICOMTags,
 )
 from ecgprocess.utils.reader_tools import(
     BaseReader,

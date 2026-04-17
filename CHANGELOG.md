@@ -2,6 +2,23 @@
 
 ### [Unreleased]
 
+#### Added
+
+* Add `PlotNames` constants class to `constants.py` (MILLIVOLT, MICROVOLT, LEAD_VOLTAGES, START_POS_FIRST)
+* Add `LeadMapper` callable to `engineering_tools` for lead-order normalisation
+* Add `engineering_tools` example notebook covering `metadata_checkversion`, `signal_correction`, `signal_standardise_res`, and `LeadMapper`
+* Tests for missing required keys and debug logging in `test_engineering_tools.py`
+
+#### Removed
+
+* Remove unused `DICOMTags` dataclass from `constants.py` (orphaned after `FixedDICOMReader` removal)
+
+#### Changed
+
+* Rewrite `plot_ecgs.py`: replace broken `TabularNames` imports with `PlotNames`; stub `ECGDrawing` methods pending Stages 3–5 implementation
+* Replace `verbose` flag and `print()` calls with `_log.debug()` in `signal_correction`, `signal_standardise_res`, `metadata_checkversion`, and `LeadMapper`; module-level logger replaces per-call `getLogger`
+* `LeadMapper.__init__` now raises `InputValidationError` (via `is_type`) consistently instead of `TypeError` for invalid value types
+
 ### [1.0.1] - 2026-04-16
 
 #### Added

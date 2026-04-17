@@ -23,7 +23,7 @@ class CoreData:
     # /////////////////////////////////////////////////////////////////////////
     class Leads:
         '''
-        The interally used lead names.
+        The internally used lead names.
         '''
         I   = 'I'
         II  = 'II'
@@ -139,96 +139,11 @@ class TabularNames(object):
     FILENAM        = 'filename'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-@dataclass
-class DICOMTags(object):
+class PlotNames:
     '''
-    The DICOM tags ECGDICOMReader will look for.
-    
-    This simply is a collection of dictionary with the keys representing the
-    `target` (new) name and the values the `source` (old) names.
-    
-    Attributes
-    ----------
-    METADATA
-        A dictionary describing the metadata one wants to extract from a
-        DICOM.
-    WAVE_FORMS
-        A dictionary describing the waveform data one wants to extract.
-    ECG_INTERPERTATION_DICT
-    A dictionary describing the ECG traits one wants to extract from the
-        `WaveformAnnotationSequence` pydicom attribute. The keys will be used
-        as the target attribute against which values are assigned. The values
-        are expected to be lists and can contain multiple strings (synonyms)
-        against which case-insensitive matching is performed.
-        
+    Constants used by the ECGDrawing plotting module.
     '''
-    # /////////////////////////////////////////////////////////////////////////
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    METADATA = {
-        CoreData.MetaData.UID : 'SOPInstanceUID',
-        'SERIESinstanceUID'       : 'SeriesInstanceUID',
-        'STUDYinstanceUID'        : 'StudyInstanceUID',
-        'PatientID'               : 'PatientID',
-        'StudyDate'               : 'StudyDate',
-        'StudyTime'               : 'StudyTime',
-        'AccessionNumber'         : 'AccessionNumber',
-        'PatientBirthDate'        : 'PatientBirthDate',
-        'PatientName'             : 'PatientName',
-        'PatientSex'              : 'PatientSex',
-        'StudyDescription'        : 'StudyDescription',
-        'AcquisitionDateTime'     : 'AcquisitionDateTime',
-        'AcquisitionTimeZone'     : 'TimezoneOffsetFromUTC',
-        'Manufacturer'            : 'Manufacturer',
-        'ManufacturerModelName'   : 'ManufacturerModelName',
-        'SoftwareVersions'        : 'SoftwareVersions',
-        'DataExportedBy'          : 'IssuerOfPatientID',
-    }
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    WAVE_FORMS = {
-        'TimeOffset'                : 'MultiplexGroupTimeOffset',
-        'ChannelNumber' : 'NumberOfWaveformChannels',
-        CoreData.MetaData.SN_W      : 'NumberOfWaveformSamples',
-        CoreData.MetaData.SF        : 'SamplingFrequency',
-        'ChannelSensitivity'        : 'ChannelSensitivity',
-        'ChannelBaseline'           : 'ChannelBaseline',
-        'ChannelSampleSkew'         : 'ChannelSampleSkew',
-        'FilterLowFrequency'        : 'FilterLowFrequency',
-        'FilterHighFrequency'       : 'FilterHighFrequency',
-        'NotchFilterFrequency'      : 'NotchFilterFrequency',
-    }
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ECG_INTERPERTATION_DICT ={
-        'QT Interval' : ['QT Interval'],
-        'QTc Interval': ['QTc Interval'],
-        'QTc Bazett' : ['QTc Bazett'],
-        'QRS Duration': ['QRS Duration'],
-        'QRS Axis': ['QRS Axis'],
-        'RR Interval': ['RR Interval'],
-        'VRate': ['VRate', 'Ventricular Heart Rate'],
-        'ARate': ['Atrial Heart Rate'],
-        'T Axis': ['T Axis'],
-        'P Axis': ['P Axis'],
-        'R Axis': ['R Axis'],
-        'P Onset': ['P Onset'],
-        'P Offset': ['P Offset'],
-        'T Offset': ['T Offset'],
-        'PR Interval': ['PR Interval'],
-    }
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    MEDIAN_BEATS = {
-        'TimeOffset'                      : 'MultiplexGroupTimeOffset',
-        'ChannelNumber'  : 'NumberOfWaveformChannels',
-        CoreData.MetaData.SN_M : 'NumberOfWaveformSamples',
-        'ChannelSensitivity'              : 'ChannelSensitivity',
-        'ChannelBaseline'                 : 'ChannelBaseline',
-        'ChannelSampleSkew'               : 'ChannelSampleSkew',
-        'FilterLowFrequency'              : 'FilterLowFrequency',
-        'FilterHighFrequency'             : 'FilterHighFrequency',
-        'NotchFilterFrequency'            : 'NotchFilterFrequency',
-    }
-    MEDIAN_BEATS = {
-        (k if ' (medianbeats)' in k else f'{k} (medianbeats)'): v
-        for k, v in MEDIAN_BEATS.items()
-    }
-
-
+    MILLIVOLT       = 'millivolt'
+    MICROVOLT       = 'microvolt'
+    LEAD_VOLTAGES   = 'lead_voltages'
+    START_POS_FIRST = 'first'
