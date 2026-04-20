@@ -147,3 +147,18 @@ class PlotNames:
     MICROVOLT       = 'microvolt'
     LEAD_VOLTAGES   = 'lead_voltages'
     START_POS_FIRST = 'first'
+    # #### standard ECG paper grid dimensions (mm)
+    MINOR_GRID_MM   = 1.0
+    MAJOR_GRID_MM   = 5.0
+    # #### ECGDrawing slot names
+    DEFAULT_LEADS   = '_default_leads'
+    FIGURE          = 'figure'
+    AXES            = 'axes'
+    LAYOUT_MAPPER   = 'layout_mapper'
+    STYLE           = 'style'
+    MINOR_STEP_X    = 'minor_step_x'
+    MAJOR_STEP_X    = 'major_step_x'
+    MINOR_STEP_Y    = 'minor_step_y'
+    MAJOR_STEP_Y    = 'major_step_y'
+    PAPER_SPEED     = 'paper_speed'
+    MM_PER_MV       = 'mm_per_mv'

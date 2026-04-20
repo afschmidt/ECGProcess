@@ -8,16 +8,26 @@ clinical ECG paper scaling.
 from __future__ import annotations
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+import logging
 import numpy as np
 import matplotlib.pylab as plt
-from dataclasses import dataclass, field
-from typing import Any, Self
-from ecgprocess.errors import NotCalledError, is_type
+from matplotlib.gridspec import GridSpec
+from typing import Any, NamedTuple, Self
+from ecgprocess.errors import InputValidationError, NotCalledError, is_type
 from ecgprocess.constants import PlotNames as PDNames, CoreData
+from ecgprocess.utils.general import _update_kwargs
+
+_log = logging.getLogger(__name__)
+
+# NOTE this may be better as a class attribute
+_SOURCE_MAP: dict[str, str] = {
+    'waveforms': CoreData.DataTypes.WaveForms,
+    'median':    CoreData.DataTypes.MedianBeats,
+}
+
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@dataclass
-class ECGStyle:
+class ECGStyle(NamedTuple):
     '''
     Pre-render style configuration for ECGDrawing.
     
@@ -41,11 +51,15 @@ class ECGStyle:
         Paper speed in mm/s (standard clinical: 25 mm/s).
     mm_per_mv : `float`, default 10.0
         Voltage scaling in mm/mV (standard clinical: 10 mm/mV).
-    n_cols : `int`, default 4
-        Number of GridSpec columns used when building the figure.
     clip_on : `bool`, default False
         Whether to clip traces to their individual axes boundaries.
         False allows large deflections to cross into adjacent panels.
+    hspace : `float`, default 0.0
+        Vertical spacing between GridSpec rows. Zero mimics continuous ECG
+        paper; increase to visually separate panels.
+    wspace : `float`, default 0.0
+        Horizontal spacing between GridSpec columns. Zero mimics continuous
+        ECG paper; increase to visually separate panels.
     x_lim : `tuple` [`float`, `float`] | `None`, default None
         X-axis limits in seconds. None auto-computes from n_samples / fs.
     y_lim : `tuple` [`float`, `float`], default (-2.0, 2.0)
@@ -67,9 +81,7 @@ class ECGStyle:
     ``plt.figure()``.
     '''
     # #### figure output
-    # default_factory prevents the mutable tuple default being shared across
-    # instances
-    figsize: tuple[float, float] = field(default_factory=lambda: (20.0, 10.0))
+    figsize: tuple[float, float] = (20.0, 10.0)
     dpi: int = 600
     # #### colours
     background_color: str = '#ffd6d6'
@@ -84,14 +96,16 @@ class ECGStyle:
     # y-axis grid spacing is derived from mm_per_mv (mm/mV)
     mm_per_mv: float = 10.0
     # #### layout
-    n_cols: int = 4
     # False lets large deflections cross panel borders
     # (physical ECG paper look)
     clip_on: bool = False
+    # Zero spacing mimics continuous ECG paper; increase to separate panels
+    hspace: float = 0.0
+    wspace: float = 0.0
     # #### axis limits
     # None triggers auto-computation from n_samples / fs at render time
     x_lim: tuple[float, float] | None = None
-    y_lim: tuple[float, float] = field(default_factory=lambda: (-2.0, 2.0))
+    y_lim: tuple[float, float] = (-2.0, 2.0)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ECGDrawing:
@@ -133,10 +147,20 @@ class ECGDrawing:
     -----
     Customisation operates at three levels:
     
-    1. ECGStyle dataclass — ECG-specific pre-render settings.
+    1. ECGStyle — ECG-specific pre-render settings.
     2. **kwargs on __call__ — forwarded to plt.figure().
     3. drawing.figure / drawing.axes — full matplotlib API post-render.
     '''
+    # /////////////////////////////////////////////////////////////////////////
+    # __slots__ mirrors BaseReader convention: eliminates per-instance __dict__,
+    # reducing memory overhead and making the public attribute surface explicit.
+    __slots__ = (
+        PDNames.DEFAULT_LEADS,
+        PDNames.FIGURE, PDNames.AXES, PDNames.LAYOUT_MAPPER, PDNames.STYLE,
+        PDNames.MINOR_STEP_X, PDNames.MAJOR_STEP_X,
+        PDNames.MINOR_STEP_Y, PDNames.MAJOR_STEP_Y,
+        PDNames.PAPER_SPEED, PDNames.MM_PER_MV,
+    )
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(
         self,
@@ -151,23 +175,44 @@ class ECGDrawing:
             Lead names to plot by default. Uses the standard 12-lead list
             when None.
         '''
-        pass
+        cl = CoreData.Leads
+        setattr(self, PDNames.DEFAULT_LEADS, leads or [
+            cl.I, cl.II, cl.III,
+            cl.aVR, cl.aVL, cl.aVF,
+            cl.V1, cl.V2, cl.V3, cl.V4, cl.V5, cl.V6,
+        ])
+        setattr(self, PDNames.FIGURE,        None)
+        setattr(self, PDNames.AXES,          None)
+        setattr(self, PDNames.LAYOUT_MAPPER, None)
+        setattr(self, PDNames.STYLE,         None)
+        setattr(self, PDNames.MINOR_STEP_X,  None)
+        setattr(self, PDNames.MAJOR_STEP_X,  None)
+        setattr(self, PDNames.MINOR_STEP_Y,  None)
+        setattr(self, PDNames.MAJOR_STEP_Y,  None)
+        setattr(self, PDNames.PAPER_SPEED,   None)
+        setattr(self, PDNames.MM_PER_MV,     None)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self) -> str:
-        return type(self).__name__
+        """Return human-readable string representation."""
+        CLASS_NAME = type(self).__name__
+        leads = getattr(self, PDNames.DEFAULT_LEADS)
+        return f"{CLASS_NAME} instance with leads={leads}."
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self) -> str:
-        return f'{type(self).__name__}()'
+        """Return unambiguous string representation."""
+        CLASS_NAME = type(self).__name__
+        leads = getattr(self, PDNames.DEFAULT_LEADS)
+        return f"{CLASS_NAME}(leads={leads!r})"
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(
         self,
         reader: Any,
+        mapper: dict | None = None,
         source: str = 'waveforms',
-        leads: list[str] | None = None,
-        mapper: dict | str | None = None,
-        style: Any | None = None,
-        show_axes: str | None = None,
-        **kwargs: Any,
+        style: ECGStyle | None = None,
+        show_axes: dict[str, str | None] | str | None = None,
+        kwargs_fig: dict | None = None,
+        kwargs_gridspec: dict | None = None,
     ) -> Self:
         '''
         Creates an ECG figure from a called reader instance.
@@ -180,15 +225,29 @@ class ECGDrawing:
             Whether to plot WaveForms or MedianBeats signals.
         leads : list[str] | None, optional
             Lead names to plot. Overrides the constructor default.
-        mapper : dict | str | None, optional
-            Layout mapper dict or registry key (e.g. '12lead'). A mapper
-            dict has the form ``{lead_name: (row_slice, col_slice)}``.
-        style : ECGStyle | None, optional
-            Style configuration dataclass. Uses defaults when None.
-        show_axes : {'x', 'y', 'b', None}, optional
-            Which axis labels and ticks to show. None hides all.
-        **kwargs
-            Forwarded to plt.figure().
+        mapper : `dict` | `None`
+            Layout dict mapping lead names to ``(row_index, col_slice)``.
+            Required — raises `InputValidationError` if None. Dict insertion
+            order determines plotting order; grid dimensions are derived from
+            the mapper values. Mismatch warnings (missing or unrequested leads)
+            are emitted at WARNING level via the ``ecgprocess.plot_ecgs`` logger.
+        source : {'waveforms', 'median'}, default 'waveforms'
+            Whether to plot WaveForms or MedianBeats signals.
+        style : `ECGStyle` | `None`, optional
+            Style configuration. Uses defaults when None.
+        show_axes : `dict` [`str`, `str` | `None`] | `str` | `None`, optional
+            Which axis ticks and labels to show per lead. A string value
+            applies uniformly: ``'x'`` x-axis only, ``'y'`` y-axis only,
+            ``'b'`` both, ``None`` hides all. A dict maps individual lead
+            names to these same string values, leaving unlisted leads hidden.
+        kwargs_fig : `dict` | `None`, optional
+            Extra keyword arguments forwarded to ``plt.figure()``. Style
+            fields (``figsize``, ``dpi``) are used as defaults and are
+            overridden by any matching keys here.
+        kwargs_gridspec : `dict` | `None`, optional
+            Extra keyword arguments forwarded to ``GridSpec()``. Style
+            fields (``hspace``, ``wspace``) are used as defaults and are
+            overridden by any matching keys here.
         
         Returns
         -------
@@ -196,9 +255,123 @@ class ECGDrawing:
             Returns the instance with populated figure, axes, and
             calibration attributes.
         '''
-        raise NotImplementedError(
-            "ECGDrawing.__call__ pending Stage 3–5 implementation."
+        # #### resolve style
+        style = style or ECGStyle()
+        # #### validate source and extract signals
+        if source not in _SOURCE_MAP:
+            raise InputValidationError(
+                f"source must be 'waveforms' or 'median', got {source!r}."
+            )
+        signals = getattr(reader, _SOURCE_MAP[source], None)
+        if signals is None or len(signals) == 0:
+            raise InputValidationError(
+                f"Reader has no data for source={source!r}."
+            )
+        # #### check for NaN in every lead
+        for lead, arr in signals.items():
+            if np.any(np.isnan(arr)):
+                raise InputValidationError(
+                    f"Signal for lead {lead!r} contains NaN values."
+                )
+        # #### store style and calibration attributes
+        setattr(self, PDNames.STYLE,        style)
+        setattr(self, PDNames.PAPER_SPEED,  style.paper_speed)
+        setattr(self, PDNames.MM_PER_MV,    style.mm_per_mv)
+        # grid steps: mm / (mm/s) = s  and  mm / (mm/mV) = mV
+        setattr(self, PDNames.MINOR_STEP_X,
+                PDNames.MINOR_GRID_MM / style.paper_speed)
+        setattr(self, PDNames.MAJOR_STEP_X,
+                PDNames.MAJOR_GRID_MM / style.paper_speed)
+        setattr(self, PDNames.MINOR_STEP_Y,
+                PDNames.MINOR_GRID_MM / style.mm_per_mv)
+        setattr(self, PDNames.MAJOR_STEP_Y,
+                PDNames.MAJOR_GRID_MM / style.mm_per_mv)
+        # #### validate mapper and build figure
+        if mapper is None:
+            raise InputValidationError(
+                "mapper is required — pass a dict mapping lead names to "
+                "(row_index, col_slice)."
+            )
+        fig, axes = self._build_figure(
+            signals, mapper, style,
+            kwargs_fig=kwargs_fig,
+            kwargs_gridspec=kwargs_gridspec,
         )
+        setattr(self, PDNames.FIGURE,        fig)
+        setattr(self, PDNames.AXES,          axes)
+        setattr(self, PDNames.LAYOUT_MAPPER, mapper)
+        return self
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _build_figure(
+        self,
+        signals: dict,
+        mapper: dict,
+        style: ECGStyle,
+        kwargs_fig: dict | None = None,
+        kwargs_gridspec: dict | None = None,
+    ) -> tuple[plt.Figure, dict[str, plt.Axes]]:
+        """Build the GridSpec figure and per-lead axes from a mapper dict.
+        
+        Parameters
+        ----------
+        signals : `dict`
+            Signal data extracted from the reader.
+        mapper : `dict`
+            Lead name to ``(row_index, col_slice)`` mapping. Dict insertion
+            order determines plotting order. Both n_rows and n_cols are
+            derived from the mapper — no assumptions about grid size are made.
+        style : `ECGStyle`
+            Style configuration.
+        kwargs_fig : `dict` | `None`, optional
+            Extra keyword arguments for ``plt.figure()``. None is treated
+            as an empty dict.
+        kwargs_gridspec : `dict` | `None`, optional
+            Extra keyword arguments for ``GridSpec()``. None is treated
+            as an empty dict.
+        
+        Returns
+        -------
+        figure : `plt.Figure`
+            The created figure.
+        axes : `dict` [`str`, `plt.Axes`]
+            Mapping of lead name to axes.
+        """
+        # #### derive grid dimensions from mapper — no hardcoded assumptions
+        n_rows = max(row for row, _ in mapper.values()) + 1
+        n_cols = max(col.stop for _, col in mapper.values())
+        # #### style values are defaults — caller dicts take precedence
+        kwargs_fig = kwargs_fig or {}
+        kwargs_gridspec = kwargs_gridspec or {}
+        fig_kwargs = _update_kwargs(
+            update_dict=kwargs_fig,
+            figsize=style.figsize, dpi=style.dpi,
+        )
+        gs_kwargs = _update_kwargs(
+            update_dict=kwargs_gridspec,
+            hspace=style.hspace, wspace=style.wspace,
+        )
+        fig = plt.figure(**fig_kwargs)
+        gs = GridSpec(n_rows, n_cols, figure=fig, **gs_kwargs)
+        # #### create one axes per mapper entry in insertion order
+        axes: dict[str, plt.Axes] = {}
+        for lead, (row, col) in mapper.items():
+            if lead not in signals:
+                _log.warning(
+                    "Lead %r not found in signal data — axes left blank.", lead
+                )
+            ax = fig.add_subplot(gs[row, col])
+            # clip_on=False allows traces to overplot into adjacent panels
+            if not style.clip_on:
+                ax.patch.set_visible(False)
+            axes[lead] = ax
+        # #### warn about signal data keys the mapper did not request
+        for lead in signals:
+            if lead not in mapper:
+                _log.warning(
+                    "Lead %r is in signal data but not requested in "
+                    "mapper.", lead,
+                )
+        return fig, axes
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def to_numpy(
         self,
