@@ -21,14 +21,6 @@ from ecgprocess.utils.general import _update_kwargs
 # initiate the logger
 _log = logging.getLogger(__name__)
 
-# NOTE this may be better as a class attribute
-_SOURCE_MAP: dict[str, str] = {
-    'waveforms': CoreData.DataTypes.WaveForms,
-    'median':    CoreData.DataTypes.MedianBeats,
-}
-_VALID_SHOW_AXES: frozenset[str | None] = frozenset({'x', 'y', 'b', None})
-_VALID_CAL_PULSE_STYLES: frozenset[str] = frozenset({'square', 'line'})
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _minor_only_ticks(
     lo: float,
@@ -55,17 +47,21 @@ def _minor_only_ticks(
     ticks : `np.ndarray`
         Minor positions with major-coincident values removed.
     """
+    # Small epsilon to keep np.arange inclusive at hi and to absorb
+    # floating-point noise when testing whether a tick falls on a major line.
     tol = minor_step * 1e-6
-    candidates = np.arange(
+    # get minor tick locations
+    tick_loc = np.arange(
         np.ceil(lo / minor_step) * minor_step,
         hi + tol,
         minor_step,
     )
-    remainder = candidates % major_step
+    remainder = tick_loc % major_step
+    # which tick to remove
     on_major = np.isclose(remainder, 0.0, atol=tol) | np.isclose(
         remainder, major_step, atol=tol,
     )
-    return candidates[~on_major]
+    return tick_loc[~on_major]
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _resolve_lead_kwargs(
@@ -93,18 +89,41 @@ def _resolve_lead_kwargs(
     ------
     InputValidationError
         If kw_dict contains a mix of dict and non-dict values.
+    
+    Examples
+    --------
+    Uniform, same kwargs applied to every lead:
+    
+    >>> _resolve_lead_kwargs({'color': 'red', 'linewidth': 1.5}, 'I')
+    {'color': 'red', 'linewidth': 1.5}
+    
+    Per-lead, different kwargs per lead:
+    
+    >>> _resolve_lead_kwargs({
+            'I': {'color': 'red'},
+            'II': {'color': 'blue'}
+            }, lead = 'I')
+    {'color': 'red'}
     """
+    # check input
+    is_type(kw_dict, (type(None), dict))
+    is_type(lead, str)
+    # return empty dict if None
     if not kw_dict:
         return {}
     vals = list(kw_dict.values())
     all_dicts = all(isinstance(v, dict) for v in vals)
     any_dicts = any(isinstance(v, dict) for v in vals)
     if all_dicts:
+        # return the lead specific dict
         return kw_dict.get(lead, {})
     if not any_dicts:
+        # if there are no dicts, that means the original dict should be
+        # applied to each lead
         return kw_dict
+    # if mixed dicts raise an error
     raise InputValidationError(
-        "Mixed dict/non-dict values in kwargs — pass either a flat dict "
+        "Mixed dict/non-dict values in kwargs, either pass a flat dict "
         "(uniform) or a dict of dicts (per-lead)."
     )
 
@@ -228,6 +247,8 @@ class ECGDrawing:
         Resolved paper speed in mm/s.
     mm_per_mv : float
         Resolved voltage scaling in mm/mV.
+    default_leads : list[str]
+        Lead names plotted by default. Set at init; overridable per call.
     
     Methods
     -------
@@ -242,6 +263,14 @@ class ECGDrawing:
     2. **kwargs on __call__ — forwarded to plt.figure().
     3. drawing.figure / drawing.axes — full matplotlib API post-render.
     """
+    # /////////////////////////////////////////////////////////////////////////
+    # class attributes
+    _SOURCE_MAP: dict[str, str] = {
+        'waveforms': CoreData.DataTypes.WaveForms,
+        'median':    CoreData.DataTypes.MedianBeats,
+    }
+    _VALID_SHOW_AXES: frozenset[str | None] = frozenset({'x', 'y', 'b', None})
+    _VALID_CAL_PULSE_STYLES: frozenset[str] = frozenset({'square', 'line'})
     # /////////////////////////////////////////////////////////////////////////
     # __slots__ mirrors BaseReader convention: eliminates per-instance __dict__,
     # reducing memory overhead and making the public attribute surface explicit.
@@ -266,12 +295,12 @@ class ECGDrawing:
             Lead names to plot by default. Uses the standard 12-lead list
             when None.
         '''
-        cl = CoreData.Leads
-        setattr(self, PDNames.DEFAULT_LEADS, leads or [
-            cl.I, cl.II, cl.III,
-            cl.aVR, cl.aVL, cl.aVF,
-            cl.V1, cl.V2, cl.V3, cl.V4, cl.V5, cl.V6,
-        ])
+        lead_default = [
+            v for v in vars(CoreData.Leads).values()
+            if isinstance(v, str) and not v.startswith("_")
+        ][2:]
+        # set to leads or the CoreData.Leads
+        setattr(self, PDNames.DEFAULT_LEADS, leads or lead_default)
         setattr(self, PDNames.FIGURE,        None)
         setattr(self, PDNames.AXES,          None)
         setattr(self, PDNames.LAYOUT_MAPPER, None)
@@ -313,7 +342,6 @@ class ECGDrawing:
         kwargs_ticks: dict | dict[str, dict] | None = None,
         kwargs_background: dict | dict[str, dict] | None = None,
         kwargs_label: dict | dict[str, dict] | None = None,
-        kwargs_cal_pulse: dict | dict[str, dict] | None = None,
     ) -> Self:
         """
         Creates an ECG figure from a called reader instance.
@@ -383,10 +411,6 @@ class ECGDrawing:
             uniform/per-lead convention as ``kwargs_plot``. Caller-supplied
             values override the defaults (fontsize=7, fontweight='bold',
             va='top', ha='left').
-        kwargs_cal_pulse : `dict` | `dict` [`str`, `dict`] | `None`, optional
-            Extra keyword arguments forwarded to ``ax.plot()`` for the
-            calibration pulse trace. Only used when ``show_cal_pulse=True``.
-            Same uniform/per-lead convention as ``kwargs_plot``.
         
         Returns
         -------
@@ -397,11 +421,11 @@ class ECGDrawing:
         # #### resolve style
         style = style or ECGStyle()
         # #### validate source and extract signals
-        if source not in _SOURCE_MAP:
+        if source not in self._SOURCE_MAP:
             raise InputValidationError(
                 f"source must be 'waveforms' or 'median', got {source!r}."
             )
-        signals = getattr(reader, _SOURCE_MAP[source], None)
+        signals = getattr(reader, self._SOURCE_MAP[source], None)
         if signals is None or len(signals) == 0:
             raise InputValidationError(
                 f"Reader has no data for source={source!r}."
@@ -427,13 +451,16 @@ class ECGDrawing:
                 PDNames.MAJOR_GRID_MM / style.mm_per_mv)
         # #### validate show_axes
         if isinstance(show_axes, str):
-            if show_axes not in _VALID_SHOW_AXES:
+            if show_axes not in self._VALID_SHOW_AXES:
                 raise InputValidationError(
                     f"show_axes must be 'x', 'y', 'b', or None, "
                     f"got {show_axes!r}."
                 )
         elif isinstance(show_axes, dict):
-            invalid = {v for v in show_axes.values() if v not in _VALID_SHOW_AXES}
+            invalid = {
+                v for v in show_axes.values()
+                if v not in self._VALID_SHOW_AXES
+            }
             if invalid:
                 raise InputValidationError(
                     f"show_axes dict contains invalid values: {invalid!r}."
@@ -444,7 +471,7 @@ class ECGDrawing:
                 f"got {type(show_axes).__name__!r}."
             )
         # #### validate cal_pulse_style
-        if cal_pulse_style not in _VALID_CAL_PULSE_STYLES:
+        if cal_pulse_style not in self._VALID_CAL_PULSE_STYLES:
             raise InputValidationError(
                 f"cal_pulse_style must be 'square' or 'line', "
                 f"got {cal_pulse_style!r}."
@@ -487,7 +514,6 @@ class ECGDrawing:
             kwargs_ticks=kwargs_ticks,
             kwargs_background=kwargs_background,
             kwargs_label=kwargs_label,
-            kwargs_cal_pulse=kwargs_cal_pulse,
         )
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -576,7 +602,6 @@ class ECGDrawing:
         kwargs_ticks: dict | dict[str, dict] | None,
         kwargs_background: dict | dict[str, dict] | None,
         kwargs_label: dict | dict[str, dict] | None,
-        kwargs_cal_pulse: dict | dict[str, dict] | None,
     ) -> None:
         """
         Render each lead: trace, limits, background, grid, and tick visibility.
@@ -609,8 +634,6 @@ class ECGDrawing:
             Extra kwargs for ``ax.patch.set()``.
         kwargs_label : `dict` | `dict` [`str`, `dict`] | `None`
             Extra kwargs for ``ax.text()`` lead annotations.
-        kwargs_cal_pulse : `dict` | `dict` [`str`, `dict`] | `None`
-            Extra kwargs for the calibration pulse ``ax.plot()`` call.
         """
         minor_x = getattr(self, PDNames.MINOR_STEP_X)
         major_x = getattr(self, PDNames.MAJOR_STEP_X)
@@ -638,15 +661,17 @@ class ECGDrawing:
             g_kw   = _resolve_lead_kwargs(kwargs_grid,       lead)
             t_kw   = _resolve_lead_kwargs(kwargs_ticks,      lead)
             bg_kw  = _resolve_lead_kwargs(kwargs_background, lead)
-            cp_kw  = _resolve_lead_kwargs(kwargs_cal_pulse,  lead)
             # #### trace
-            ax.plot(
-                t, signal,
+            plot_kw = _update_kwargs(
+                p_kw,
                 color=style.trace_color,
                 lw=style.trace_linewidth,
                 clip_on=style.clip_on_trace,
                 zorder=3,
-                **p_kw,
+            )
+            ax.plot(
+                t, signal,
+                **plot_kw,
             )
             # #### axis limits
             ax.set_xlim(style.x_lim or (0.0, len(signal) / sampling_rate))
@@ -696,11 +721,14 @@ class ECGDrawing:
                 show_axes.get(lead) if isinstance(show_axes, dict)
                 else show_axes
             )
-            ax.tick_params(
+            t_params_kwarg = _update_kwargs(
+                t_kw,
                 axis='both', which='both',
                 bottom=False, left=False,
                 labelbottom=False, labelleft=False,
-                **t_kw,
+            )
+            ax.tick_params(
+                **t_params_kwarg,
             )
             if lead_show in ('x', 'b'):
                 ax.tick_params(axis='x', bottom=True, labelbottom=True)

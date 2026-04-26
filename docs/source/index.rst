@@ -5,7 +5,7 @@
 
 .. figure:: _static/ECGProcessSchematic.png
    :align: center
-   :width: 250px
+   :width: 800px
    :class: project-logo
 
 ----------------------------
