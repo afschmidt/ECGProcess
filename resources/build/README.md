@@ -22,7 +22,7 @@ increment version numbers across the package. The configuration lives in
 * `./pyproject.toml`
 * `./docs/source/conf.py`
 * `./README.md`
-* `./CHANGELOG.md` — replaces `[Unreleased]` with the new version number
+* `./CHANGELOG.md` — replaces `Unreleased` with the new version number
 
 ## Release workflow
 
@@ -30,8 +30,8 @@ The `inc_version.sh` script in this directory wraps `bump2version` with:
 
 1. A dry-run preview of the version change
 2. User confirmation before proceeding
-3. Automatic date insertion in `CHANGELOG.md` (e.g. `### [0.1.0] - 2026-04-05`)
-4. A fresh `### [Unreleased]` section added to the top of the changelog
+3. Automatic date insertion in `CHANGELOG.md` (e.g. `### 0.1.0 - 2026-04-05`)
+4. A fresh `### Unreleased` section added to the top of the changelog
 5. Amended commit and re-tagged to include the changelog changes
 6. Push to remote with tags
 

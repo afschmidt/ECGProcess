@@ -1,25 +1,46 @@
 # Changelog
 
-### [Unreleased]
+### Unreleased
 
 #### Added
 
-* Add `PlotNames` constants class to `constants.py` (MILLIVOLT, MICROVOLT, LEAD_VOLTAGES, START_POS_FIRST)
-* Add `LeadMapper` callable to `engineering_tools` for lead-order normalisation
-* Add `engineering_tools` example notebook covering `metadata_checkversion`, `signal_correction`, `signal_standardise_res`, and `LeadMapper`
-* Tests for missing required keys and debug logging in `test_engineering_tools.py`
+* Add `show_lead_labels` and `kwargs_label` parameters to
+  `ECGDrawing.__call__` for optional per-panel lead name annotations
+* Add `PlotNames` constants class to `constants.py`
+  (MILLIVOLT, MICROVOLT, LEAD_VOLTAGES, START_POS_FIRST)
+* Add `LeadMapper` callable to `engineering_tools` for lead-order
+  normalisation
+* Add `engineering_tools` example notebook covering
+  `metadata_checkversion`, `signal_correction`,
+  `signal_standardise_res`, and `LeadMapper`
+* Tests for missing required keys and debug logging in
+  `test_engineering_tools.py`
 
 #### Removed
 
-* Remove unused `DICOMTags` dataclass from `constants.py` (orphaned after `FixedDICOMReader` removal)
+* Remove unused `DICOMTags` dataclass from `constants.py`
+  (orphaned after `FixedDICOMReader` removal)
 
 #### Changed
 
-* Rewrite `plot_ecgs.py`: replace broken `TabularNames` imports with `PlotNames`; stub `ECGDrawing` methods pending Stages 3–5 implementation
-* Replace `verbose` flag and `print()` calls with `_log.debug()` in `signal_correction`, `signal_standardise_res`, `metadata_checkversion`, and `LeadMapper`; module-level logger replaces per-call `getLogger`
-* `LeadMapper.__init__` now raises `InputValidationError` (via `is_type`) consistently instead of `TypeError` for invalid value types
+* Complete `ECGDrawing` rendering pipeline in `plot_ecgs.py`:
+  implement `_render_leads` (traces, ECG paper grid, background,
+  tick visibility), `to_numpy`, and module-level
+  `_resolve_lead_kwargs`; split `ECGStyle.clip_on` into
+  `clip_on_patch` and `clip_on_trace`; rename sampling frequency
+  parameter to `sampling_rate`
+* Rewrite `plot_ecgs.py`: replace broken `TabularNames` imports
+  with `PlotNames`; stub `ECGDrawing` methods pending Stages 3–5
+  implementation
+* Replace `verbose` flag and `print()` calls with `_log.debug()`
+  in `signal_correction`, `signal_standardise_res`,
+  `metadata_checkversion`, and `LeadMapper`; module-level logger
+  replaces per-call `getLogger`
+* `LeadMapper.__init__` now raises `InputValidationError`
+  (via `is_type`) consistently instead of `TypeError` for
+  invalid value types
 
-### [1.0.1] - 2026-04-16
+### 1.0.1 - 2026-04-16
 
 #### Added
 
@@ -40,7 +61,7 @@
 
 * `signal_dicts_to_numpy_array`: `_STANDARD_LEADS` extracted as an immutable module-level constant; `leads` parameter now accepts `list` or `tuple`
 
-### [1.0.0] - 2026-04-15
+### 1.0.0 - 2026-04-15
 
 #### Added
 
@@ -69,7 +90,8 @@
 
 ### Added
 
-- A tabular module containing the ECGTable class. This class is a file type agnostic class mapping ECG data to table or files. 
+- A tabular module containing the ECGTable class. This class is a file type 
+  agnostic class mapping ECG data to table or files. 
 - A reader classes for XML and DICOM files, see the various process_\*.py files. 
 - Extensive utils modules. 
 - Example configuration files for XML and DICOMs.
@@ -78,7 +100,8 @@
 
 ### Changed
 
-- process_dicom has been refactored. The previous ECGDICOMReader class has been renamed to FixedDICOMReader which was slightly optimised. 
+- process_dicom has been refactored. The previous ECGDICOMReader class has been 
+  renamed to FixedDICOMReader which was slightly optimised. 
   The new ECGDICOMReader is now in-line with the process_xml ECGXMLReader class. 
 - Changed the base docker environment to allow for tensorflow. 
 
