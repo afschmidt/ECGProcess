@@ -60,7 +60,7 @@ class ECGDICOMReader(ECGXMLReader):
     """
     Processes an DICOM file containing ECG data and extracts the metadata,
     median beats, and raw waveforms.
-
+    
     Parameters
     ----------
     augment_leads : `bool`, default `False`
@@ -68,20 +68,20 @@ class ECGDICOMReader(ECGXMLReader):
         already available in the source file.
     resample : `bool`, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz.
-
+    
     Attributes
     ----------
     augment_leads : `bool`
         Whether the augmented leads were calculated if these were unavailable.
     resample : `bool`
         Whether the ECG was resampled to a 500 Hertz frequency.
-
+    
     Methods
     -------
     extract(config, skip_empty, parse_numeric, **kwargs)
         Processes the DICOM file content applying optional lead augmentation
         and resampling. The DICOM content will be mapped to class attributes.
-
+    
     """
     # #### properties
     tags = ManagedProperty(CProc.TAGS, list)
@@ -101,7 +101,7 @@ class ECGDICOMReader(ECGXMLReader):
                  ) -> Self:
         """
         Reads an `.dcm` file containing ECG readings.
-
+        
         Parameters
         ----------
         path : `str`
@@ -110,14 +110,14 @@ class ECGDICOMReader(ECGXMLReader):
             Whether warnings and process info should be printed.
         **kwargs : any
             keyword arguments passed to flatten_dict.
-
+        
         Attributes
         ----------
         tags : `list` [`str`]
             A list of strings with parsed tags matching the `raw_data` keys.
         raw_data : `dict` [`str`, `any`]
             The raw parsed data.
-
+        
         Returns
         -------
         self : `ECGDICOMReader` instance
@@ -158,7 +158,7 @@ class ECGDICOMReader(ECGXMLReader):
         """
         Processes the raw ECG data and assign these to class attributes
         performing resampling and lead augmentation if requested.
-
+        
         Parameters
         ----------
         config : `ConfigParser`
@@ -196,7 +196,7 @@ class ECGDICOMReader(ECGXMLReader):
             The keyword arguments for reader_tools.get_ecg_data.
             For the waveforms and medianbeats as_array and bits are hard coded
             so these will raise an error if supplied as kwargs.
-
+        
         Attributes
         ----------
         MetaData : `dict` [`str`, `any`]
@@ -207,7 +207,7 @@ class ECGDICOMReader(ECGXMLReader):
             The lead specific ECG median beats.
         OtherData : `dict` [`str`, `any`]
             Other data.
-
+        
         Returns
         -------
         self : `ECGDICOMReader` instance
@@ -240,3 +240,4 @@ class ECGDICOMReader(ECGXMLReader):
             getattr(self, CTypes.MetaData).update(new_meta)
         # #### return
         return self
+

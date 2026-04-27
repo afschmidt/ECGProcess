@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pylab as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import MultipleLocator
-from typing import Any, NamedTuple, Self
+from typing import Any, NamedTuple, Self, Literal
 from ecgprocess.errors import InputValidationError, NotCalledError, is_type
 from ecgprocess.constants import PlotNames as PDNames, CoreData
 from ecgprocess.utils.general import _update_kwargs
@@ -61,19 +61,20 @@ def _minor_only_ticks(
     on_major = np.isclose(remainder, 0.0, atol=tol) | np.isclose(
         remainder, major_step, atol=tol,
     )
+    # return
     return tick_loc[~on_major]
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _resolve_lead_kwargs(
-    kw_dict: dict | None,
+    kw_dict: dict[str, Any] | None,
     lead: str,
-) -> dict:
+) -> dict[str, Any]:
     """
     Return the resolved kwargs dict for a single lead.
     
     Parameters
     ----------
-    kw_dict : `dict` | `None`
+    kw_dict : `dict[str, Any]` | `None`
         Either a flat dict (uniform across all leads), a dict of dicts
         (per-lead), or None.
     lead : `str`
@@ -81,7 +82,7 @@ def _resolve_lead_kwargs(
     
     Returns
     -------
-    resolved : `dict`
+    resolved : `dict[str, Any]`
         Kwargs applicable to this lead. Empty dict when kw_dict is None or
         the lead is not listed in a per-lead mapping.
     
@@ -105,9 +106,6 @@ def _resolve_lead_kwargs(
             }, lead = 'I')
     {'color': 'red'}
     """
-    # check input
-    is_type(kw_dict, (type(None), dict))
-    is_type(lead, str)
     # return empty dict if None
     if not kw_dict:
         return {}
@@ -130,7 +128,7 @@ def _resolve_lead_kwargs(
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ECGStyle(NamedTuple):
     """
-    Pre-render style configuration for ECGDrawing.
+    Style configuration for ECGDrawing.
     
     Attributes
     ----------
@@ -138,27 +136,24 @@ class ECGStyle(NamedTuple):
         Figure width and height in inches.
     dpi : `int`, default 600
         Figure resolution in dots per inch.
-    background_color : `str`, default '#ffd6d6'
+    background_colour : `str`, default '#ffd6d6'
         Axes background fill colour (ECG paper pink).
-    major_grid_color : `str`, default '#ff6666'
+    major_grid_colour : `str`, default '#ff6666'
         Colour of the major grid lines.
-    minor_grid_color : `str`, default '#ffaaaa'
+    minor_grid_colour : `str`, default '#ffaaaa'
         Colour of the minor grid lines.
     major_grid_linewidth : `float`, default 0.3
         Line width of the major grid lines in points.
     minor_grid_linewidth : `float`, default 0.2
         Line width of the minor grid lines in points.
-    trace_color : `str`, default 'black'
+    trace_colour : `str`, default 'black'
         ECG trace line colour.
-    trace_linewidth : `float`, default 0.5
+    trace_linewidth : `float`, default 0.4
         ECG trace line width in points.
     paper_speed : `float`, default 25.0
         Paper speed in mm/s (standard clinical: 25 mm/s).
     mm_per_mv : `float`, default 10.0
         Voltage scaling in mm/mV (standard clinical: 10 mm/mV).
-    clip_on_patch : `bool`, default False
-        Whether the axes patch clips its contents to the axes boundary.
-        False lets large deflections cross into adjacent panels.
     clip_on_trace : `bool`, default False
         Whether each ECG trace line is clipped to its axes boundary.
         False replicates the physical ECG paper look.
@@ -171,7 +166,10 @@ class ECGStyle(NamedTuple):
     x_lim : `tuple` [`float`, `float`] | `None`, default None
         X-axis limits in seconds. None auto-computes from n_samples / fs.
     y_lim : `tuple` [`float`, `float`], default (-2.0, 2.0)
-        Y-axis limits in mV applied to every lead panel.
+        Y-axis limits in applied to every lead panel. The default would be fine
+        for mV, for μV simply multiply by 1,000.
+    label_coordinates : `tuple` [`float`, `float`], default (0.02, 0.95)
+        Lead label position as ``(x, y)`` in axes coordinates (0–1).
     
     Notes
     -----
@@ -192,22 +190,21 @@ class ECGStyle(NamedTuple):
     figsize: tuple[float, float] = (20.0, 10.0)
     dpi: int = 600
     # #### colours
-    background_color: str = '#ffd6d6'
-    major_grid_color: str = '#ff6666'
-    minor_grid_color: str = '#ffaaaa'
+    background_colour: str = '#ffd6d6'
+    major_grid_colour: str = '#ff6666'
+    minor_grid_colour: str = '#ffaaaa'
     # #### grid line widths
     major_grid_linewidth: float = 0.3
     minor_grid_linewidth: float = 0.2
     # #### trace
-    trace_color: str = 'black'
-    trace_linewidth: float = 0.5
+    trace_colour: str = 'black'
+    trace_linewidth: float = 0.4
     # #### calibration
     # x-axis grid spacing is derived from paper_speed (mm/s)
     paper_speed: float = 25.0
     # y-axis grid spacing is derived from mm_per_mv (mm/mV)
     mm_per_mv: float = 10.0
     # #### layout
-    clip_on_patch: bool = False
     clip_on_trace: bool = False
     # Zero spacing mimics continuous ECG paper; increase to separate panels
     hspace: float = 0.0
@@ -216,6 +213,8 @@ class ECGStyle(NamedTuple):
     # None triggers auto-computation from n_samples / fs at render time
     x_lim: tuple[float, float] | None = None
     y_lim: tuple[float, float] = (-2.0, 2.0)
+    # #### lead label
+    label_coordinates: tuple[float, float] = (0.02, 0.95)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ECGDrawing:
@@ -225,13 +224,19 @@ class ECGDrawing:
     After calling, the instance exposes the rendered figure and per-lead axes
     so the caller can apply further matplotlib customisation directly.
     
+    Parameters
+    ----------
+    leads : `list` [`str`] | `None`, default None
+        Lead names to plot by default. Uses the standard 12-lead list when
+        None.
+    
     Attributes
     ----------
     figure : plt.Figure
         The matplotlib figure.
     axes : dict[str, plt.Axes]
         Dict mapping lead name to its Axes.
-    layout_mapper : dict
+    layout_mapper : dict[str, tuple[int, slice]]
         The resolved mapper dict used for this render.
     style : ECGStyle
         The ECGStyle instance used.
@@ -255,24 +260,17 @@ class ECGDrawing:
     to_numpy(crop, close)
         Renders the figure to a 3-D numpy array (RGBA).
     
-    Notes
-    -----
-    Customisation operates at three levels:
-    
-    1. ECGStyle — ECG-specific pre-render settings.
-    2. **kwargs on __call__ — forwarded to plt.figure().
-    3. drawing.figure / drawing.axes — full matplotlib API post-render.
     """
     # /////////////////////////////////////////////////////////////////////////
     # class attributes
-    _SOURCE_MAP: dict[str, str] = {
+    SOURCE_MAP: dict[str, str] = {
         'waveforms': CoreData.DataTypes.WaveForms,
         'median':    CoreData.DataTypes.MedianBeats,
     }
     _VALID_SHOW_AXES: frozenset[str | None] = frozenset({'x', 'y', 'b', None})
     _VALID_CAL_PULSE_STYLES: frozenset[str] = frozenset({'square', 'line'})
     # /////////////////////////////////////////////////////////////////////////
-    # __slots__ mirrors BaseReader convention: eliminates per-instance __dict__,
+    # __slots__
     # reducing memory overhead and making the public attribute surface explicit.
     __slots__ = (
         PDNames.DEFAULT_LEADS,
@@ -286,15 +284,9 @@ class ECGDrawing:
         self,
         leads: list[str] | None = None,
     ) -> None:
-        '''
+        """
         Initialises a new instance of ECGDrawing.
-        
-        Parameters
-        ----------
-        leads : list[str] | None, optional
-            Lead names to plot by default. Uses the standard 12-lead list
-            when None.
-        '''
+        """
         lead_default = [
             v for v in vars(CoreData.Leads).values()
             if isinstance(v, str) and not v.startswith("_")
@@ -324,17 +316,265 @@ class ECGDrawing:
         leads = getattr(self, PDNames.DEFAULT_LEADS)
         return f"{CLASS_NAME}(leads={leads!r})"
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _build_figure(
+        self,
+        signals: dict[str, np.ndarray],
+        mapper: dict[str, tuple[int, slice]],
+        style: ECGStyle,
+        kwargs_fig: dict[str, Any] | None = None,
+        kwargs_gridspec: dict[str, Any] | None = None,
+    ) -> tuple[plt.Figure, dict[str, plt.Axes]]:
+        """
+        Build the GridSpec figure and per-lead axes from a mapper dict.
+        
+        Parameters
+        ----------
+        signals : `dict[str, np.ndarray]`
+            Signal data extracted from the reader.
+        mapper : `dict[str, tuple[int, slice]]`
+            Lead name to ``(row_index, col_slice)`` mapping. Dict insertion
+            order determines plotting order. Both n_rows and n_cols are
+            derived from the mapper — no assumptions about grid size are made.
+        style : `ECGStyle`
+            Style configuration.
+        kwargs_fig : `dict[str, Any]` | `None`, optional
+            Extra keyword arguments for ``plt.figure()``. None is treated
+            as an empty dict.
+        kwargs_gridspec : `dict[str, Any]` | `None`, optional
+            Extra keyword arguments for ``GridSpec()``. None is treated
+            as an empty dict.
+        
+        Returns
+        -------
+        figure : `plt.Figure`
+            The created figure.
+        axes : `dict` [`str`, `plt.Axes`]
+            Mapping of lead name to axes.
+        """
+        # #### derive grid dimensions from mapper
+        n_rows = max(row for row, _ in mapper.values()) + 1
+        n_cols = max(col.stop for _, col in mapper.values())
+        # #### style values are defaults
+        kwargs_fig = kwargs_fig or {}
+        kwargs_gridspec = kwargs_gridspec or {}
+        # update the kwargs to allow overwriting
+        fig_kwargs = _update_kwargs(
+            update_dict=kwargs_fig,
+            figsize=style.figsize, dpi=style.dpi,
+        )
+        gs_kwargs = _update_kwargs(
+            update_dict=kwargs_gridspec,
+            hspace=style.hspace, wspace=style.wspace,
+        )
+        fig = plt.figure(**fig_kwargs)
+        gs = GridSpec(n_rows, n_cols, figure=fig, **gs_kwargs)
+        # #### create one axes per mapper entry in insertion order
+        # using logger to print warnings
+        axes: dict[str, plt.Axes] = {}
+        for lead, (row, col) in mapper.items():
+            if lead not in signals:
+                _log.warning(
+                    "Lead %r not found in signal data — axes left blank.", lead
+                )
+            ax = fig.add_subplot(gs[row, col])
+            axes[lead] = ax
+        # #### warn about signal data keys the mapper did not request
+        for lead in signals:
+            if lead not in mapper:
+                _log.warning(
+                    "Lead %r is in signal data but not requested in "
+                    "mapper.", lead,
+                )
+        # return
+        return fig, axes
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _render_leads(
+        self,
+        axes: dict[str, plt.Axes],
+        signals: dict[str, np.ndarray],
+        style: ECGStyle,
+        sampling_rate: float,
+        show_axes: dict[str, str | None] | str | None,
+        show_lead_labels: bool,
+        show_cal_pulse: bool,
+        cal_pulse_style: str,
+        kwargs_plot: dict | dict[str, dict] | None,
+        kwargs_grid: dict | dict[str, dict] | None,
+        kwargs_ticks: dict | dict[str, dict] | None,
+        kwargs_background: dict | dict[str, dict] | None,
+        kwargs_label: dict | dict[str, dict] | None,
+    ) -> None:
+        """
+        Render each lead: trace, limits, background, grid, and tick visibility.
+        
+        Parameters
+        ----------
+        axes : `dict` [`str`, `plt.Axes`]
+            Per-lead axes created by ``_build_figure``.
+        signals : `dict[str, np.ndarray]`
+            Signal data extracted from the reader.
+        style : `ECGStyle`
+            Style configuration.
+        sampling_rate : `float`
+            Sampling frequency in Hz used to build the time axis.
+        show_axes : `dict` [`str`, `str` | `None`] | `str` | `None`
+            Which axis ticks and labels to show per lead. A string value
+            applies uniformly: ``'x'`` x-axis only, ``'y'`` y-axis only,
+            ``'b'`` both, ``None`` hides all. A dict maps individual lead
+            names to these same string values, leaving unlisted leads hidden.
+        show_lead_labels : `bool`
+            When True, annotate each panel with its lead name.
+        show_cal_pulse : `bool`
+            When True, prepend a calibration pulse.
+        cal_pulse_style : {'square', 'line'}, default 'square'
+            Shape of the calibration pulse. ``'square'`` draws the full
+            rectangular pulse (0.1 s baseline → 0.2 s at 1 mV → 0.1 s
+            baseline). ``'line'`` draws only a single vertical spike
+            (0.1 s baseline → 3-sample rise/peak/fall → 0.1 s baseline),
+            matching the convention used by some thermal-paper ECG machines.
+        kwargs_plot : `dict` | `dict` [`str`, `dict`] | `None`
+            Extra kwargs for ``ax.plot()``.
+        kwargs_grid : `dict` | `dict` [`str`, `dict`] | `None`
+            Extra kwargs for ``ax.grid()``.
+        kwargs_ticks : `dict` | `dict` [`str`, `dict`] | `None`
+            Extra kwargs for ``ax.tick_params()``.
+        kwargs_background : `dict` | `dict` [`str`, `dict`] | `None`
+            Extra kwargs for ``ax.patch.set()``.
+        kwargs_label : `dict` | `dict` [`str`, `dict`] | `None`
+            Extra kwargs for ``ax.text()`` lead annotations.
+        """
+        minor_x = getattr(self, PDNames.MINOR_STEP_X)
+        major_x = getattr(self, PDNames.MAJOR_STEP_X)
+        minor_y = getattr(self, PDNames.MINOR_STEP_Y)
+        major_y = getattr(self, PDNames.MAJOR_STEP_Y)
+        for lead, ax in axes.items():
+            if lead not in signals:
+                # blank axes already created and warned in _build_figure
+                continue
+            signal = signals[lead]
+            # #### prepend calibration pulse
+            if show_cal_pulse:
+                n_pre  = round(0.1 * sampling_rate)
+                n_post = round(0.1 * sampling_rate)
+                if cal_pulse_style == 'square':
+                    body = np.ones(round(0.2 * sampling_rate))
+                else:
+                    body = np.array([0.0, 1.0, 0.0])
+                # adds a 0.1s zero line to the front and back
+                # the body is either a line or 0.2s square
+                pulse = np.concatenate(
+                    [np.zeros(n_pre), body, np.zeros(n_post)])
+                # adds the pulse to the signal (which is now longer)
+                signal = np.concatenate([pulse, signal])
+            t = np.arange(len(signal)) / sampling_rate
+            # #### resolve per-lead kwargs
+            p_kw   = _resolve_lead_kwargs(kwargs_plot,       lead)
+            g_kw   = _resolve_lead_kwargs(kwargs_grid,       lead)
+            t_kw   = _resolve_lead_kwargs(kwargs_ticks,      lead)
+            bg_kw  = _resolve_lead_kwargs(kwargs_background, lead)
+            # #### trace
+            plot_kw = _update_kwargs(
+                p_kw,
+                color=style.trace_colour,
+                lw=style.trace_linewidth,
+                clip_on=style.clip_on_trace,
+                zorder=3,
+            )
+            ax.plot(
+                t, signal,
+                **plot_kw,
+            )
+            # #### axis limits
+            if style.x_lim:
+                ax.set_xlim(style.x_lim)
+            else:
+                ax.set_xlim(0.0, len(signal) / sampling_rate)
+            ax.set_ylim(style.y_lim)
+            # #### background
+            ax.patch.set_facecolor(style.background_colour)
+            ax.patch.set_visible(True)
+            if bg_kw:
+                ax.patch.set(**bg_kw)
+            # #### grid lines — minor first (behind), major second (in front)
+            # ax.grid() does not reliably honour zorder across x/y axes;
+            # vlines/hlines produce LineCollections that do.
+            ax.xaxis.set_major_locator(MultipleLocator(major_x))
+            ax.yaxis.set_major_locator(MultipleLocator(major_y))
+            x_lo, x_hi = ax.get_xlim()
+            y_lo, y_hi = ax.get_ylim()
+            minor_xs = _minor_only_ticks(x_lo, x_hi, minor_x, major_x)
+            minor_ys = _minor_only_ticks(y_lo, y_hi, minor_y, major_y)
+            major_xs = np.arange(
+                np.ceil(x_lo / major_x) * major_x,
+                x_hi + major_x * 1e-6,
+                major_x,
+            )
+            major_ys = np.arange(
+                np.ceil(y_lo / major_y) * major_y,
+                y_hi + major_y * 1e-6,
+                major_y,
+            )
+            minor_kw = _update_kwargs(
+                g_kw,
+                color=style.minor_grid_colour,
+                linewidth=style.minor_grid_linewidth,
+                zorder=1,
+            )
+            major_kw = _update_kwargs(
+                g_kw,
+                color=style.major_grid_colour,
+                linewidth=style.major_grid_linewidth,
+                zorder=2,
+            )
+            ax.vlines(minor_xs, y_lo, y_hi, **minor_kw)
+            ax.hlines(minor_ys, x_lo, x_hi, **minor_kw)
+            ax.vlines(major_xs, y_lo, y_hi, **major_kw)
+            ax.hlines(major_ys, x_lo, x_hi, **major_kw)
+            # #### tick visibility
+            lead_show = (
+                show_axes.get(lead) if isinstance(show_axes, dict)
+                else show_axes
+            )
+            t_params_kwarg = _update_kwargs(
+                t_kw,
+                axis='both', which='both',
+                bottom=False, left=False,
+                labelbottom=False, labelleft=False,
+            )
+            ax.tick_params(
+                **t_params_kwarg,
+            )
+            if lead_show in ('x', 'b'):
+                ax.tick_params(axis='x', bottom=True, labelbottom=True)
+            if lead_show in ('y', 'b'):
+                ax.tick_params(axis='y', left=True, labelleft=True)
+            # #### lead label
+            if show_lead_labels:
+                lbl_kw = _update_kwargs(
+                    _resolve_lead_kwargs(kwargs_label, lead),
+                    fontsize=7, fontweight='bold',
+                    va='top', ha='left',
+                    color=style.trace_colour,
+                    clip_on=False,
+                )
+                ax.text(
+                    *style.label_coordinates,
+                    lead,
+                    transform=ax.transAxes,
+                    **lbl_kw,
+                )
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(
         self,
         reader: Any,
-        mapper: dict | None = None,
-        source: str = 'waveforms',
+        mapper: dict,
+        source: str = "waveforms",
         style: ECGStyle | None = None,
         show_axes: dict[str, str | None] | str | None = None,
         sampling_rate: float | None = None,
         show_lead_labels: bool = False,
         show_cal_pulse: bool = False,
-        cal_pulse_style: str = 'square',
+        cal_pulse_style: Literal["square", "line"] = "square",
         kwargs_fig: dict | None = None,
         kwargs_gridspec: dict | None = None,
         kwargs_plot: dict | dict[str, dict] | None = None,
@@ -351,15 +591,16 @@ class ECGDrawing:
         reader : Any
             A called ECGXMLReader or ECGDICOMReader instance.
         source : {'waveforms', 'median'}, default 'waveforms'
-            Whether to plot WaveForms or MedianBeats signals.
+            Whether to plot WaveForms or MedianBeats signals. Can be modified
+            to use a non-standard source name by updating self.SOURCE_MAP.
         leads : list[str] | None, optional
             Lead names to plot. Overrides the constructor default.
-        mapper : `dict` | `None`
+        mapper : `dict` [`str`, `tuple` [`int`, `slice`]]
             Layout dict mapping lead names to ``(row_index, col_slice)``.
-            Required — raises `InputValidationError` if None. Dict insertion
-            order determines plotting order; grid dimensions are derived from
-            the mapper values. Mismatch warnings (missing or unrequested leads)
-            are emitted at WARNING level via the ``ecgprocess.plot_ecgs`` logger.
+            Dict insertion order determines plotting order; grid dimensions are
+            derived from the mapper values. Mismatch warnings (missing or
+            unrequested leads) are emitted at WARNING level via the
+            ``ecgprocess.plot_ecgs`` logger.
         source : {'waveforms', 'median'}, default 'waveforms'
             Whether to plot WaveForms or MedianBeats signals.
         style : `ECGStyle` | `None`, optional
@@ -418,14 +659,30 @@ class ECGDrawing:
             Returns the instance with populated figure, axes, and
             calibration attributes.
         """
+        # #### type-check every parameter at the public boundary
+        is_type(mapper, dict)
+        is_type(source, str)
+        is_type(style, (ECGStyle, type(None)))
+        is_type(show_axes, (str, dict, type(None)))
+        is_type(sampling_rate, (float, int, type(None)))
+        is_type(show_lead_labels, bool)
+        is_type(show_cal_pulse, bool)
+        is_type(cal_pulse_style, str)
+        is_type(kwargs_fig, (dict, type(None)))
+        is_type(kwargs_gridspec, (dict, type(None)))
+        is_type(kwargs_plot, (dict, type(None)))
+        is_type(kwargs_grid, (dict, type(None)))
+        is_type(kwargs_ticks, (dict, type(None)))
+        is_type(kwargs_background, (dict, type(None)))
+        is_type(kwargs_label, (dict, type(None)))
         # #### resolve style
         style = style or ECGStyle()
         # #### validate source and extract signals
-        if source not in self._SOURCE_MAP:
+        if source not in self.SOURCE_MAP:
             raise InputValidationError(
                 f"source must be 'waveforms' or 'median', got {source!r}."
             )
-        signals = getattr(reader, self._SOURCE_MAP[source], None)
+        signals = getattr(reader, self.SOURCE_MAP[source], None)
         if signals is None or len(signals) == 0:
             raise InputValidationError(
                 f"Reader has no data for source={source!r}."
@@ -449,7 +706,7 @@ class ECGDrawing:
                 PDNames.MINOR_GRID_MM / style.mm_per_mv)
         setattr(self, PDNames.MAJOR_STEP_Y,
                 PDNames.MAJOR_GRID_MM / style.mm_per_mv)
-        # #### validate show_axes
+        # #### validate show_axes content (type already checked above)
         if isinstance(show_axes, str):
             if show_axes not in self._VALID_SHOW_AXES:
                 raise InputValidationError(
@@ -465,23 +722,13 @@ class ECGDrawing:
                 raise InputValidationError(
                     f"show_axes dict contains invalid values: {invalid!r}."
                 )
-        elif show_axes is not None:
-            raise InputValidationError(
-                f"show_axes must be str, dict, or None, "
-                f"got {type(show_axes).__name__!r}."
-            )
         # #### validate cal_pulse_style
         if cal_pulse_style not in self._VALID_CAL_PULSE_STYLES:
             raise InputValidationError(
                 f"cal_pulse_style must be 'square' or 'line', "
                 f"got {cal_pulse_style!r}."
             )
-        # #### validate mapper and build figure
-        if mapper is None:
-            raise InputValidationError(
-                "mapper is required — pass a dict mapping lead names to "
-                "(row_index, col_slice)."
-            )
+        # #### build figure
         fig, axes = self._build_figure(
             signals, mapper, style,
             kwargs_fig=kwargs_fig,
@@ -515,235 +762,8 @@ class ECGDrawing:
             kwargs_background=kwargs_background,
             kwargs_label=kwargs_label,
         )
+        # return
         return self
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def _build_figure(
-        self,
-        signals: dict,
-        mapper: dict,
-        style: ECGStyle,
-        kwargs_fig: dict | None = None,
-        kwargs_gridspec: dict | None = None,
-    ) -> tuple[plt.Figure, dict[str, plt.Axes]]:
-        """
-        Build the GridSpec figure and per-lead axes from a mapper dict.
-        
-        Parameters
-        ----------
-        signals : `dict`
-            Signal data extracted from the reader.
-        mapper : `dict`
-            Lead name to ``(row_index, col_slice)`` mapping. Dict insertion
-            order determines plotting order. Both n_rows and n_cols are
-            derived from the mapper — no assumptions about grid size are made.
-        style : `ECGStyle`
-            Style configuration.
-        kwargs_fig : `dict` | `None`, optional
-            Extra keyword arguments for ``plt.figure()``. None is treated
-            as an empty dict.
-        kwargs_gridspec : `dict` | `None`, optional
-            Extra keyword arguments for ``GridSpec()``. None is treated
-            as an empty dict.
-        
-        Returns
-        -------
-        figure : `plt.Figure`
-            The created figure.
-        axes : `dict` [`str`, `plt.Axes`]
-            Mapping of lead name to axes.
-        """
-        # #### derive grid dimensions from mapper — no hardcoded assumptions
-        n_rows = max(row for row, _ in mapper.values()) + 1
-        n_cols = max(col.stop for _, col in mapper.values())
-        # #### style values are defaults — caller dicts take precedence
-        kwargs_fig = kwargs_fig or {}
-        kwargs_gridspec = kwargs_gridspec or {}
-        fig_kwargs = _update_kwargs(
-            update_dict=kwargs_fig,
-            figsize=style.figsize, dpi=style.dpi,
-        )
-        gs_kwargs = _update_kwargs(
-            update_dict=kwargs_gridspec,
-            hspace=style.hspace, wspace=style.wspace,
-        )
-        fig = plt.figure(**fig_kwargs)
-        gs = GridSpec(n_rows, n_cols, figure=fig, **gs_kwargs)
-        # #### create one axes per mapper entry in insertion order
-        axes: dict[str, plt.Axes] = {}
-        for lead, (row, col) in mapper.items():
-            if lead not in signals:
-                _log.warning(
-                    "Lead %r not found in signal data — axes left blank.", lead
-                )
-            ax = fig.add_subplot(gs[row, col])
-            ax.patch.set_clip_on(style.clip_on_patch)
-            axes[lead] = ax
-        # #### warn about signal data keys the mapper did not request
-        for lead in signals:
-            if lead not in mapper:
-                _log.warning(
-                    "Lead %r is in signal data but not requested in "
-                    "mapper.", lead,
-                )
-        return fig, axes
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def _render_leads(
-        self,
-        axes: dict[str, plt.Axes],
-        signals: dict,
-        style: ECGStyle,
-        sampling_rate: float,
-        show_axes: dict[str, str | None] | str | None,
-        show_lead_labels: bool,
-        show_cal_pulse: bool,
-        cal_pulse_style: str,
-        kwargs_plot: dict | dict[str, dict] | None,
-        kwargs_grid: dict | dict[str, dict] | None,
-        kwargs_ticks: dict | dict[str, dict] | None,
-        kwargs_background: dict | dict[str, dict] | None,
-        kwargs_label: dict | dict[str, dict] | None,
-    ) -> None:
-        """
-        Render each lead: trace, limits, background, grid, and tick visibility.
-        
-        Parameters
-        ----------
-        axes : `dict` [`str`, `plt.Axes`]
-            Per-lead axes created by ``_build_figure``.
-        signals : `dict`
-            Signal data extracted from the reader.
-        style : `ECGStyle`
-            Style configuration.
-        sampling_rate : `float`
-            Sampling frequency in Hz used to build the time axis.
-        show_axes : `dict` [`str`, `str` | `None`] | `str` | `None`
-            Tick visibility spec; validated before this method is called.
-        show_lead_labels : `bool`
-            When True, annotate each panel with its lead name.
-        show_cal_pulse : `bool`
-            When True, prepend a calibration pulse.
-        cal_pulse_style : `str`
-            ``'square'`` or ``'line'``; validated before this method is called.
-        kwargs_plot : `dict` | `dict` [`str`, `dict`] | `None`
-            Extra kwargs for ``ax.plot()``.
-        kwargs_grid : `dict` | `dict` [`str`, `dict`] | `None`
-            Extra kwargs for ``ax.grid()``.
-        kwargs_ticks : `dict` | `dict` [`str`, `dict`] | `None`
-            Extra kwargs for ``ax.tick_params()``.
-        kwargs_background : `dict` | `dict` [`str`, `dict`] | `None`
-            Extra kwargs for ``ax.patch.set()``.
-        kwargs_label : `dict` | `dict` [`str`, `dict`] | `None`
-            Extra kwargs for ``ax.text()`` lead annotations.
-        """
-        minor_x = getattr(self, PDNames.MINOR_STEP_X)
-        major_x = getattr(self, PDNames.MAJOR_STEP_X)
-        minor_y = getattr(self, PDNames.MINOR_STEP_Y)
-        major_y = getattr(self, PDNames.MAJOR_STEP_Y)
-        for lead, ax in axes.items():
-            if lead not in signals:
-                # blank axes already created and warned in _build_figure
-                continue
-            signal = signals[lead]
-            # #### prepend calibration pulse (copy — caller data unchanged)
-            if show_cal_pulse:
-                n_pre  = round(0.1 * sampling_rate)
-                n_post = round(0.1 * sampling_rate)
-                if cal_pulse_style == 'square':
-                    body = np.ones(round(0.2 * sampling_rate))
-                else:
-                    body = np.array([0.0, 1.0, 0.0])
-                pulse = np.concatenate(
-                    [np.zeros(n_pre), body, np.zeros(n_post)])
-                signal = np.concatenate([pulse, signal])
-            t = np.arange(len(signal)) / sampling_rate
-            # #### resolve per-lead kwargs
-            p_kw   = _resolve_lead_kwargs(kwargs_plot,       lead)
-            g_kw   = _resolve_lead_kwargs(kwargs_grid,       lead)
-            t_kw   = _resolve_lead_kwargs(kwargs_ticks,      lead)
-            bg_kw  = _resolve_lead_kwargs(kwargs_background, lead)
-            # #### trace
-            plot_kw = _update_kwargs(
-                p_kw,
-                color=style.trace_color,
-                lw=style.trace_linewidth,
-                clip_on=style.clip_on_trace,
-                zorder=3,
-            )
-            ax.plot(
-                t, signal,
-                **plot_kw,
-            )
-            # #### axis limits
-            ax.set_xlim(style.x_lim or (0.0, len(signal) / sampling_rate))
-            ax.set_ylim(style.y_lim)
-            # #### background
-            ax.patch.set_facecolor(style.background_color)
-            ax.patch.set_visible(True)
-            if bg_kw:
-                ax.patch.set(**bg_kw)
-            # #### grid lines — minor first (behind), major second (in front)
-            # ax.grid() does not reliably honour zorder across x/y axes;
-            # vlines/hlines produce LineCollections that do.
-            ax.xaxis.set_major_locator(MultipleLocator(major_x))
-            ax.yaxis.set_major_locator(MultipleLocator(major_y))
-            x_lo, x_hi = ax.get_xlim()
-            y_lo, y_hi = ax.get_ylim()
-            minor_xs = _minor_only_ticks(x_lo, x_hi, minor_x, major_x)
-            minor_ys = _minor_only_ticks(y_lo, y_hi, minor_y, major_y)
-            major_xs = np.arange(
-                np.ceil(x_lo / major_x) * major_x,
-                x_hi + major_x * 1e-6,
-                major_x,
-            )
-            major_ys = np.arange(
-                np.ceil(y_lo / major_y) * major_y,
-                y_hi + major_y * 1e-6,
-                major_y,
-            )
-            minor_kw = _update_kwargs(
-                g_kw,
-                color=style.minor_grid_color,
-                linewidth=style.minor_grid_linewidth,
-                zorder=1,
-            )
-            major_kw = _update_kwargs(
-                g_kw,
-                color=style.major_grid_color,
-                linewidth=style.major_grid_linewidth,
-                zorder=2,
-            )
-            ax.vlines(minor_xs, y_lo, y_hi, **minor_kw)
-            ax.hlines(minor_ys, x_lo, x_hi, **minor_kw)
-            ax.vlines(major_xs, y_lo, y_hi, **major_kw)
-            ax.hlines(major_ys, x_lo, x_hi, **major_kw)
-            # #### tick visibility
-            lead_show = (
-                show_axes.get(lead) if isinstance(show_axes, dict)
-                else show_axes
-            )
-            t_params_kwarg = _update_kwargs(
-                t_kw,
-                axis='both', which='both',
-                bottom=False, left=False,
-                labelbottom=False, labelleft=False,
-            )
-            ax.tick_params(
-                **t_params_kwarg,
-            )
-            if lead_show in ('x', 'b'):
-                ax.tick_params(axis='x', bottom=True, labelbottom=True)
-            if lead_show in ('y', 'b'):
-                ax.tick_params(axis='y', left=True, labelleft=True)
-            # #### lead label
-            if show_lead_labels:
-                lbl_kw = _update_kwargs(
-                    _resolve_lead_kwargs(kwargs_label, lead),
-                    fontsize=7, fontweight='bold',
-                    va='top', ha='left',
-                    color=style.trace_color,
-                    clip_on=False,
-                )
-                ax.text(0.02, 0.95, lead, transform=ax.transAxes, **lbl_kw)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def to_numpy(
         self,
@@ -771,20 +791,28 @@ class ECGDrawing:
         NotCalledError
             If __call__ has not been invoked yet.
         """
+        # input
+        is_type(crop, bool)
+        is_type(close, bool)
+        # get figure
         fig = getattr(self, PDNames.FIGURE)
         if fig is None:
             raise NotCalledError(
                 "ECGDrawing must be called before to_numpy()."
             )
+        # cropping
         if crop:
             fig.tight_layout(pad=0)
         fig.canvas.draw()
+        # get array from fig
         arr = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8).copy()
         h, w = fig.canvas.get_width_height()[::-1]
         arr = arr.reshape(h, w, 4)
+        # close if needed and results attributes
         if close:
             plt.close(fig)
             setattr(self, PDNames.FIGURE, None)
             setattr(self, PDNames.AXES,   None)
+        # return
         return arr
 

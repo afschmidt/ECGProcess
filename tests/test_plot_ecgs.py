@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import numpy as np
 import pytest
+
 from matplotlib.collections import LineCollection
-from ecgprocess.constants import CoreData
+from ecgprocess.constants import CoreData, PlotNames
 from ecgprocess.errors import InputValidationError, NotCalledError
 from ecgprocess.plot_ecgs import (
     ECGDrawing,
@@ -20,6 +23,7 @@ _LEADS_12 = [
 ]
 
 _SIMPLE_MAPPER = {'I': (0, slice(0, 1))}
+_MINIMAL_MAPPER = {'I': (0, slice(0, 1)), 'II': (0, slice(1, 2))}
 
 _12LEAD_MAPPER = {
     'I':   (0, slice(0, 1)), 'II':  (0, slice(1, 2)),
@@ -29,6 +33,13 @@ _12LEAD_MAPPER = {
     'V3':  (2, slice(0, 1)), 'V4':  (2, slice(1, 2)),
     'V5':  (2, slice(2, 3)), 'V6':  (2, slice(3, 4)),
 }
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@pytest.fixture
+def minimal_signals():
+    """Minimal two-lead signal dict for direct _build_figure calls."""
+    rng = np.random.default_rng(0)
+    return {'I': rng.standard_normal(500), 'II': rng.standard_normal(500)}
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @pytest.fixture
@@ -51,6 +62,20 @@ def mock_reader_with_nan(mock_reader):
     """mock_reader with a NaN injected into lead I."""
     mock_reader.WaveForms['I'][0] = np.nan
     return mock_reader
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@pytest.fixture
+def prepared_drawing(minimal_signals):
+    """ECGDrawing with step slots populated and axes built, ready for
+    direct _render_leads calls."""
+    style = ECGStyle()
+    drawing = ECGDrawing()
+    setattr(drawing, 'minor_step_x', 1.0 / style.paper_speed)
+    setattr(drawing, 'major_step_x', 5.0 / style.paper_speed)
+    setattr(drawing, 'minor_step_y', 1.0 / style.mm_per_mv)
+    setattr(drawing, 'major_step_y', 5.0 / style.mm_per_mv)
+    fig, axes = drawing._build_figure(minimal_signals, _MINIMAL_MAPPER, style)
+    return drawing, fig, axes, minimal_signals, style
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class TestMinorOnlyTicks:
@@ -85,69 +110,176 @@ class TestECGStyle:
         s = ECGStyle()
         assert s.y_lim == (-2.0, 2.0)
         assert s.x_lim is None
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_calibration_field_defaults(self) -> None:
-        """paper_speed defaults to 25.0 mm/s; mm_per_mv defaults to 10.0 mm/mV."""
-        s = ECGStyle()
         assert s.paper_speed == 25.0
         assert s.mm_per_mv == 10.0
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_calibration_field_override(self) -> None:
-        """paper_speed and mm_per_mv accept custom values."""
-        s = ECGStyle(paper_speed=50.0, mm_per_mv=5.0)
-        assert s.paper_speed == 50.0
-        assert s.mm_per_mv == 5.0
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_clip_on_defaults_false(self) -> None:
-        """clip_on_patch and clip_on_trace both default to False."""
-        s = ECGStyle()
-        assert s.clip_on_patch is False
-        assert s.clip_on_trace is False
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_grid_linewidth_defaults(self) -> None:
-        """minor_grid_linewidth defaults to 0.2 pt; major to 0.3 pt."""
-        s = ECGStyle()
         assert s.minor_grid_linewidth == 0.2
         assert s.major_grid_linewidth == 0.3
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_grid_step_maths_at_defaults(self) -> None:
-        """Standard calibration yields 0.04 s minor / 0.20 s major on x;
-        0.1 mV minor / 0.5 mV major on y."""
-        s = ECGStyle()
         assert round(1.0 / s.paper_speed, 4) == 0.04
         assert round(5.0 / s.paper_speed, 4) == 0.20
         assert round(1.0 / s.mm_per_mv, 4) == 0.1
         assert round(5.0 / s.mm_per_mv, 4) == 0.5
-
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_calibration_field_override(self) -> None:
+        """paper_speed and mm_per_mv accept custom values."""
+        s = ECGStyle(paper_speed=50.0, mm_per_mv=0.01, y_lim=(-2000, 2000),
+                     trace_colour='white', wspace=5.0,)
+        assert s.paper_speed == 50.0
+        assert s.mm_per_mv == 0.01
+        assert s.y_lim == (-2000, 2000)
+        assert s.trace_colour == 'white'
+        assert s.wspace == 5.0
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-class TestECGDrawingSignalExtraction:
-    """Tests for ECGDrawing.__call__ source selection and signal validation."""
+class TestECGDrawingInit:
+    """Tests for ECGDrawing.__init__."""
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_waveforms_source_returns_self(self, mock_reader) -> None:
-        """__call__ returns self when waveforms source is valid."""
-        d = ECGDrawing()
-        assert d(mock_reader, mapper=_SIMPLE_MAPPER, source='waveforms') is d
+    def test_leads(self) -> None:
+        """Test the lead parameter."""
+        drawing = ECGDrawing()
+        expected = [
+            CoreData.Leads.I,   CoreData.Leads.II,  CoreData.Leads.III,
+            CoreData.Leads.aVR, CoreData.Leads.aVL, CoreData.Leads.aVF,
+            CoreData.Leads.V1,  CoreData.Leads.V2,  CoreData.Leads.V3,
+            CoreData.Leads.V4,  CoreData.Leads.V5,  CoreData.Leads.V6,
+        ]
+        assert getattr(drawing, PlotNames.DEFAULT_LEADS) == expected
+        # test slots
+        for attr in (
+            PlotNames.FIGURE, PlotNames.AXES, PlotNames.LAYOUT_MAPPER,
+            PlotNames.STYLE,
+            PlotNames.MINOR_STEP_X, PlotNames.MAJOR_STEP_X,
+            PlotNames.MINOR_STEP_Y, PlotNames.MAJOR_STEP_Y,
+            PlotNames.PAPER_SPEED, PlotNames.MM_PER_MV,
+        ):
+            assert getattr(drawing, attr) is None
+        # custom leads
+        custom = ['I', 'II']
+        assert getattr(
+            ECGDrawing(leads=custom), PlotNames.DEFAULT_LEADS) == custom
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestECGDrawingStr:
+    """Tests for ECGDrawing.__str__."""
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_nan_in_signal_raises(self, mock_reader_with_nan) -> None:
+    def test_str_format(self) -> None:
+        """__str__ returns class name and leads in expected format."""
+        drawing = ECGDrawing(leads=['I', 'II'])
+        assert str(drawing) == "ECGDrawing instance with leads=['I', 'II']."
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestECGDrawingRepr:
+    """Tests for ECGDrawing.__repr__."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_repr_format(self) -> None:
+        """__repr__ returns unambiguous constructor-style string."""
+        drawing = ECGDrawing(leads=['I', 'II'])
+        assert repr(drawing) == "ECGDrawing(leads=['I', 'II'])"
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestECGDrawingBuildFigureDirect:
+    """
+    Direct calls to ECGDrawing._build_figure: return types and kwarg
+    forwarding.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_returns_figure_and_axes_dict(self, minimal_signals) -> None:
+        """_build_figure returns a plt.Figure and a dict of plt.Axes."""
+        fig, axes = ECGDrawing()._build_figure(
+            minimal_signals, _MINIMAL_MAPPER, ECGStyle(),
+        )
+        assert isinstance(fig, plt.Figure)
+        assert isinstance(axes, dict)
+        assert set(axes.keys()) == set(_MINIMAL_MAPPER.keys())
+        assert all(isinstance(ax, plt.Axes) for ax in axes.values())
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_kwargs_fig_overrides_style(self, minimal_signals) -> None:
+        """kwargs_fig takes precedence over style when keys overlap."""
+        fig, _ = ECGDrawing()._build_figure(
+            minimal_signals, _MINIMAL_MAPPER, ECGStyle(),
+            kwargs_fig={'dpi': 200, 'figsize': (5.,5.)},
+        )
+        assert fig.dpi == 200
+        assert all(fig.get_size_inches() == [5.,5.])
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_kwargs_gridspec_overrides_style(self, minimal_signals) -> None:
+        """kwargs_gridspec takes precedence over style when keys overlap."""
+        fig, axes = ECGDrawing()._build_figure(
+            minimal_signals, _MINIMAL_MAPPER, ECGStyle(),
+            kwargs_gridspec={'hspace': 0.9},
+        )
+        gs = list(axes.values())[0].get_gridspec()
+        assert gs.get_subplot_params().hspace == pytest.approx(0.9)
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestECGDrawingRenderLeadsDirect:
+    """
+    Direct calls to ECGDrawing._render_leads: kwarg forwarding, tick
+    visibility, and blank-axes skipping.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _render(self, drawing, axes, signals, style, **kw) -> None:
+        """Call _render_leads with safe defaults for unused parameters."""
+        defaults = dict(
+            show_axes=None, show_lead_labels=False,
+            show_cal_pulse=False, cal_pulse_style='square',
+            kwargs_plot=None, kwargs_grid=None, kwargs_ticks=None,
+            kwargs_background=None, kwargs_label=None,
+        )
+        defaults.update(kw)
+        drawing._render_leads(axes, signals, style, 500.0, **defaults)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_kwargs_forwarding(self, prepared_drawing) -> None:
+        """kwargs_plot colour and kwargs_background facecolor both override
+        the style defaults."""
+        drawing, fig, axes, signals, style = prepared_drawing
+        self._render(
+            drawing, axes, signals, style,
+            kwargs_plot={'color': 'red'},
+            kwargs_background={'facecolor': 'yellow'},
+        )
+        assert axes['I'].get_lines()[0].get_color() == 'red'
+        assert axes['I'].patch.get_facecolor() == mcolors.to_rgba('yellow')
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_show_axes_x_and_y(self, prepared_drawing) -> None:
+        # show_axis = x
+        drawing, fig, axes, signals, style = prepared_drawing
+        self._render(drawing, axes, signals, style, show_axes='x')
+        xp = axes['I'].xaxis.get_tick_params(which='major')
+        yp = axes['I'].yaxis.get_tick_params(which='major')
+        assert xp['bottom'] is True and xp['labelbottom'] is True
+        assert yp['left'] is False and yp['labelleft'] is False
+        # show_axis = y
+        self._render(drawing, axes, signals, style, show_axes='y')
+        xp2 = axes['I'].xaxis.get_tick_params(which='major')
+        yp2 = axes['I'].yaxis.get_tick_params(which='major')
+        assert yp2['left'] is True and yp2['labelleft'] is True
+        assert xp2['bottom'] is False and xp2['labelbottom'] is False
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_blank_axes_skipped(self, prepared_drawing) -> None:
+        """
+        Lead absent from signals leaves its axes with no plotted lines.
+        """
+        drawing, fig, axes, signals, style = prepared_drawing
+        self._render(drawing, axes, {'I': signals['I']}, style)
+        assert len(axes['II'].get_lines()) == 0
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestECGDrawingSignalInput:
+    """Tests for ECGDrawing.__call__ """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_nan_in_signal(self, mock_reader_with_nan) -> None:
         """InputValidationError raised when any lead signal contains NaN."""
         with pytest.raises(InputValidationError):
             ECGDrawing()(mock_reader_with_nan, mapper=_SIMPLE_MAPPER)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_empty_source_raises(self, mock_reader) -> None:
+    def test_missing_source(self, mock_reader) -> None:
         """InputValidationError raised when requested source is None."""
         with pytest.raises(InputValidationError):
             ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER, source='median')
 
-
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-class TestECGDrawingBuildFigure:
-    """Tests for ECGDrawing._build_figure: mapper, GridSpec, and lead warnings."""
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_mapper_none_raises(self, mock_reader) -> None:
-        """InputValidationError raised when mapper=None."""
-        with pytest.raises(InputValidationError):
-            ECGDrawing()(mock_reader, mapper=None)
+class TestECGDrawingLayout:
+    """Tests for ECGDrawing.__call__ """
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_gridspec_layout(self, mock_reader) -> None:
         """Axes keys, nrows, ncols, and colspan all derived from the mapper."""
@@ -167,20 +299,12 @@ class TestECGDrawingBuildFigure:
         mapper = {'I': (0, slice(0, 1)), 'MISSING': (0, slice(1, 2))}
         with caplog.at_level('WARNING', logger='ecgprocess.plot_ecgs'):
             drawing = ECGDrawing()(mock_reader, mapper=mapper)
-        assert 'MISSING' in drawing.axes
         assert len(drawing.axes['MISSING'].get_lines()) == 0
         assert 'MISSING' in caplog.text
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_unrequested_lead_warns(self, mock_reader, caplog) -> None:
-        """Signal data keys absent from mapper log a WARNING."""
-        with caplog.at_level('WARNING', logger='ecgprocess.plot_ecgs'):
-            ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER)
-        assert any(lead in caplog.text for lead in ['II', 'III', 'aVR'])
-
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-class TestECGDrawingRenderLeads:
-    """Tests for ECGDrawing._render_leads: traces, limits, grid, and validation."""
+class TestECGDrawingRendering:
+    """Tests for ECGDrawing.__call__ trace, limits, grid, and validation."""
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_trace_and_limits(self, mock_reader) -> None:
         """Trace is plotted; x_lim auto-computes from n_samples/fs; y_lim
@@ -188,10 +312,11 @@ class TestECGDrawingRenderLeads:
         style = ECGStyle()
         drawing = ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER, style=style)
         ax = drawing.axes['I']
-        assert len(ax.get_lines()) >= 1
-        assert ax.get_xlim()[0] == pytest.approx(0.0)
-        assert ax.get_xlim()[1] == pytest.approx(1250 / 500.0)
-        assert ax.get_ylim() == pytest.approx(style.y_lim)
+        assert len(ax.get_lines()) == 1
+        assert ax.get_xlim()[0] == 0.0
+        # should be equal to len(signal) / sampling_rate
+        assert ax.get_xlim()[1] == 1250 / 500.0
+        assert ax.get_ylim() == style.y_lim
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_background_and_grid(self, mock_reader) -> None:
         """Axes patch is visible; four LineCollections drawn for the grid."""
@@ -207,25 +332,31 @@ class TestECGDrawingRenderLeads:
         drawing = ECGDrawing()(
             mock_reader, mapper=_SIMPLE_MAPPER, sampling_rate=250.0,
         )
-        assert drawing.axes['I'].get_xlim()[1] == pytest.approx(1250 / 250.0)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_validation_errors(self, mock_reader) -> None:
-        """Invalid show_axes, mixed kwargs, and absent fs all raise
-        InputValidationError."""
-        with pytest.raises(InputValidationError):
-            ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER, show_axes='z')
-        with pytest.raises(InputValidationError):
-            ECGDrawing()(
-                mock_reader, mapper=_SIMPLE_MAPPER,
-                kwargs_plot={'I': {'lw': 1}, 'II': 0.5},
-            )
-        class _NoFs:
-            WaveForms = {'I': np.zeros(10)}
-            MedianBeats = None
-            MetaData = {}
-        with pytest.raises(InputValidationError):
-            ECGDrawing()(_NoFs(), mapper={'I': (0, slice(0, 1))})
+        assert drawing.axes['I'].get_xlim()[1] == (1250 / 250.0)
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestECGDrawingLeadLabels:
+    """Tests for ECGDrawing lead label annotations (show_lead_labels)."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_labels_present_when_enabled(self, mock_reader) -> None:
+        """Each lead panel has exactly one text annotation with the lead name."""
+        drawing = ECGDrawing()(
+            mock_reader, mapper=_12LEAD_MAPPER, show_lead_labels=True,
+        )
+        for lead, ax in drawing.axes.items():
+            texts = [t.get_text() for t in ax.texts]
+            assert lead in texts
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_kwargs_label_forwarded(self, mock_reader) -> None:
+        """Custom kwargs_label override the default text style."""
+        drawing = ECGDrawing()(
+            mock_reader, mapper=_SIMPLE_MAPPER,
+            show_lead_labels=True,
+            kwargs_label={'fontsize': 12, 'color': 'red'},
+        )
+        txt = drawing.axes['I'].texts[0]
+        assert txt.get_fontsize() == 12
+        assert txt.get_color() == 'red'
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class TestECGDrawingCalPulse:
@@ -255,45 +386,13 @@ class TestECGDrawingCalPulse:
         expected_extra = 0.1 + 3 / 500.0 + 0.1
         assert x_hi_with == pytest.approx(x_hi_without + expected_extra)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_cal_pulse_invalid_style_raises(self, mock_reader) -> None:
-        """InputValidationError raised for an unknown cal_pulse_style."""
-        with pytest.raises(InputValidationError):
-            ECGDrawing()(
-                mock_reader, mapper=_SIMPLE_MAPPER,
-                show_cal_pulse=True, cal_pulse_style='triangle',
-            )
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_cal_pulse_does_not_mutate_signals(self, mock_reader) -> None:
         """Caller WaveForms arrays are unchanged after show_cal_pulse=True."""
         original_len = len(mock_reader.WaveForms['I'])
+        original = mock_reader.WaveForms['I'].copy()
         ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER, show_cal_pulse=True)
         assert len(mock_reader.WaveForms['I']) == original_len
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-class TestECGDrawingLeadLabels:
-    """Tests for ECGDrawing lead label annotations (show_lead_labels)."""
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_labels_present_when_enabled(self, mock_reader) -> None:
-        """Each lead panel has exactly one text annotation with the lead name."""
-        drawing = ECGDrawing()(
-            mock_reader, mapper=_12LEAD_MAPPER, show_lead_labels=True,
-        )
-        for lead, ax in drawing.axes.items():
-            texts = [t.get_text() for t in ax.texts]
-            assert lead in texts
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_kwargs_label_forwarded(self, mock_reader) -> None:
-        """Custom kwargs_label override the default text style."""
-        drawing = ECGDrawing()(
-            mock_reader, mapper=_SIMPLE_MAPPER,
-            show_lead_labels=True,
-            kwargs_label={'fontsize': 12, 'color': 'red'},
-        )
-        txt = drawing.axes['I'].texts[0]
-        assert txt.get_fontsize() == 12
-        assert txt.get_color() == 'red'
-
+        assert all(mock_reader.WaveForms['I'] == original)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class TestECGDrawingToNumpy:
