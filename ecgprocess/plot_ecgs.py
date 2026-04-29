@@ -396,8 +396,7 @@ class ECGDrawing:
         sampling_rate: float,
         show_axes: dict[str, str | None] | str | None,
         show_lead_labels: bool,
-        show_cal_pulse: bool,
-        cal_pulse_style: str,
+        cal_pulse: str | None,
         kwargs_plot: dict | dict[str, dict] | None,
         kwargs_grid: dict | dict[str, dict] | None,
         kwargs_ticks: dict | dict[str, dict] | None,
@@ -424,14 +423,17 @@ class ECGDrawing:
             names to these same string values, leaving unlisted leads hidden.
         show_lead_labels : `bool`
             When True, annotate each panel with its lead name.
-        show_cal_pulse : `bool`
-            When True, prepend a calibration pulse.
-        cal_pulse_style : {'square', 'line'}, default 'square'
-            Shape of the calibration pulse. ``'square'`` draws the full
-            rectangular pulse (0.1 s baseline → 0.2 s at 1 mV → 0.1 s
-            baseline). ``'line'`` draws only a single vertical spike
-            (0.1 s baseline → 3-sample rise/peak/fall → 0.1 s baseline),
-            matching the convention used by some thermal-paper ECG machines.
+        cal_pulse : {'square', 'line'} | `None`
+            Calibration pulse style to prepend to each lead, or ``None`` to
+            disable. The pulse height follows the clinical 10 mm paper
+            convention and is computed as ``10.0 / style.mm_per_mv`` in
+            the signal's own units. With the default ``mm_per_mv=10`` this
+            is the standard 1 mV pulse for mV signals; for μV signals
+            using e.g. ``mm_per_mv=10/1000`` it is 1000 (signal units),
+            i.e. a 1 mV-equivalent 10 mm pulse. ``'square'`` draws the
+            full rectangular pulse. ``'line'`` draws only a single
+            vertical spike, matching the convention used by some
+            thermal-paper ECG machines.
         kwargs_plot : `dict` | `dict` [`str`, `dict`] | `None`
             Extra kwargs for ``ax.plot()``.
         kwargs_grid : `dict` | `dict` [`str`, `dict`] | `None`
@@ -453,13 +455,21 @@ class ECGDrawing:
                 continue
             signal = signals[lead]
             # #### prepend calibration pulse
-            if show_cal_pulse:
+            if cal_pulse is not None:
                 n_pre  = round(0.1 * sampling_rate)
                 n_post = round(0.1 * sampling_rate)
-                if cal_pulse_style == 'square':
-                    body = np.ones(round(0.2 * sampling_rate))
+                # amplitude follows the clinical 10 mm paper convention:
+                # mm_per_mv is used as "mm per signal unit" (the y-axis
+                # gain), so 10 / mm_per_mv is the pulse height in signal
+                # units. With the default mm_per_mv=10 this is 1.0 (the
+                # standard 1 mV pulse for mV signals); for μV signals
+                # using mm_per_mv=10/1000 it is 1000 (a 1 mV-equivalent
+                # 10 mm pulse).
+                amp = 10.0 / style.mm_per_mv
+                if cal_pulse == 'square':
+                    body = np.full(round(0.2 * sampling_rate), amp)
                 else:
-                    body = np.array([0.0, 1.0, 0.0])
+                    body = np.array([0.0, amp, 0.0])
                 # adds a 0.1s zero line to the front and back
                 # the body is either a line or 0.2s square
                 pulse = np.concatenate(
@@ -573,8 +583,7 @@ class ECGDrawing:
         show_axes: dict[str, str | None] | str | None = None,
         sampling_rate: float | None = None,
         show_lead_labels: bool = False,
-        show_cal_pulse: bool = False,
-        cal_pulse_style: Literal["square", "line"] = "square",
+        cal_pulse: Literal["square", "line"] | None = None,
         kwargs_fig: dict | None = None,
         kwargs_gridspec: dict | None = None,
         kwargs_plot: dict | dict[str, dict] | None = None,
@@ -617,15 +626,22 @@ class ECGDrawing:
         show_lead_labels : `bool`, default False
             When True, each panel is annotated with its lead name in the
             top-left corner using the default label style.
-        show_cal_pulse : `bool`, default False
-            When True, prepends a standard 1 mV calibration pulse to each
-            lead signal before rendering. The caller's data is not mutated.
-        cal_pulse_style : {'square', 'line'}, default 'square'
-            Shape of the calibration pulse. ``'square'`` draws the full
-            rectangular pulse (0.1 s baseline → 0.2 s at 1 mV → 0.1 s
-            baseline). ``'line'`` draws only a single vertical spike
-            (0.1 s baseline → 3-sample rise/peak/fall → 0.1 s baseline),
-            matching the convention used by some thermal-paper ECG machines.
+        cal_pulse : {'square', 'line'} | `None`, default `None`
+            Calibration pulse style to prepend to each lead signal before
+            rendering. ``None`` disables the pulse. The pulse height
+            follows the clinical 10 mm paper convention and is computed
+            as ``10.0 / style.mm_per_mv`` in the signal's own units, so
+            it always spans 10 mm of plotted paper regardless of unit
+            choice (mV, μV, …). With the default ``mm_per_mv=10`` this
+            gives the standard 1 mV pulse for mV signals; for μV signals
+            using e.g. ``mm_per_mv=10/1000`` it gives 1000 signal units
+            (a 1 mV-equivalent 10 mm pulse). ``'square'`` draws the full
+            rectangular pulse: 0.1 s baseline, then 0.2 s at the computed
+            amplitude, then 0.1 s baseline. ``'line'`` draws only a
+            single vertical spike: 0.1 s baseline, then a 3-sample
+            rise/peak/fall, then 0.1 s baseline, matching the convention
+            used by some thermal-paper ECG machines. The caller's data is
+            not mutated.
         kwargs_fig : `dict` | `None`, optional
             Extra keyword arguments forwarded to ``plt.figure()``. Style
             fields (``figsize``, ``dpi``) are used as defaults and are
@@ -666,8 +682,7 @@ class ECGDrawing:
         is_type(show_axes, (str, dict, type(None)))
         is_type(sampling_rate, (float, int, type(None)))
         is_type(show_lead_labels, bool)
-        is_type(show_cal_pulse, bool)
-        is_type(cal_pulse_style, str)
+        is_type(cal_pulse, (str, type(None)))
         is_type(kwargs_fig, (dict, type(None)))
         is_type(kwargs_gridspec, (dict, type(None)))
         is_type(kwargs_plot, (dict, type(None)))
@@ -722,11 +737,12 @@ class ECGDrawing:
                 raise InputValidationError(
                     f"show_axes dict contains invalid values: {invalid!r}."
                 )
-        # #### validate cal_pulse_style
-        if cal_pulse_style not in self._VALID_CAL_PULSE_STYLES:
+        # #### validate cal_pulse
+        if cal_pulse is not None \
+                and cal_pulse not in self._VALID_CAL_PULSE_STYLES:
             raise InputValidationError(
-                f"cal_pulse_style must be 'square' or 'line', "
-                f"got {cal_pulse_style!r}."
+                f"cal_pulse must be 'square', 'line', or None, "
+                f"got {cal_pulse!r}."
             )
         # #### build figure
         fig, axes = self._build_figure(
@@ -754,8 +770,7 @@ class ECGDrawing:
             sampling_rate=float(sampling_rate),
             show_axes=show_axes,
             show_lead_labels=show_lead_labels,
-            show_cal_pulse=show_cal_pulse,
-            cal_pulse_style=cal_pulse_style,
+            cal_pulse=cal_pulse,
             kwargs_plot=kwargs_plot,
             kwargs_grid=kwargs_grid,
             kwargs_ticks=kwargs_ticks,
