@@ -397,6 +397,7 @@ class ECGDrawing:
         show_axes: dict[str, str | None] | str | None,
         show_lead_labels: bool,
         cal_pulse: str | None,
+        cal_leads: list[str] | None,
         kwargs_plot: dict | dict[str, dict] | None,
         kwargs_grid: dict | dict[str, dict] | None,
         kwargs_ticks: dict | dict[str, dict] | None,
@@ -449,13 +450,17 @@ class ECGDrawing:
         major_x = getattr(self, PDNames.MAJOR_STEP_X)
         minor_y = getattr(self, PDNames.MINOR_STEP_Y)
         major_y = getattr(self, PDNames.MAJOR_STEP_Y)
+        # #### get cal_leads
+        if cal_leads is None:
+            # simply print cal for each lead
+            cal_leads = list(signals.keys())
         for lead, ax in axes.items():
             if lead not in signals:
                 # blank axes already created and warned in _build_figure
                 continue
             signal = signals[lead]
             # #### prepend calibration pulse
-            if cal_pulse is not None:
+            if (cal_pulse is not None) and (lead in cal_leads):
                 n_pre  = round(0.1 * sampling_rate)
                 n_post = round(0.1 * sampling_rate)
                 # amplitude follows the clinical 10 mm paper convention:
@@ -584,6 +589,7 @@ class ECGDrawing:
         sampling_rate: float | None = None,
         show_lead_labels: bool = False,
         cal_pulse: Literal["square", "line"] | None = None,
+        cal_leads: list[str] | None = None,
         kwargs_fig: dict | None = None,
         kwargs_gridspec: dict | None = None,
         kwargs_plot: dict | dict[str, dict] | None = None,
@@ -683,6 +689,7 @@ class ECGDrawing:
         is_type(sampling_rate, (float, int, type(None)))
         is_type(show_lead_labels, bool)
         is_type(cal_pulse, (str, type(None)))
+        is_type(cal_leads, (list, type(None)))
         is_type(kwargs_fig, (dict, type(None)))
         is_type(kwargs_gridspec, (dict, type(None)))
         is_type(kwargs_plot, (dict, type(None)))
@@ -754,9 +761,11 @@ class ECGDrawing:
         setattr(self, PDNames.AXES,          axes)
         setattr(self, PDNames.LAYOUT_MAPPER, mapper)
         # #### resolve sampling rate
+        # trying to pull this from the metadata
         if sampling_rate is None:
             meta = getattr(reader, CoreData.DataTypes.MetaData, None) or {}
             sampling_rate = meta.get(CoreData.MetaData.SF)
+        # if still None raise an error
         if sampling_rate is None:
             raise InputValidationError(
                 "Sampling rate unavailable: pass sampling_rate= or ensure "
@@ -771,6 +780,7 @@ class ECGDrawing:
             show_axes=show_axes,
             show_lead_labels=show_lead_labels,
             cal_pulse=cal_pulse,
+            cal_leads=cal_leads,
             kwargs_plot=kwargs_plot,
             kwargs_grid=kwargs_grid,
             kwargs_ticks=kwargs_ticks,

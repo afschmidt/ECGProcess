@@ -221,7 +221,7 @@ class TestECGDrawingRenderLeadsDirect:
         """Call _render_leads with safe defaults for unused parameters."""
         defaults = dict(
             show_axes=None, show_lead_labels=False,
-            cal_pulse=None,
+            cal_pulse=None, cal_leads=None,
             kwargs_plot=None, kwargs_grid=None, kwargs_ticks=None,
             kwargs_background=None, kwargs_label=None,
         )
@@ -243,13 +243,17 @@ class TestECGDrawingRenderLeadsDirect:
     def test_show_axes_x_and_y(self, prepared_drawing) -> None:
         # show_axis = x
         drawing, fig, axes, signals, style = prepared_drawing
-        self._render(drawing, axes, signals, style, show_axes='x')
+        self._render(drawing, axes, signals, style,
+                     show_axes='x',
+                     )
         xp = axes['I'].xaxis.get_tick_params(which='major')
         yp = axes['I'].yaxis.get_tick_params(which='major')
         assert xp['bottom'] is True and xp['labelbottom'] is True
         assert yp['left'] is False and yp['labelleft'] is False
         # show_axis = y
-        self._render(drawing, axes, signals, style, show_axes='y')
+        self._render(drawing, axes, signals, style,
+                     show_axes='y',
+                     )
         xp2 = axes['I'].xaxis.get_tick_params(which='major')
         yp2 = axes['I'].yaxis.get_tick_params(which='major')
         assert yp2['left'] is True and yp2['labelleft'] is True
