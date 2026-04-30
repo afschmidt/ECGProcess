@@ -790,6 +790,79 @@ class ECGDrawing:
         # return
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def tile_x_axis(
+        self,
+        xlims: dict[str, tuple[float, float]] | None = None,
+    ) -> Self:
+        """
+        Tile the x-axis so each column shows an equal slice of the total
+        signal duration, mimicking continuous ECG paper.
+
+        The column count is derived from the mapper used at render time.
+        Each column's x window runs from
+        ``x_min + col * segment`` to ``x_min + (col + 1) * segment``,
+        where ``segment = (x_max - x_min) / n_cols``. Multi-column spans
+        (e.g. a full-width rhythm strip) receive the proportionally wider
+        window. Each row resets to zero independently.
+
+        Signal data outside a column's x window is removed from the line
+        artists rather than clipped. This prevents traces from bleeding
+        horizontally into adjacent panels while leaving
+        ``clip_on_trace=False`` intact so tall deflections can still cross
+        row boundaries.
+
+        Parameters
+        ----------
+        xlims : `dict` [`str`, `tuple` [`float`, `float`]] | `None`, \
+optional
+            Per-lead x-axis overrides. Keys are lead names; values are
+            ``(x_min, x_max)`` in seconds. Leads not listed fall back to
+            the auto-tiled column window.
+
+        Returns
+        -------
+        self : ECGDrawing
+            Returns the instance for method chaining.
+
+        Raises
+        ------
+        NotCalledError
+            If ``__call__`` has not been invoked yet.
+        InputValidationError
+            If ``xlims`` is not a dict or contains non-tuple values.
+        """
+        axes = getattr(self, PDNames.AXES)
+        mapper = getattr(self, PDNames.LAYOUT_MAPPER)
+        if axes is None or mapper is None:
+            raise NotCalledError(
+                "ECGDrawing must be called before tile_x_axis()."
+            )
+        is_type(xlims, (dict, type(None)))
+        xlims = xlims or {}
+        # #### derive total x range and column count from rendered state
+        # Use min xlim across all axes so that every tile window has complete
+        # signal coverage — leads with cal pulses have a longer xlim than
+        # leads without, and using min prevents an empty trailing gap.
+        x_min = min(ax.get_xlim()[0] for ax in axes.values())
+        x_max = min(ax.get_xlim()[1] for ax in axes.values())
+        n_cols = max(col.stop for _, col in mapper.values())
+        segment = (x_max - x_min) / n_cols
+        for lead, (_, col_slice) in mapper.items():
+            if lead in xlims:
+                col_x_min, col_x_max = xlims[lead]
+            else:
+                col_x_min = x_min + col_slice.start * segment
+                col_x_max = x_min + col_slice.stop * segment
+            ax = axes[lead]
+            for line in ax.lines:
+                xd = np.asarray(line.get_xdata())
+                yd = np.asarray(line.get_ydata())
+                mask = (xd >= col_x_min) & (xd <= col_x_max)
+                line.set_xdata(xd[mask])
+                line.set_ydata(yd[mask])
+            ax.set_xlim(col_x_min, col_x_max)
+        return self
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def to_numpy(
         self,
         crop: bool = False,

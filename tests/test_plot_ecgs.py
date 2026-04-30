@@ -421,3 +421,26 @@ class TestECGDrawingToNumpy:
         drawing = ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER)
         drawing.to_numpy(close=True)
         assert drawing.figure is None
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestECGDrawingTileXAxis:
+    """Tests for ECGDrawing.tile_x_axis."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_tile_x_axis(self, mock_reader) -> None:
+        """Auto-tiled xlims equal the column's 1/4 slice; a per-lead xlims
+        override is honoured for the specified lead."""
+        drawing = ECGDrawing()(
+            mock_reader, mapper=_12LEAD_MAPPER,
+        ).tile_x_axis(xlims={'I': (0.0, 0.5)})
+        x_min, x_max = 0.0, 1250 / 500.0
+        segment = (x_max - x_min) / 4
+        for lead, (_, col_slice) in _12LEAD_MAPPER.items():
+            ax_xlim = drawing.axes[lead].get_xlim()
+            if lead == 'I':
+                assert ax_xlim == pytest.approx((0.0, 0.5))
+            else:
+                expected = (
+                    x_min + col_slice.start * segment,
+                    x_min + col_slice.stop * segment,
+                )
+                assert ax_xlim == pytest.approx(expected)
