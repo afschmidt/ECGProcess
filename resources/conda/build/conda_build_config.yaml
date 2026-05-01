@@ -1,0 +1,4 @@
+# Pin numpy to silence conda-build's internal default warning.
+numpy:
+  - 1.26
+# noarch python package — no compiled dependencies, no build matrix needed

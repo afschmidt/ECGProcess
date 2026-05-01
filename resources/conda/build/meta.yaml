@@ -1,0 +1,65 @@
+# yaml-jinja
+{% set version = "1.0.1" %}
+
+package:
+  name: ecgprocess
+  version: {{ version }}
+
+source:
+  git_url: https://gitlab.com/SchmidtAF/ECGProcess.git
+  git_tag: v{{ version }}
+
+build:
+  noarch: python
+  number: 0
+
+requirements:
+  host:
+    - python >=3.11,<3.14
+    - pip
+    - setuptools >=61.0
+    - wheel
+  run:
+    - python >=3.11,<3.14
+    - lxml >=5
+    - xmltodict >=0.14
+    - pandas >=2.1.1
+    - numpy >=1.26
+    - scipy >=1.7
+    - tensorflow >=2.16
+    - pydicom >=2
+    - matplotlib-base >=3.9
+
+test:
+  source_files:
+    - tests
+  imports:
+    - ecgprocess
+  commands:
+    - pytest -v tests
+  requires:
+    - pytest
+    - pytest-mock
+    - pytest-dependency
+
+about:
+  home: "https://gitlab.com/SchmidtAF/ECGProcess"
+  authors:
+    - name: "A. Floriaan Schmidt"
+      email: "floriaanschmidt@gmail.com"
+  summary: >
+    A python module to process and standardise ECG data.
+  description: |
+    ECGProcess reads ECG files (XML, DICOM), maps them to a common
+    in-memory representation driven by user-supplied configuration
+    files, and exports waveforms, median beats and metadata to
+    tabular or array formats for downstream analysis.
+  license: GPL-3.0-or-later
+  license_family: GPL
+  license_file: LICENSE
+  dev_url: https://gitlab.com/SchmidtAF/ECGProcess
+  doc_url: https://SchmidtAF.gitlab.io/ECGProcess/
+
+extra:
+  recipe-maintainers:
+    - SchmidtAF
