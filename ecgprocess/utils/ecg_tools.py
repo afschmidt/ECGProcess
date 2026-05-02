@@ -39,8 +39,8 @@ def resampling_500hz(signals:dict[str, np.array],
         samples needed to get a 500hz sample: duration times 500.
     median : `bool`, default `False`
         Set to true to resample a median beat ECG to 500hz. The duration of a
-        median beat signal is 1.2 seconds, hence the number of samples is fixed at:
-        1.2 times 500 = 600.
+        median beat signal is 1.2 seconds, hence the number of samples is fixed
+        at: 1.2 times 500 = 600.
     
     """
     is_type(signals, dict)

@@ -257,6 +257,9 @@ class ECGDrawing:
     
     Methods
     -------
+    tile_x_axis(xlims)
+        Tiles each column's x-axis to an equal slice of the full signal,
+        mimicking continuous ECG paper. Per-lead overrides via ``xlims``.
     to_numpy(crop, close)
         Renders the figure to a 3-D numpy array (RGBA).
     
@@ -605,11 +608,6 @@ class ECGDrawing:
         ----------
         reader : Any
             A called ECGXMLReader or ECGDICOMReader instance.
-        source : {'waveforms', 'median'}, default 'waveforms'
-            Whether to plot WaveForms or MedianBeats signals. Can be modified
-            to use a non-standard source name by updating self.SOURCE_MAP.
-        leads : list[str] | None, optional
-            Lead names to plot. Overrides the constructor default.
         mapper : `dict` [`str`, `tuple` [`int`, `slice`]]
             Layout dict mapping lead names to ``(row_index, col_slice)``.
             Dict insertion order determines plotting order; grid dimensions are
@@ -617,7 +615,8 @@ class ECGDrawing:
             unrequested leads) are emitted at WARNING level via the
             ``ecgprocess.plot_ecgs`` logger.
         source : {'waveforms', 'median'}, default 'waveforms'
-            Whether to plot WaveForms or MedianBeats signals.
+            Whether to plot WaveForms or MedianBeats signals. Can be modified
+            to use a non-standard source name by updating self.SOURCE_MAP.
         style : `ECGStyle` | `None`, optional
             Style configuration. Uses defaults when None.
         show_axes : `dict` [`str`, `str` | `None`] | `str` | `None`, optional
@@ -648,6 +647,12 @@ class ECGDrawing:
             rise/peak/fall, then 0.1 s baseline, matching the convention
             used by some thermal-paper ECG machines. The caller's data is
             not mutated.
+        cal_leads : `list` [`str`] | `None`, default `None`
+            Restricts which leads receive the calibration pulse. When
+            `None`, every lead in the signal data receives the pulse
+            (provided ``cal_pulse`` is not `None`). Lead names not
+            present in the signal data are ignored. Has no effect when
+            ``cal_pulse`` is `None`.
         kwargs_fig : `dict` | `None`, optional
             Extra keyword arguments forwarded to ``plt.figure()``. Style
             fields (``figsize``, ``dpi``) are used as defaults and are
