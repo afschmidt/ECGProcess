@@ -260,17 +260,20 @@ class ECGXMLReader(BaseReader):
             )
         except TypeError:
             meta_data[CProc.Duration] = None
-        # only run when the parameter is True, SF is not 500 and there
-        # is a duration
+        # only run when the parameter is True and SF is present
         meta_data[CProc.SF_NEW] = None
         if getattr(self, PXMLNam.RESAMPLE):
             # confirm SF is present
             if not CMeta.SF in meta_data or meta_data[CMeta.SF] is None:
                 raise KeyError(f'`{CMeta.SF}` is necessary to resample '
                                'the ECG signal.')
-            # if it is, check whether there is a need to resample the signals.
-            if int(meta_data[CMeta.SF]) != 500 and\
-                    not meta_data[CProc.Duration] is None:
+            if int(meta_data[CMeta.SF]) == 500:
+                # already at target — record but skip resampling
+                meta_data[CProc.SF_NEW] = 500
+            elif meta_data[CProc.Duration] is None:
+                # cannot resample without duration; warn and leave SF_NEW None
+                warnings.warn(Warn_MSG.RESAMPLE_NO_DURATION)
+            else:
                 # set the new SF
                 meta_data[CProc.SF_NEW] = 500
                 # confirm there is waveform data

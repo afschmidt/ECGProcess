@@ -19,12 +19,12 @@ class InputValidationError(Exception):  # pragma: no cover
 def get_param_name(param:Any) -> str | None:  # pragma: no cover
     '''
     Gets the name of `param` from the caller's local scope.
-
+    
     Parameters
     ----------
     param : `Any`
         The object whose variable name is to be resolved.
-
+    
     Returns
     -------
     name : `str` or `None`
@@ -40,7 +40,7 @@ def is_type(param: Any, types: tuple[Type] | Type,
             param_name: str | None=None) -> bool:
     """
     Checks if a given parameter matches any of the supplied types.
-
+    
     Parameters
     ----------
     param : `Any`
@@ -50,12 +50,12 @@ def is_type(param: Any, types: tuple[Type] | Type,
     param_name : `str` or `None`, optional
         Name of the parameter, used in the error message. Resolved
         automatically from the caller's scope when not supplied.
-
+    
     Returns
     -------
     result : `bool`
         `True` if the parameter is an instance of any of the given types.
-
+    
     Raises
     ------
     InputValidationError
@@ -91,24 +91,24 @@ def is_series_type(column: pd.Series | pd.DataFrame,
                    ) -> bool:
     """
     Checks if a `pd.DataFrame` or `pd.Series` contains the supplied type.
-
+    
     Parameters
     ----------
     column : `pd.Series` or `pd.DataFrame`
         The column or frame whose elements are to be tested.
     types : `Type` or `tuple` [`Type`]
         Either a single type, or a tuple of types to test against.
-
+    
     Returns
     -------
     result : `bool`
         `True` if all elements match any of the given types.
-
+    
     Raises
     ------
     InputValidationError
         If any element is not an instance of any type in `types`.
-
+    
     Notes
     -----
     Tests each element individually rather than relying on dtype inference.
@@ -130,7 +130,7 @@ def same_len(object1: Any, object2: Any,
              ) -> bool:
     """
     Check if two objects have the same length.
-
+    
     Parameters
     ----------
     object1, object2 : `Any`
@@ -138,12 +138,12 @@ def same_len(object1: Any, object2: Any,
     object_names : `list` [`str`] or `None`, optional
         Names of the two objects, included in the error message when
         lengths differ.
-
+    
     Returns
     -------
     result : `bool`
         `True` if both objects have the same length.
-
+    
     Raises
     ------
     ValueError
@@ -173,7 +173,7 @@ def are_columns_in_df(
 ) -> bool:
     """
     Checks if all expected columns are present in a `pandas.DataFrame`.
-
+    
     Parameters
     ----------
     df : `pandas.DataFrame`
@@ -182,13 +182,13 @@ def are_columns_in_df(
         A single column name or a list of column names to check for.
     warning : `bool`, default `False`
         If `True`, issue a `UserWarning` instead of raising an error.
-
+    
     Returns
     -------
     result : `bool`
         `True` if all expected columns are present; `False` if any are
         missing and `warning` is `True`.
-
+    
     Raises
     ------
     InputValidationError
@@ -325,7 +325,12 @@ class Warn_MSG(object):  # pragma: no cover
     NUMB_IS_NONE = '`{}` is NoneType, cannot convert to numerical.'
     DROP_NONE_NUMERIC = ('The following non-numerical columns were '
                          'dropped when converting data to numpy '
-                         'arrays: {}.')
+                         'arrays: %s.')
+    RESAMPLE_NO_DURATION = (
+        'Resampling to 500 Hz was requested but `duration` could not '
+        'be calculated (sampling number or sampling frequency is '
+        'None); resampling skipped for this file.'
+    )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

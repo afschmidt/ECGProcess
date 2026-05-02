@@ -13,7 +13,7 @@ import os
 import sys
 import uuid
 import pathlib
-import warnings
+import logging
 import numpy as np
 import pandas as pd
 # filtering out TF warnings
@@ -27,6 +27,7 @@ from ecgprocess.errors import (
     FileValidationError,
     XMLValidationError,
     NotCalledError,
+    InputValidationError,
     is_type,
     Error_MSG,
     Warn_MSG,
@@ -62,6 +63,7 @@ from ecgprocess.utils.config_tools import(
 # constants
 CTypes = Core.DataTypes
 CMeta = Core.MetaData
+_log = logging.getLogger(__name__)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Example engineering functions
@@ -124,6 +126,25 @@ class ECGTable(object):
     schema : `str` or `NoneType`, default `NoneType`
         The path to an optional XSD schema to validate XML files. Set to
         None to ignore.
+    signal_length_w : `int` or `None`, default: `None`
+        Target sample count for the per-record `WaveForms` signals. When
+        set, each lead is right-padded with `pad_value` or right-truncated
+        to this length inside `write_ecg`'s per-record loop, before
+        `engineer_wave` runs. `None` disables waveform pad/truncate.
+        The output column ``'sampling number padded (waveforms)'``
+        records this target value (or ``None``); it does not confirm
+        that padding actually changed the array length.
+        signal length is equal to duration (second) by sampling rate (Hz).
+        For a standard 10 second ECG with 500 Hz the sampling rate is 5,000.
+    signal_length_m : `int` or `None`, default: `None`
+        Target sample count for the per-record `MedianBeats` signals;
+        same semantics as `signal_length_w` for medians. The output
+        column ``'sampling number padded (medianbeats)'`` records this
+        target value (or ``None``). For a 1.2 second median beat an 500 Hz
+        sampling rate the expected sampling rate would be 600.
+    pad_value : `int` or `float`, default: `0.0`
+        Fill value used when right-padding shorter signals. The date type of
+        the original array is preserved.
     
     Attributes
     ----------
@@ -159,6 +180,9 @@ class ECGTable(object):
                  engineer_wave:Callable=signal_identity,
                  engineer_median:Callable=signal_identity,
                  schema:str | None = None,
+                 signal_length_w:int | None = None,
+                 signal_length_m:int | None = None,
+                 pad_value:int | float = 0.0,
                  ) -> None:
         """
         Initialises a new instance of `ECGTable`.
@@ -171,6 +195,16 @@ class ECGTable(object):
         is_type(extract_median, bool)
         is_type(schema,
                 (str, pathlib.PosixPath, pathlib.WindowsPath, type(None)))
+        is_type(signal_length_w, (int, type(None)))
+        is_type(signal_length_m, (int, type(None)))
+        is_type(pad_value, (int, float))
+        # length params, when supplied, must be strictly positive
+        if signal_length_w is not None and signal_length_w <= 0:
+            raise InputValidationError(
+                f"`signal_length_w` must be > 0; got {signal_length_w}.")
+        if signal_length_m is not None and signal_length_m <= 0:
+            raise InputValidationError(
+                f"`signal_length_m` must be > 0; got {signal_length_m}.")
         # #### assign to self
         self.ecgreader = ecgreader
         setattr(self, TabNames.E_META, extract_meta)
@@ -181,6 +215,9 @@ class ECGTable(object):
         setattr(self, TabNames.ENG_MEDIAN, engineer_median)
         setattr(self, TabNames.RPATH_L, path_list)
         setattr(self, TabNames.SCHEMA, schema)
+        setattr(self, TabNames.SIG_LEN_W, signal_length_w)
+        setattr(self, TabNames.SIG_LEN_M, signal_length_m)
+        setattr(self, TabNames.PAD_VALUE, pad_value)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
         CLASS_NAME = type(self).__name__
@@ -194,6 +231,71 @@ class ECGTable(object):
         return (f"{CLASS_NAME}(ecgreader={self.ecgreader}, "
                 f"path_list={getattr(self, TabNames.RPATH_L)})"
                 )
+    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    def _pad_or_truncate(self,
+                         signals:dict[str, np.ndarray] | None,
+                         target_length:int,
+                         pad_value:int | float,
+                         ) -> dict[str, np.ndarray] | None:
+        """
+        Right-pad or right-truncate each lead in `signals` to a fixed
+        sample count. Applies in place mutations.
+        
+        Parameters
+        ----------
+        signals : `dict` [`str`, `np.ndarray`] or `None`
+            Per-lead signal dict. `None` passes through. `None` lead
+            values inside the dict pass through unchanged.
+        target_length : `int`
+            Target sample count per lead. Shorter arrays are right-padded
+            with `pad_value`; longer arrays are right-truncated; equal
+            length will not be affected.
+        pad_value : `int` or `float`
+            Fill value used for right-padding. The dtype of the original
+            array is preserved by allocating with `dtype=arr.dtype`.
+        
+        Returns
+        -------
+        signals : `dict` [`str`, `np.ndarray`] or `None`
+            The same dict object, with lead values replaced by their
+            padded / truncated counterparts. Returned for symmetry with
+            the engineer callables (`engineer_wave`, `engineer_median`),
+            which take a signal dict and return a signal dict.
+        
+        Notes
+        -----
+        Mutates `signals` in place. The reader instance is recreated for
+        every file by `_loop_table` (`self.ecgreader(p, ...)`), so the
+        in-place mutation cannot leak across records. The engineer
+        callables run after this method, so they observe the fixed-length
+        arrays.
+        """
+        # Skip if none
+        if signals is None:
+            return None
+        for lead, arr in signals.items():
+            # `None` lead values are legitimate (an engineer callable
+            # may null out a lead); preserve them as-is.
+            if arr is None:
+                continue
+            # get signal length and compare to current
+            current = arr.shape[0]
+            if current == target_length:
+                # skip if equal
+                continue
+            if current > target_length:
+                # Right-truncate. `arr[:n]` is a view; `.copy()`
+                # decouples the replacement from the original numpy buffer.
+                signals[lead] = arr[:target_length].copy()
+                continue
+            # If all false right-pad
+            # Single allocation of the target dtype; the
+            # explicit `dtype=arr.dtype` prevents int->float upcast
+            # that `np.pad(constant_values=...)` performs silently.
+            padded = np.full(target_length, pad_value, dtype=arr.dtype)
+            padded[:current] = arr
+            signals[lead] = padded
+        return signals
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, ignore_permission:bool = True, ignore_data:bool = False,
                  ignore_invalid:bool = False, confirm_meta:bool=False,
@@ -286,12 +388,11 @@ class ECGTable(object):
         setattr(self, TabNames.FPATH_L, empty_list)
         setattr(self, TabNames.CPATH_L, curated_list)
         # #### do we want to print the list of invalid files.
-        if self.verbose == True:
-            if len(getattr(self, TabNames.FPATH_L))>0:
-                warnings.warn(
-                    'The following files could not be accessed or found: {}.'.\
-                    format(getattr(self, TabNames.FPATH_L))
-                )
+        if len(getattr(self, TabNames.FPATH_L)) > 0:
+            _log.warning(
+                'The following files could not be accessed or found: %s.',
+                getattr(self, TabNames.FPATH_L),
+            )
         # #### Return
         return self
     # /////////////////////////////////////////////////////////////////////////
@@ -333,7 +434,7 @@ class ECGTable(object):
             A list of files which failed to validate.
         _id_start_number : `int`
             Records the integer start number used as place holder UID when
-            unique = `False`. This attributes esnures UIDs are unique across
+            unique = `False`. This attributes ensures UIDs are unique across
             multiple calls to the method.
         
         Returns
@@ -345,7 +446,7 @@ class ECGTable(object):
         -----
         To keep track of multiple ECG files the function will try to use the
         the privileged variable UID. If this is not found in the supplied
-        `MetaData` it will instead assign an interger value starting from 1 for
+        `MetaData` it will instead assign an integer value starting from 1 for
         each file processed.
         """
         # #### check input
@@ -433,6 +534,10 @@ class ECGTable(object):
             # empty objects
             meta_temp = []
             wave_temp, median_temp = ({} for _ in range(2))
+            # pad/truncate config (None when the user did not opt in).
+            sig_len_w = getattr(self, TabNames.SIG_LEN_W)
+            sig_len_m = getattr(self, TabNames.SIG_LEN_M)
+            pad_value = getattr(self, TabNames.PAD_VALUE)
             # append metadata.
             meta_available = False
             if getattr(self, TabNames.E_META):
@@ -442,6 +547,26 @@ class ECGTable(object):
                     meta_temp[TabNames.KEY] = key
                     # add filename
                     meta_temp[TabNames.FILENAM] = p
+                    # Added padded columns - will stay None if not used.
+                    meta_temp[TabNames.SN_W_PADDED] = sig_len_w
+                    meta_temp[TabNames.SN_M_PADDED] = sig_len_m
+                    # DURATION_PADDED is waveforms-only and needs the
+                    # original sampling frequency; emit a warning when the
+                    # user opted in but SF disagrees with the assumed
+                    # 500 Hz that the rest of the pipeline targets.
+                    # duration pad is len/sampling freq
+                    sf_val = meta_temp.get(CMeta.SF)
+                    if sig_len_w is not None and sf_val:
+                        meta_temp[TabNames.DURATION_PADDED] = (
+                            sig_len_w / sf_val)
+                        if sf_val != 500:
+                            _log.warning(
+                                "Pad/truncate target assumes 500 Hz but "
+                                "%s=%s for file %s.",
+                                CMeta.SF, sf_val, p,
+                            )
+                    else:
+                        meta_temp[TabNames.DURATION_PADDED] = None
                     # available.
                     meta_available = True
                 except AttributeError as AE:
@@ -481,6 +606,12 @@ class ECGTable(object):
                     # piping the waveform signals through the engineer function
                     # metadata is supplied through the function kwargs
                     wave_temp = getattr(ecg_inst, CTypes.WaveForms)
+                    # opt-in pad/truncate before the engineer runs so the
+                    # engineer (and every downstream writer) sees fixed
+                    # length arrays.
+                    if sig_len_w is not None:
+                        wave_temp = self._pad_or_truncate(
+                            wave_temp, sig_len_w, pad_value)
                     wave_temp =\
                         getattr(self, TabNames.ENG_WAVE)(
                             wave_temp, meta_dict=meta_temp
@@ -505,6 +636,10 @@ class ECGTable(object):
                     # piping the medianbeats signals through the engineer
                     # function metadata is supplied through the function kwargs
                     median_temp = getattr(ecg_inst, CTypes.MedianBeats)
+                    # opt-in pad/truncate (see waveform block above).
+                    if sig_len_m is not None:
+                        median_temp = self._pad_or_truncate(
+                            median_temp, sig_len_m, pad_value)
                     median_temp =\
                         getattr(self, TabNames.ENG_MEDIAN)(
                         median_temp, meta_dict=meta_temp,
@@ -536,19 +671,16 @@ class ECGTable(object):
         # record and update the last ID_START
         setattr(self, TabNames.ID_START, i+1)
         # to we want to print warnings?
-        if self.verbose == True:
-            if len(getattr(self, TabNames.NO_DATA_L))>0:
-                warnings.warn(
-                    'The following files do not have the requested data: {}.'
-                    '\n\n'.\
-                    format(getattr(self, TabNames.NO_DATA_L))
-                )
-            if len(getattr(self, TabNames.INVALID_L))>0:
-                warnings.warn(
-                    'The following XML files could not be validated: {}.'
-                    '\n\n'.\
-                    format(getattr(self, TabNames.INVALID_L))
-                )
+        if len(getattr(self, TabNames.NO_DATA_L)) > 0:
+            _log.warning(
+                'The following files do not have the requested data: %s.',
+                getattr(self, TabNames.NO_DATA_L),
+            )
+        if len(getattr(self, TabNames.INVALID_L)) > 0:
+            _log.warning(
+                'The following XML files could not be validated: %s.',
+                getattr(self, TabNames.INVALID_L),
+            )
         # check data and return
         return meta_list, wave_list, median_list
     # /////////////////////////////////////////////////////////////////////////
@@ -594,7 +726,7 @@ class ECGTable(object):
         -----
         To keep track of multiple ECG files the function will try to use the
         privileged variable UID. If this is not found in the supplied
-        `MetaData` the function will instead assign an interger starting from
+        `MetaData` the function will instead assign an integer starting from
         1 as a unique key.
         """
         # #### run loop
@@ -688,9 +820,10 @@ class ECGTable(object):
             arr_len = np.unique(array_length)
             if len(arr_len) == 0:
                 # add a place holder length
-                if self.verbose == True:
-                    warnings.warn('All the signal data is set to None, '
-                                  'replacing these by arrays of length one.')
+                _log.warning(
+                    'All the signal data is set to None, replacing these '
+                    'by arrays of length one.',
+                )
                 arr_len = 1
             elif len(arr_len) > 1:
                 raise ValueError('The number of signals differs per lead: '
@@ -698,9 +831,12 @@ class ECGTable(object):
             for key, sig in w.items():
                 if sig is None:
                     w[key] = np.full(arr_len, np.nan)
-                    if self.verbose == True and arr_len != 1:
-                        warnings.warn(f"Lead `{key}` had a None value and has "
-                                      "been replaced by an array of NaN.")
+                    if arr_len != 1:
+                        _log.warning(
+                            "Lead '%s' had a None value and has been "
+                            "replaced by an array of NaN.",
+                            key,
+                        )
             # ##### confirm the dictionary keys/lead names are identical
             current_keys = list(w.keys())
             if getattr(self, PREV) is not None:
@@ -821,7 +957,7 @@ class ECGTable(object):
         Notes
         -----
         While file_type='table' can store any kind of information, numpy and
-        tfrecord are best used to store numerical/float data. Currenlty
+        tfrecord are best used to store numerical/float data. Currently
         non-numerical data are therefore drooped from metadata for these
         filetypes.
         
@@ -888,7 +1024,7 @@ class ECGTable(object):
         try:
             for n, p in enumerate(path_list, start=1):
                 # record the chunk_number and the files included
-                # NOTE `p` is a list and `n` an interger
+                # NOTE `p` is a list and `n` an integer
                 chunk_record[n] = p
                 # extract data
                 meta_list, wave_list, median_list = self._loop_table(
@@ -942,11 +1078,11 @@ class ECGTable(object):
                     if isinstance(fpaths, str):
                         raise ValueError('`fpaths` should be a list, not '
                                          f'type(fpaths).')
-                    # if a string check if it is `, ` seperated and map to
+                    # if a string check if it is `, ` separated and map to
                     # list
                     # CHUNK_SPLIT = ', '
                     # if CHUNK_SPLIT in chunk_record:
-                    #     # NOTE using strip to remove redudant white space
+                    #     # NOTE using strip to remove redundant white space
                     #     fpaths = [s.strip() for s in fpaths.split(CHUNK_SPLIT)]
                     print('fpaths: ')
                     print(fpaths)
@@ -998,7 +1134,7 @@ class ECGTable(object):
         Parameters
         ----------
         chunk_num : `int` or `NoneType`, default `NoneType`
-            Appends the chunk number with a '_' seperator before the file
+            Appends the chunk number with a '_' separator before the file
             extension.
         
         Returns
@@ -1071,7 +1207,7 @@ class ECGTable(object):
         target: `str`
             The target directory.
         chunk_num : `int` or `NoneType`
-            Appends the chunk number with a '_' seperator before the file
+            Appends the chunk number with a '_' separator before the file
             extension.
         
         Notes
@@ -1129,7 +1265,7 @@ class ECGTable(object):
         target: `str`
             The target directory.
         chunk_num : `int` or `NoneType`
-            Appends the chunk number with a '_' seperator before the file
+            Appends the chunk number with a '_' separator before the file
             extension.
         numeric_meta : `bool`, default `True`
             Whether non-numeric data should be dropped from the metadata.
@@ -1153,16 +1289,18 @@ class ECGTable(object):
                 tab1 = tab1.select_dtypes(include=[np.number])
                 new_cols = set(tab1.columns)
                 drop_cols = old_cols - new_cols
-                if self.verbose == True and len(drop_cols) > 0:
-                    warnings.warn(Warn_MSG.DROP_NONE_NUMERIC.format(drop_cols))
+                if len(drop_cols) > 0:
+                    _log.warning(Warn_MSG.DROP_NONE_NUMERIC, drop_cols)
             # get the header
             tab1_header = list(tab1.columns)
             res_dict[CTypes.MetaData] = tab1.to_numpy()
         if getattr(self, TabNames.E_WAVE):
-            res_dict[CTypes.WaveForms] = signal_dicts_to_numpy_array(wave_list)
+            # `padding=False` will rely on `ECGTable._pad_or_truncate`
+            res_dict[CTypes.WaveForms] = signal_dicts_to_numpy_array(
+                wave_list, padding=False)
         if getattr(self, TabNames.E_MEDIAN):
-            res_dict[CTypes.MedianBeats] =\
-                signal_dicts_to_numpy_array(median_list)
+            res_dict[CTypes.MedianBeats] = signal_dicts_to_numpy_array(
+                median_list, padding=False)
         # finally write to a single file
         np.savez(os.path.join(target, ECG_FILE), **res_dict)
         # include the header
@@ -1190,7 +1328,7 @@ class ECGTable(object):
         target: `str`
             The target directory.
         chunk_num : `int` or `NoneType`
-            Appends the chunk number with a '_' seperator before the file
+            Appends the chunk number with a '_' separator before the file
             extension.
         numeric_meta : `bool`, default `True`
             Whether non-numeric data should be dropped from the metadata.
@@ -1214,8 +1352,8 @@ class ECGTable(object):
                 tab1 = tab1.select_dtypes(include=[np.number])
                 new_cols = set(tab1.columns)
                 drop_cols = old_cols - new_cols
-                if self.verbose == True and len(drop_cols) > 0:
-                    warnings.warn(Warn_MSG.DROP_NONE_NUMERIC.format(drop_cols))
+                if len(drop_cols) > 0:
+                    _log.warning(Warn_MSG.DROP_NONE_NUMERIC, drop_cols)
             # get the header
             tab1_header = list(tab1.columns)
             # write the dict
@@ -1224,14 +1362,17 @@ class ECGTable(object):
                     value=tab1.to_numpy().flatten()
                 ))
         if getattr(self, TabNames.E_WAVE):
+            # `padding=False`: see _write_numpy for the rationale.
             res_dict[CTypes.WaveForms] = tf.train.Feature(
                 float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(wave_list).flatten()
+                    value=signal_dicts_to_numpy_array(
+                        wave_list, padding=False).flatten()
                 ))
         if getattr(self, TabNames.E_MEDIAN):
             res_dict[CTypes.MedianBeats] = tf.train.Feature(
                 float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(median_list).flatten()
+                    value=signal_dicts_to_numpy_array(
+                        median_list, padding=False).flatten()
                 ))
         # finally write to a single file
         with tf.io.TFRecordWriter(os.path.join(target, ECG_FILE)) as writer:

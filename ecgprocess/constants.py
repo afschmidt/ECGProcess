@@ -137,6 +137,12 @@ class TabularNames(object):
     ID_START       = '_id_start_number'
     KEY            = 'key'
     FILENAM        = 'filename'
+    SIG_LEN_W      = 'signal_length_w'
+    SIG_LEN_M      = 'signal_length_m'
+    PAD_VALUE      = 'pad_value'
+    SN_W_PADDED    = 'sampling number padded (waveforms)'
+    SN_M_PADDED    = 'sampling number padded (medianbeats)'
+    DURATION_PADDED = 'duration padded (sec)'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class PlotNames:

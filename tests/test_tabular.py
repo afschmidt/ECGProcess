@@ -1,3 +1,4 @@
+import logging
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import pytest
@@ -8,6 +9,7 @@ import pydicom
 # from typing import Any
 from ecgprocess.errors import (
     MissingTagError, XMLValidationError,
+    InputValidationError,
 )
 from ecgprocess.constants import (
     CoreData as Core,
@@ -127,13 +129,20 @@ class TestTable(object):
         assert len(getattr(ecgtable, TabNames.FPATH_L)) == 1
         assert getattr(res, TabNames.SKIP_DATA) == False
         assert getattr(res, TabNames.SKIP_INVALID) == False
-        # getting warnings
-        ecgtable = ECGTable(ecgreader, path_list=dicom_wrong_list)
-        with pytest.warns(UserWarning):
-            res = ecgtable(verbose=True)
         # getting errors
         with pytest.raises(PermissionError):
             res = ecgtable(ignore_permission=False)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_call_logging(self, caplog):
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_wrong_list)
+        with caplog.at_level(logging.WARNING, logger='ecgprocess.tabular'):
+            ecgtable()
+        assert len(caplog.records) > 0
+        caplog.clear()
+        with caplog.at_level(logging.ERROR, logger='ecgprocess.tabular'):
+            ecgtable()
+        assert len(caplog.records) == 0
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_loop_table_default(self):
         # without validation
@@ -155,7 +164,7 @@ class TestTable(object):
         assert len(median) == 0
         assert len(wave) == 0
         assert getattr(res, TabNames.KEY_L)[0] == meta[0][CMeta.UID]
-        # unique False, with the config ommit the UID
+        # unique False, with the config omit the UID
         ecgtable = ECGTable(ecgreader, path_list=[xml_file_path],
                             extract_median=False, extract_wave=False,)
         res = ecgtable()
@@ -234,7 +243,7 @@ class TestTable(object):
             parsed_config=parser_dicom,
         )
         assert np.round(wave[0]['I'][2], 1) == 30.0
-        assert wave[0]['I'][2] != 29.28, 'still has the orignal value'
+        assert wave[0]['I'][2] != 29.28, 'still has the original value'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_loop_table_confirm(self, dicom_no_waveform):
         dicom_path_list_no_wave = dicom_no_waveform
@@ -343,9 +352,11 @@ class TestTable(object):
                             'header_metadata.txt']
         # change current directory
         os.chdir(tmp_path)
-        # run
+        # run; numpy/tfrecord writers require equal-length records, so
+        # opt in to the new pad/truncate.
         ecgreader = ECGDICOMReader()
-        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,)
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            signal_length_w=5000, signal_length_m=600)
         res = ecgtable(verbose=False).write_ecg(
             parsed_config=parser_dicom, file_type='numpy')
         # get content and read in a table
@@ -371,9 +382,11 @@ class TestTable(object):
                             'header_metadata.txt']
         # change current directory
         os.chdir(tmp_path)
-        # run
+        # run; numpy/tfrecord writers require equal-length records, so
+        # opt in to the new pad/truncate.
         ecgreader = ECGDICOMReader()
-        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,)
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            signal_length_w=5000, signal_length_m=600)
         res = ecgtable(verbose=False).write_ecg(
             parsed_config=parser_dicom, file_type='tensorflow')
         content = os.listdir(getattr(res, TabNames.WRITE_ECG_PATH))
@@ -411,3 +424,43 @@ class TestTable(object):
         # get content and read in a table
         content = os.listdir(getattr(res, TabNames.WRITE_ECG_PATH))
         assert set(content) == set(expected_content)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestPadTruncate(object):
+    """
+    Unit tests for the opt-in pad/truncate feature on ``ECGTable``.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_init(self):
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            signal_length_w=2500, signal_length_m=600,
+                            pad_value=-1.0)
+        assert getattr(ecgtable, TabNames.SIG_LEN_W) == 2500
+        assert getattr(ecgtable, TabNames.SIG_LEN_M) == 600
+        assert getattr(ecgtable, TabNames.PAD_VALUE) == -1.0
+        with pytest.raises(InputValidationError):
+            ECGTable(ecgreader, path_list=dicom_path_list,
+                     signal_length_w=0)
+        with pytest.raises(InputValidationError):
+            ECGTable(ecgreader, path_list=dicom_path_list,
+                     signal_length_m=-1)
+        with pytest.raises(InputValidationError):
+            ECGTable(ecgreader, path_list=dicom_path_list,
+                     signal_length_w='oops')
+        with pytest.raises(InputValidationError):
+            ECGTable(ecgreader, path_list=dicom_path_list,
+                     pad_value='oops')
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_pad_or_truncate(self):
+        ecgtable = ECGTable(ECGDICOMReader(), path_list=dicom_path_list)
+        signals = {'I': np.array([1.0, 2.0, 3.0], dtype=np.float64),
+                   'II': np.arange(10, dtype=np.int32),
+                   'III': None}
+        out = ecgtable._pad_or_truncate(signals, target_length=5,
+                                        pad_value=-9.0)
+        np.testing.assert_array_equal(
+            out['I'], np.array([1.0, 2.0, 3.0, -9.0, -9.0]))
+        np.testing.assert_array_equal(out['II'], np.arange(5))
+        assert out['II'].dtype == np.int32
+        assert out['III'] is None

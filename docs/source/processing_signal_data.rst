@@ -39,6 +39,42 @@ To process ECG data ECGprocess leverages three key components
   lead-order normalisation for devices that write channels in a non-standard
   sequence.
 
-Please consult the following section on setting up a configuration file, 
-as well as the example Jupyter notebooks. 
-  
+Please consult the following section on setting up a configuration file,
+as well as the example Jupyter notebooks.
+
+.. Fixed-length signals (pad / truncate)
+.. -------------------------------------
+
+.. The ``ECGTable`` constructor accepts three opt-in parameters that fix the
+.. per-record sample count of the ``WaveForms`` and ``MedianBeats`` signals
+.. before the engineer callables run:
+
+.. * ``signal_length_w`` (``int`` or ``None``, default ``None``) - target
+..   sample count for waveforms.
+.. * ``signal_length_m`` (``int`` or ``None``, default ``None``) - target
+..   sample count for median beats.
+.. * ``pad_value`` (``int`` or ``float``, default ``0.0``) - fill value
+..   used when right-padding shorter signals; the original array dtype is
+..   preserved.
+
+.. When set, each lead in the corresponding signal dict is right-padded
+.. with ``pad_value`` or right-truncated to the target length inside the
+.. ``write_ecg`` per-record loop. ``None`` lead values pass through
+.. unchanged.
+
+.. Three metadata columns are written to every output regardless of opt-in,
+.. so the schema is stable across runs:
+
+.. * ``sampling number padded (waveforms)``
+.. * ``sampling number padded (medianbeats)``
+.. * ``duration padded (sec)`` - waveforms only, computed as
+..   ``signal_length_w / SF`` from the original sampling frequency.
+
+.. When the user opts in but the original sampling frequency disagrees
+.. with the assumed 500 Hz, a ``WARNING`` is emitted on the
+.. ``ecgprocess.tabular`` logger naming the file path; the pad/truncate
+.. still runs.
+
+.. The ``numpy`` and ``tensorflow`` writers expect equal-length records
+.. and will raise rather than silently NaN-pad - opt in to the
+.. fixed-length parameters above when you target those file types.
