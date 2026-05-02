@@ -2,6 +2,8 @@
 
 ### Unreleased
 
+### 1.1.0 - 2026-05-02
+
 #### Added
 
 * `signal_length_w`, `signal_length_m`, and `pad_value` parameters
