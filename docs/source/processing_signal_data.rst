@@ -39,7 +39,7 @@ To process ECG data ECGprocess leverages three key components
   lead-order normalisation for devices that write channels in a non-standard
   sequence.
 
-Please consult the :ref `setting up a configuration file <configuration>`,
+Please consult the :ref:`setting up a configuration file <configuration>`,
 section as well as the example Jupyter notebooks.
 
 Signal processing
