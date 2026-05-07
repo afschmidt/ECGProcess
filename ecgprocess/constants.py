@@ -2,8 +2,6 @@
 Constants used by ECGProcess
 '''
 
-from dataclasses import dataclass
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class CoreData:
     '''
@@ -103,11 +101,13 @@ class ProcessXMLNames(object):
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class ProcessDicomNames(object):
+    """Names used in the process_dicom module."""
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
     
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class TabularNames(object):
+    """Configuration key names used in the tabular module."""
     E_META         = 'extract_'+CoreData.DataTypes.MetaData
     E_WAVE         = 'extract_'+CoreData.DataTypes.WaveForms
     E_MEDIAN       = 'extract_'+CoreData.DataTypes.MedianBeats

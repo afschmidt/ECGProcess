@@ -19,6 +19,7 @@ dependencies:
   - codespell
   - ruff
   - build
+  - conda-build>=3
   - twine
   - sphinx
   - sphinx_rtd_theme

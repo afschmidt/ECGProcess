@@ -16,9 +16,9 @@ sys.path.insert(0, os.path.abspath(os.path.join('..', '..' )))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'ECGProcess'
-copyright = '2024, A Floriaan Schmidt'
-author = 'A Floriaan Schmidt'
-release = '1.1.0'
+copyright = '2026, A. Floriaan Schmidt'
+author = 'A. Floriaan Schmidt'
+release = '1.0.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -27,23 +27,31 @@ extensions = [
     "myst_parser",
     "nbsphinx",
     "nbsphinx_link",
-    # "sphinx_gallery.load_style",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
-    # 'sphinxarg.ext',
     'sphinx_rtd_theme',
     'sphinx.ext.mathjax',
-    # 'sphinx_chang
 ]
 
-# autodoc_typehints = 'description'
+autodoc_typehints = 'description'
+autodoc_mock_imports = ['tensorflow', 'pydicom']
+autodoc_member_order = 'bysource'
+autoclass_content = 'class'
+
+# Napoleon: NumPy-style only
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
+napoleon_use_param = False
+napoleon_use_rtype = False
+napoleon_preprocess_types = True
+
+nbsphinx_execute = 'never'
+
 templates_path = ['_templates']
-exclude_patterns = []
-
-
+exclude_patterns = ['_build', '.ipynb_checkpoints']
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -51,8 +59,12 @@ exclude_patterns = []
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
-# Intersphinx, links into the STD python library
+# Intersphinx: cross-references into external package docs
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3', None)
+    'python': ('https://docs.python.org/3', None),
+    'numpy': ('https://numpy.org/doc/stable', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy', None),
+    'pandas': ('https://pandas.pydata.org/docs', None),
+    'pydicom': ('https://pydicom.github.io/pydicom/stable', None),
 }
 

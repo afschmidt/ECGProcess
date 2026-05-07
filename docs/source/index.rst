@@ -23,42 +23,31 @@ machine learning pipelines.
 Data extraction is driven by user-supplied tab-delimited configuration
 files that define which signals and metadata fields to retrieve, without
 requiring changes to library code. The processing pipeline can be readily 
-augmented with used supplied engineering functions, to for example allow 
-for signal resaumpling or derivation of augmented leads.  Processed data 
+augmented with user supplied engineering functions, to for example allow
+for signal resampling or derivation of augmented leads.  Processed data
 can be exported as pandas DataFrames, NumPy arrays, or TensorFlow 
 ``tf.data.Dataset`` objects, supporting both in-memory and chunked on-disk 
 workflows.
 
-Additionally, the module provides a flexible plotting API build on top of 
+Additionally, the module provides a flexible plotting API built on top of
 matplotlib. This can be used for research illustrations as well as to 
 mimic clinical ECG prints. These can be written to disk as illustrations 
 or as numpy arrays (e.g. relevant for imaging based machine learning). 
 
 Installation
 ----------------------------
-At present, the repository is undergoing development and no packages exist yet
-on PyPy or in Conda.
-Therefore it is recommended that it is installed in either of the two ways
-listed below.
-First, clone this repository and then cd to the root of the repository.
+
+To install the package from PyPI, run:
 
 .. code-block:: console
 
-    git clone git@gitlab.com:SchmidtAF/ECGProcess.git
-    cd ECGProcess
+    pip install ecgprocess
 
-Next install the dependencies using conda:
-
-.. code-block:: console
-
-    # From the root of the repository
-    conda env create --file ./resources/conda/envs/conda_create.yaml
-
-And pip install the package. 
+or instead using conda:
 
 .. code-block:: console
 
-    python -m pip install .
+    conda install afschmidt::ecgprocess
 
 Documentation
 =============

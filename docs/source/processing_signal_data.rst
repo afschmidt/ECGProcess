@@ -15,7 +15,7 @@ To process ECG data ECGprocess leverages three key components
   can optionally include validation steps (e.g. using XML 
   schema's).
 
-  All reader classes are be able to perform 
+  All reader classes are able to perform
   rudimentary data augmentation steps such as re-sampling 
   the ECG signal and calculating the peripheral leads if 
   these were omitted for the source file. 
@@ -39,42 +39,72 @@ To process ECG data ECGprocess leverages three key components
   lead-order normalisation for devices that write channels in a non-standard
   sequence.
 
-Please consult the following section on setting up a configuration file,
-as well as the example Jupyter notebooks.
+Please consult the :ref `setting up a configuration file <configuration>`,
+section as well as the example Jupyter notebooks.
 
-.. Fixed-length signals (pad / truncate)
-.. -------------------------------------
+Signal processing
+-----------------
 
-.. The ``ECGTable`` constructor accepts three opt-in parameters that fix the
-.. per-record sample count of the ``WaveForms`` and ``MedianBeats`` signals
-.. before the engineer callables run:
+The reader classes include two optional signal processing steps 
+before returning data:
 
-.. * ``signal_length_w`` (``int`` or ``None``, default ``None``) - target
-..   sample count for waveforms.
-.. * ``signal_length_m`` (``int`` or ``None``, default ``None``) - target
-..   sample count for median beats.
-.. * ``pad_value`` (``int`` or ``float``, default ``0.0``) - fill value
-..   used when right-padding shorter signals; the original array dtype is
-..   preserved.
+* ``resample_500`` (``bool``, default ``True``) — resamples all
+  waveform and median beat signals to 500 Hz using
+  :func:`scipy.signal.resample`. Skipped if the source sampling
+  frequency is already 500 Hz.
+* ``augment_leads`` (``bool``, default ``False``) — derives the
+  augmented limb leads (III, aVR, aVL, aVF) from leads I and II when
+  those leads are absent from the source file.
 
-.. When set, each lead in the corresponding signal dict is right-padded
-.. with ``pad_value`` or right-truncated to the target length inside the
-.. ``write_ecg`` per-record loop. ``None`` lead values pass through
-.. unchanged.
+Fixed-length signals
+--------------------
 
-.. Three metadata columns are written to every output regardless of opt-in,
-.. so the schema is stable across runs:
+``ECGTable`` accepts three opt-in parameters that fix the per-record
+sample count of the ``WaveForms`` and ``MedianBeats`` signals before
+the engineering callables run:
 
-.. * ``sampling number padded (waveforms)``
-.. * ``sampling number padded (medianbeats)``
-.. * ``duration padded (sec)`` - waveforms only, computed as
-..   ``signal_length_w / SF`` from the original sampling frequency.
+* ``signal_length_w`` (``int`` or ``None``, default ``None``) — target
+  sample count for waveforms.
+* ``signal_length_m`` (``int`` or ``None``, default ``None``) — target
+  sample count for median beats.
+* ``pad_value`` (``int`` or ``float``, default ``0.0``) — fill value
+  used when right-padding shorter signals; the original array dtype is
+  preserved.
 
-.. When the user opts in but the original sampling frequency disagrees
-.. with the assumed 500 Hz, a ``WARNING`` is emitted on the
-.. ``ecgprocess.tabular`` logger naming the file path; the pad/truncate
-.. still runs.
+When set, each lead in the corresponding signal dict is right-padded
+with ``pad_value`` or right-truncated to the target length. Three
+metadata columns are written to every output regardless of opt-in so
+the output schema remains stable across runs:
+``sampling number padded (waveforms)``,
+``sampling number padded (medianbeats)``, and
+``duration padded (sec)``.
 
-.. The ``numpy`` and ``tensorflow`` writers expect equal-length records
-.. and will raise rather than silently NaN-pad - opt in to the
-.. fixed-length parameters above when you target those file types.
+Engineering callables
+---------------------
+
+``ECGTable`` exposes three callable hooks for on-the-fly curation:
+
+* ``engineer_meta`` — receives the metadata dict for each record and
+  returns a transformed version.
+* ``engineer_wave`` / ``engineer_median`` — receive the waveform or
+  median beat signal dict and return a transformed version. Both also
+  receive a ``meta_dict`` keyword argument containing the current
+  record's metadata, enabling sample-frequency-aware operations.
+
+A collection of ready-to-use callables is provided in
+:mod:`ecgprocess.utils.engineering_tools`:
+
+* :class:`~ecgprocess.utils.engineering_tools.LeadMapper` — normalises
+  lead order for devices that write channels in a non-standard sequence.
+* :class:`~ecgprocess.utils.engineering_tools.WaveformMapper` — remaps
+  waveform keys to a canonical naming scheme.
+* :func:`~ecgprocess.utils.engineering_tools.metadata_checkversion` —
+  validates device version, manufacturer, and model against expected
+  values.
+* :func:`~ecgprocess.utils.engineering_tools.signal_correction` —
+  applies gain and baseline correction.
+* :func:`~ecgprocess.utils.engineering_tools.signal_standardise_res` —
+  resamples signals to a target resolution.
+
+Users can supply any callable that conforms to the signature above in
+place of or alongside these built-in functions.

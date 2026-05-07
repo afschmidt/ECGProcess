@@ -10,10 +10,8 @@ We welcome contributions from all users to the project:
 3. Bug fixes
 4. New code
 
-However, we ask that contributors please follow these guidelines when contributing to the package.
-This allows us to retain some level of homogeneity throughout a project and will make it easily to maintain and improve in the long run.
-
-A list of current contributors can be found in the project root. 
+We ask that contributors please follow these guidelines when contributing to the package.
+This allows us to retain some level of homogeneity throughout a project and will make it easier to maintain and improve in the long run.
 
 1. Please ensure that all code follows the Python `Google Python Style Guide <https://google.github.io/styleguide/pyguide.html>`_ standard.
 2. Please ensure that your code is well commented, so that programmers of varying abilities have a good chance in following it.

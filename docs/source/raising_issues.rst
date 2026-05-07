@@ -18,9 +18,7 @@ Furthermore, by spending to time to create an MRE, you may find a way to fix
 it yourself - or, if not, meaningfully decrease the time we have to spend 
 creating an MRE ourselves. 
 This ensures that time can be spent on fixing the actual bug. 
-
 **Steps for a Good MRE**
-
 #. *Include Minimal Input Data*: Simplify your data to the smallest size and 
    complexity needed. Please have a look at the examples module for relevant
    example data. 
@@ -63,7 +61,7 @@ input.
    problematic part into a smaller example.
 
 You could additionally consider including the original error message.
-This might not be relevant if you have ensured the MRE faitfully replicates 
+This might not be relevant if you have ensured the MRE faithfully replicates
 the same message. 
 
 .. code-block:: python

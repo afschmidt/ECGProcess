@@ -1,19 +1,19 @@
-'''
+"""
 Error handling for ECGProcess.
-'''
+"""
 import os
 import inspect
 import warnings
 import pandas as pd
 
 from os import PathLike
-from typing import Any, Type, Union
+from typing import Any, Type
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class InputValidationError(Exception):  # pragma: no cover
-    pass
+    """Exception raised when a function argument fails a type or value check."""
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def get_param_name(param:Any) -> str | None:  # pragma: no cover
@@ -346,6 +346,14 @@ class MissingTagError(Exception):  # pragma: no cover
     Raises an error identifying the missing DICOM tag.
     '''
     def __init__(self, tag_name):
+        """
+        Initialise MissingTagError.
+        
+        Parameters
+        ----------
+        tag_name : `str`
+            Name of the DICOM tag that could not be found.
+        """
         self.tag_name = tag_name
         super().__init__(f"Tag '{tag_name}' is missing.")
 
@@ -355,6 +363,15 @@ class NotCalledError(Exception):  # pragma: no cover
     Exception raised when a required __call__ method has not been used.
     """
     def __init__(self, message="__call__ method has not been invoked."):
+        """
+        Initialise NotCalledError.
+        
+        Parameters
+        ----------
+        message : `str`, optional
+            Human-readable description of the error.  Defaults to a
+            message indicating that the ``__call__`` method was not invoked.
+        """
         self.message = message
         super().__init__(self.message)
 
@@ -364,6 +381,15 @@ class FileValidationError(Exception):  # pragma: no cover
     General exception raised when a file was not valid
     '''
     def __init__(self, message="File failed to validate."):
+        """
+        Initialise FileValidationError.
+        
+        Parameters
+        ----------
+        message : `str`, optional
+            Human-readable description of the error.  Defaults to a
+            generic file-validation failure message.
+        """
         self.message = message
         super().__init__(self.message)
 
@@ -373,6 +399,20 @@ class XMLValidationError(FileValidationError):
     Exception raised when the XML and XSD file are incompatible.
     """
     def __init__(self, errors: list[str]):
+        """
+        Initialise XMLValidationError.
+        
+        Parameters
+        ----------
+        errors : `list` [`str`]
+            Validation error messages reported by the XSD validator.
+        
+        Raises
+        ------
+        XMLValidationError
+            Always raised; carries a combined error message built from
+            the supplied ``errors`` list.
+        """
         custom_message = (
             "XML validation failed due to the following issues:\n"
             + "\n".join(errors)

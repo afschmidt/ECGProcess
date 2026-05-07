@@ -1,4 +1,4 @@
-'''
+"""
 A module for extracting metadata, median beats, and raw waveforms from ECG
 DICOM files.
 
@@ -6,38 +6,30 @@ This module provides an API through a reader class, which maps ECG data from
 DICOM files to class attributes. These attributes can be programmatically accessed
 and further processed by downstream ECGprocess modules or external programs
 leveraging the API.
-'''
+"""
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import pathlib
 import pydicom
 import numpy as np
-import pandas as pd
 import ecgprocess.utils.ecg_tools as ecg_utils
 import ecgprocess.utils.reader_tools as reader_utils
 from ecgprocess.process_xml import ECGXMLReader
 from dataclasses import dataclass, field
 from typing import (
-    Self, Dict, Any, Optional
+    Self, Any, Optional
 )
 from ecgprocess.errors import (
     is_type,
-    Error_MSG,
-    Warn_MSG,
     _check_readable,
-    MissingTagError,
 )
 from ecgprocess.utils.general import(
     parse_number,
-    string_concat,
 )
 from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
     CoreData as Core,
-)
-from ecgprocess.utils.reader_tools import(
-    BaseReader,
 )
 from ecgprocess.utils.general import(
     ManagedProperty,
@@ -66,14 +58,14 @@ class ECGDICOMReader(ECGXMLReader):
     augment_leads : `bool`, default `False`
         Whether the augmented leads should be calculated if these are not
         already available in the source file.
-    resample : `bool`, default `True`
+    resample_500 : `bool`, default `True`
         Whether to resample the ECG to a frequency of 500 Hertz.
     
     Attributes
     ----------
     augment_leads : `bool`
         Whether the augmented leads were calculated if these were unavailable.
-    resample : `bool`
+    resample_500 : `bool`
         Whether the ECG was resampled to a 500 Hertz frequency.
     
     Methods

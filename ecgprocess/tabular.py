@@ -1,10 +1,10 @@
-'''
+"""
 A module to process ECG signal data and metadata to tabular form. This also
 includes 2D figures - which are strictly speaking tables of pixels.
 
 The module leverages the existing process class instances and based on their
 class attributes extracts the requested data.
-'''
+"""
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
@@ -45,9 +45,6 @@ from ecgprocess.utils.general import (
     chunk_list,
     update_dict_with_warning,
 )
-# from ecgprocess.plot_ecgs import (
-#     ECGDrawing,
-# )
 from ecgprocess.utils.reader_tools import(
     BaseReader,
 )
@@ -220,6 +217,7 @@ class ECGTable(object):
         setattr(self, TabNames.PAD_VALUE, pad_value)
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __str__(self):
+        """Return a human-readable summary."""
         CLASS_NAME = type(self).__name__
         return (f"{CLASS_NAME} instance with "
                 f"ecgreader={self.ecgreader}, "
@@ -227,6 +225,7 @@ class ECGTable(object):
                 )
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __repr__(self):
+        """Return an unambiguous string."""
         CLASS_NAME = type(self).__name__
         return (f"{CLASS_NAME}(ecgreader={self.ecgreader}, "
                 f"path_list={getattr(self, TabNames.RPATH_L)})"

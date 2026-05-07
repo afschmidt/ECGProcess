@@ -1,7 +1,7 @@
 Examples
 -------------------------------------------
 
-Here is some sample templates illustrating 
+Here are some sample examples illustrating
 the basic features of ECGProcess
 
 .. toctree::
@@ -10,6 +10,6 @@ the basic features of ECGProcess
    recipe/process_xml.nblink
    recipe/process_dicom.nblink
    recipe/tabular.nblink
+   recipe/plot_ecgs.nblink
    recipe/utils/engineering_tools.nblink
-   .. recipe/plot_ecgs.nblink
 
