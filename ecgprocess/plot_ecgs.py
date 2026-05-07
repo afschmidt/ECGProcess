@@ -478,12 +478,13 @@ class ECGDrawing:
                     body = np.full(round(0.2 * sampling_rate), amp)
                 else:
                     body = np.array([0.0, amp, 0.0])
-                # adds a 0.1s zero line to the front and back
-                # the body is either a line or 0.2s square
+                # 0.1s zero baseline, 0.2s square body (or 3-sample line), 0.1s zero baseline
                 pulse = np.concatenate(
                     [np.zeros(n_pre), body, np.zeros(n_post)])
-                # adds the pulse to the signal (which is now longer)
-                signal = np.concatenate([pulse, signal])
+                # replace the first len(pulse) samples so all leads stay the
+                # same length and tile_x_axis windows remain aligned
+                signal = signal.copy()
+                signal[:len(pulse)] = pulse
             t = np.arange(len(signal)) / sampling_rate
             # #### resolve per-lead kwargs
             p_kw   = _resolve_lead_kwargs(kwargs_plot,       lead)

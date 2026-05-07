@@ -366,28 +366,16 @@ class TestECGDrawingLeadLabels:
 class TestECGDrawingCalPulse:
     """Tests for ECGDrawing calibration pulse (cal_pulse)."""
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_cal_pulse_extends_xlim(self, mock_reader) -> None:
-        """cal_pulse='square' extends x upper limit by 0.4 s (200 samples
-        at 500 Hz)."""
+    def test_cal_pulse_preserves_xlim(self, mock_reader) -> None:
+        """cal_pulse='square' does not extend xlim — pulse replaces the first
+        0.4 s of the signal so all leads keep the same length."""
         without = ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER)
         x_hi_without = without.axes['I'].get_xlim()[1]
         with_ = ECGDrawing()(
             mock_reader, mapper=_SIMPLE_MAPPER, cal_pulse='square',
         )
         x_hi_with = with_.axes['I'].get_xlim()[1]
-        assert x_hi_with == pytest.approx(x_hi_without + 0.4)
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_cal_pulse_line_extends_xlim(self, mock_reader) -> None:
-        """cal_pulse='line' extends x upper limit by 0.1 + 3/fs + 0.1 s
-        (pre baseline, 3-sample spike, post baseline)."""
-        without = ECGDrawing()(mock_reader, mapper=_SIMPLE_MAPPER)
-        x_hi_without = without.axes['I'].get_xlim()[1]
-        with_ = ECGDrawing()(
-            mock_reader, mapper=_SIMPLE_MAPPER, cal_pulse='line',
-        )
-        x_hi_with = with_.axes['I'].get_xlim()[1]
-        expected_extra = 0.1 + 3 / 500.0 + 0.1
-        assert x_hi_with == pytest.approx(x_hi_without + expected_extra)
+        assert x_hi_with == pytest.approx(x_hi_without)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_cal_pulse_does_not_mutate_signals(self, mock_reader) -> None:
         """Caller WaveForms arrays are unchanged after cal_pulse='square'."""
