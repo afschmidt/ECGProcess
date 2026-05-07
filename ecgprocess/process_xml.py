@@ -1,4 +1,4 @@
-'''
+"""
 A module for extracting metadata, median beats, and raw waveforms from ECG
 XML files, allowing for XML validation.
 
@@ -6,7 +6,7 @@ This module provides an API through a reader class, which maps ECG data from
 XML files to class attributes. These attributes can be programmatically accessed
 and further processed by downstream ECGprocess modules or external programs
 leveraging the API.
-'''
+"""
 
 import pathlib
 import warnings
@@ -19,7 +19,7 @@ from ecgprocess.utils.reader_tools import(
 )
 from dataclasses import dataclass, field
 from typing import (
-    Optional, Self, Any, Literal,
+    Optional, Self, Any,
 )
 from ecgprocess.utils.general import(
     ManagedProperty,
@@ -68,7 +68,7 @@ class ECGXMLReader(BaseReader):
     ----------
     augment_leads : `bool`
         Whether the augmented leads were calculated if these were unavailable.
-    resample : `bool`
+    resample_500 : `bool`
         Whether the ECG was resampled to a 500 Hertz frequency.
     
     Methods

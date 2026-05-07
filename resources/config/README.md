@@ -70,7 +70,7 @@ lead names.
 Metadata data can essentially contain any other type of data aside from the 
 signal arrays.
 There are some privileged attribute names here as well, please consult 
-`ecgprocess.constant.CoreData.MetaData` for these. 
+`ecgprocess.constants.CoreData.MetaData` for these.
 In principle omitting some, or all of the privileged attributes names, does
 not prevent the processing function from working.
 Some specific arguments (i.e. such as signal resampling) might however fail 
