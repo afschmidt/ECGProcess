@@ -18,74 +18,113 @@ providing a fixed interface for downstream analysis and interrogation.
 
 The documentation for ECGProcess can be found [here](https://SchmidtAF.gitlab.io/ECGProcess/). 
 
-
 ## Installation 
-At present, the repository is undergoing development and no packages exist yet 
-on PyPy or in Conda.
-Therefore it is recommended that it is installed in either of the two ways
-listed below.
-First, clone this repository and then `cd` to the root of the repository.
+The package is available on PyPI, and conda, with the latest source code 
+available on gitlab. 
 
-```sh
-git clone git@gitlab.com:SchmidtAF/ECGProcess.git
-cd ECGProcess
+### Installation using PyPI
+
+To install the package from PyPI, run:
+
+```bash
+pip install ecgprocess
 ```
 
-### Installation using conda dependencies
-A conda environment is provided in a `yaml` file in the directory 
-`./resources/conda/envs/`.
-A new conda environment called `ecgprocess` can be built using the command:
+This installs the latest stable release along with its dependencies.
 
-```sh
+### Installation using conda
+
+A Conda package is maintained in my personal Conda channel.
+To install from this channel, run:
+
+```bash
+conda install afschmidt::ecgprocess
+```
+
+### Installation using gitlab
+
+If you require the latest updates, potentially not yet formally released,
+you can install the package directly from GitLab.
+
+First, clone the repository and move into its root directory:
+
+```bash
+git clone git@gitlab.com:SchmidtAF/ecgprocess.git
+cd ecgprocess
+```
+
+Install the dependencies:
+
+```bash
 # From the root of the repository
 conda env create --file ./resources/conda/envs/conda_create.yaml
 ```
 
 To add to an existing environment use:
 
-```sh
+```bash
 # From the root of the repository
 conda env update --file ./resources/conda/envs/conda_update.yaml
 ```
 
 Next the package can be installed: 
 
-```sh
-python -m pip install .
+```bash
+make install
 ```
 
-Or for an editable (developer) install run the command below from the root of 
-the repository.
-The difference with this is that you can just to a `git pull` to 
-update repository, or switch branches without re-installing:
+#### Development
+For development work, install the package in editable mode with Git commit 
+hooks configured:
 
-```sh
+```bash
+make install-dev
+```
+This command installs the package in editable mode and configures Git commit 
+hooks, allowing you to run `git pull` to update the repository or switch 
+branches without reinstalling.
+
+Alternatively, you can install manually:
+```bash
 python -m pip install -e .
-
-```
-### Installation not using any conda dependencies
-If you are not using conda in any way then install the dependencies via `pip` 
-and install repository as an editable install also via pip:
-
-Install dependencies:
-
-```sh
-python -m pip install --upgrade -r requirements.txt
+python .setup_git_hooks.py
 ```
 
-Then to install repository you can either do:
+#### Git Hooks Configuration
 
-```sh
-python -m pip install .
+
+When setting up a development environment, the `setup-hooks` command 
+configures Git hooks to enforce conventional commit message formatting and 
+spell check using `codespell`.
+
+To view the commit message format requirements, run:
+
+```bash
+./.githooks/commit-msg -help
 ```
 
-Or for an editable (developer) install run the command below from the root of
-the repository.
-The difference with this is that you can just to a `git pull` to update
-repository, or switch branches without re-installing:
+For frequent use, add this function to your shell configuration (`~/.bashrc` 
+or `~/.zshrc`):
 
-```sh
-python -m pip install -e .
+```bash
+commit-format-help() {
+    local git_root
+    git_root=$(git rev-parse --show-toplevel 2>/dev/null)
+    
+    if [ -z "$git_root" ]; then
+        echo "Error: Not inside a git repository"
+        return 1
+    fi
+    
+    local hook_path="$git_root/.githooks/commit-msg"
+    
+    if [ ! -f "$hook_path" ]; then
+        echo "Error: commit-msg hook not found"
+        return 1
+    fi
+    
+    "$hook_path" --help
+}
 ```
 
 ## Next steps...
