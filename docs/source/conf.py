@@ -53,12 +53,18 @@ nbsphinx_execute = 'never'
 templates_path = ['_templates']
 exclude_patterns = ['_build', '.ipynb_checkpoints']
 
+# The name of the Pygments (syntax highlighting) style to use.
+pygments_style = "sphinx"
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
+html_theme_options = {
+    "display_version": True,
+}
 # Intersphinx: cross-references into external package docs
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
