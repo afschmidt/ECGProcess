@@ -112,6 +112,28 @@ class TestSignalDictsToNumpyArray(object):
     def test_empty_signals_raises(self):
         with pytest.raises(ValueError):
             ecg_utils.signal_dicts_to_numpy_array([])
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_padding_false_allows_lead_subset(self):
+        """
+        With padding=False a subset of leads (here a single lead) is valid:
+        absent canonical leads are left as NaN rather than raising.
+        """
+        sample = {'II': np.arange(5, dtype=np.float32)}
+        result = ecg_utils.signal_dicts_to_numpy_array(
+            [sample], padding=False)
+        assert result.shape == (1, 12, 5)
+        # 'II' is index 1 in the canonical order; it carries the data
+        np.testing.assert_array_equal(
+            result[0, 1], np.arange(5, dtype=np.float32))
+        # 'I' (index 0) is absent -> all NaN
+        assert np.isnan(result[0, 0]).all()
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_padding_false_mismatched_present_lengths_raise(self):
+        """Present leads of differing lengths still raise under padding=False."""
+        sample = {'I': np.arange(5, dtype=np.float32),
+                  'II': np.arange(6, dtype=np.float32)}
+        with pytest.raises(ValueError):
+            ecg_utils.signal_dicts_to_numpy_array([sample], padding=False)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestSignalCalibration(object):

@@ -145,6 +145,17 @@ class TabularNames(object):
     DURATION_PADDED = 'duration padded (sec)'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class WriteNames(object):
+    """Names and messages used by the writer module."""
+    # /////////////////////////////////////////////////////////////////////////
+    # the version in which deprecated ECGTable._write_* shims are removed
+    REMOVAL_VERSION = '2.0.0'
+    # /////////////////////////////////////////////////////////////////////////
+    # deprecation message template: {name}, {version}, {replacement}
+    DEPRECATED = ('`{}` is deprecated and will be removed in v{}; '
+                  'use `{}` instead.')
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class PlotNames:
     '''
     Constants used by the ECGDrawing plotting module.

@@ -464,3 +464,46 @@ class TestPadTruncate(object):
         np.testing.assert_array_equal(out['II'], np.arange(5))
         assert out['II'].dtype == np.int32
         assert out['III'] is None
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestWriteEcgDispatch(object):
+    """
+    Testing the ECGTable.write_ecg dispatch: the per-call custom writer=
+    hook, and the deprecated file_type overruling writer.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_writer_argument_routes(self, tmp_path):
+        os.chdir(tmp_path)
+        records = {}
+        def _recording_writer(meta_list, wave_list, median_list, ctx):
+            records['n_meta'] = len(meta_list)
+            records['target'] = ctx.target
+            with open(os.path.join(ctx.target, 'marker.txt'), 'w') as fh:
+                fh.write('written')
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list)
+        res = ecgtable(verbose=False).write_ecg(
+            parsed_config=parser_dicom, writer=_recording_writer)
+        assert records['n_meta'] == 2
+        content = os.listdir(getattr(res, TabNames.WRITE_ECG_PATH))
+        assert 'marker.txt' in content
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_file_type_overrules_writer(self, tmp_path):
+        # NOTE when both are supplied the deprecated file_type wins and a
+        # DeprecationWarning is emitted; the custom writer is not called.
+        os.chdir(tmp_path)
+        records = {}
+        def _recording_writer(meta_list, wave_list, median_list, ctx):
+            records['called'] = True
+            with open(os.path.join(ctx.target, 'marker.txt'), 'w') as fh:
+                fh.write('written')
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list)
+        with pytest.warns(DeprecationWarning):
+            res = ecgtable(verbose=False).write_ecg(
+                parsed_config=parser_dicom,
+                writer=_recording_writer, file_type='table')
+        content = os.listdir(getattr(res, TabNames.WRITE_ECG_PATH))
+        assert 'called' not in records
+        assert 'marker.txt' not in content
+        assert 'metadata.tsv.gz' in content

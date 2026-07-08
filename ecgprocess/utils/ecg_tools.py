@@ -187,16 +187,20 @@ default ``_STANDARD_LEADS``
             len(sample.get(lead, [])) for sample in signals for lead in leads
         )
     else:
-        # Ensure all signals have the same length
-        lengths = [
-            len(sample.get(lead, [])) for sample in signals for lead in leads
-        ]
-        unique_lengths = set(lengths)
-        if len(unique_lengths) != 1:
+        # Only present (non-empty) leads constrain the length; absent leads
+        # are left as NaN, so a subset of leads (even a single lead) is
+        # allowed as long as every present lead shares one length.
+        present_lengths = {
+            len(sample.get(lead, []))
+            for sample in signals for lead in leads
+        }
+        present_lengths.discard(0)
+        if len(present_lengths) > 1:
             raise ValueError(
-                "All signals must have the same length when padding is False."
+                "All present signals must have the same length when "
+                "padding is False."
             )
-        signal_length = unique_lengths.pop()
+        signal_length = present_lengths.pop() if present_lengths else 0
     # Initialize the array with NaNs
     data_array = np.full(
         (num_samples, num_leads, signal_length), np.nan, dtype=np.float32

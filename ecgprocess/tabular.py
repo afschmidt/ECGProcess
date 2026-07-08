@@ -14,11 +14,9 @@ import sys
 import uuid
 import pathlib
 import logging
+import warnings
 import numpy as np
 import pandas as pd
-# filtering out TF warnings
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-import tensorflow as tf
 # import matplotlib.pylab as plt
 from typing import (
     Callable, Self, Optional, Any, Literal,
@@ -30,7 +28,6 @@ from ecgprocess.errors import (
     InputValidationError,
     is_type,
     Error_MSG,
-    Warn_MSG,
     STDOUT_MSG,
     _check_readable,
     _check_presence,
@@ -38,6 +35,14 @@ from ecgprocess.errors import (
 from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
+    WriteNames as written,
+)
+from ecgprocess.writer import (
+    BaseWriter,
+    TableWriter,
+    WriteContext,
+    WRITERS,
+    resolve_writer,
 )
 from ecgprocess.utils.general import (
     replace_with_tar,
@@ -47,9 +52,6 @@ from ecgprocess.utils.general import (
 )
 from ecgprocess.utils.reader_tools import(
     BaseReader,
-)
-from ecgprocess.utils.ecg_tools import(
-    signal_dicts_to_numpy_array,
 )
 from ecgprocess.utils.config_tools import(
     ConfigParser,
@@ -872,7 +874,9 @@ class ECGTable(object):
     def write_ecg(self, parsed_config=ConfigParser,
                   chunk:int | None = None, target_tar: None | str = None,
                   target_path:str='.', tar_mode:str='w:gz',
-                  file_type:Literal['table', 'numpy', 'tensorflow'] = 'table',
+                  writer: str | BaseWriter | Callable | None = None,
+                  file_type:Literal['table', 'numpy', 'tensorflow']
+                  | None = None,
                   tab_sep:str='\t', tab_compression:str | None ='gzip',
                   tab_append:bool=True, unique:bool=True,
                   write_failed:bool=True, write_chunk_record:bool = False,
@@ -907,10 +911,23 @@ class ECGTable(object):
             `target_tar` will be created underneath this path, otherwise the
             files will be directly written to the `target_path` terminal
             directory (assuming this is writable).
-        file_type : {'table', 'numpy', 'tensorflow'}, default `table`
-            Whether to write the files to `tsv` using pandas.DataFrame, to `npz`
-            using numpy.savez, or to `tfrecord` using
-            tensorflow.io.TFRecordWriter.
+        writer : `str`, `BaseWriter`, `Callable`, or `NoneType`, default \
+`NoneType`
+            The primary writer selector. Accepts a registry-key string
+            (e.g. `'table'`), a `ecgprocess.writer.BaseWriter` subclass or
+            instance, or a bare callable matching the
+            `BaseWriter.write(meta_list, wave_list, median_list, ctx)`
+            signature. A bare callable bypasses the `BaseWriter` abstract
+            base class guarantees. When `NoneType` and `file_type` is also
+            `NoneType`, the `'table'` writer is used.
+        file_type : {'table', 'numpy', 'tensorflow'} or `NoneType`, default \
+`NoneType`
+            Deprecated. Kept for backward compatibility: whether to write the
+            files to `tsv` using pandas.DataFrame, to `npz` using
+            numpy.savez, or to `tfrecord` using tensorflow.io.TFRecordWriter.
+            When passed explicitly a `DeprecationWarning` is emitted and, if
+            `writer` is also given, `file_type` overrules `writer`. Use
+            `writer` instead.
         tar_mode : `str`, default `w:gz`
             The tarfile.open mode.
         tab_sep : `str`, default `\\t`
@@ -955,19 +972,20 @@ class ECGTable(object):
         
         Notes
         -----
-        While file_type='table' can store any kind of information, numpy and
-        tfrecord are best used to store numerical/float data. Currently
-        non-numerical data are therefore drooped from metadata for these
-        filetypes.
-        
-        For numpy and tfrecord the signal data will be automatically
-        zero-padded to the longest signal. Missing signals will be presented
-        as np.nan. The array columns match the canonical ECG lead order, please
-        refer to `ecg_tools.signal_dicts_to_numpy_array` for the exact order.
+        While the `table` writer can store any kind of information, the
+        `numpy` and `tensorflow` writers are best used to store
+        numerical/float data. Currently non-numerical data are therefore
+        dropped from metadata for these writers.
+
+        For `numpy` and `tensorflow` all records in a chunk must share a
+        signal length (set `signal_length_w`/`signal_length_m`); the writers
+        do not pad across records. Absent leads are presented as np.nan. The
+        array columns match the canonical ECG lead order, please refer to
+        `ecg_tools.signal_dicts_to_numpy_array` for the exact order.
         '''
         # #### set defaults
         self.kwargs_tab = kwargs_tab or {}
-        # expected file_types
+        # expected built-in file_types
         EXP_WRITE=[TabNames.WRITE_TAB, TabNames.WRITE_NUMPY,
                    TabNames.WRITE_TFLOW]
         # #### check input
@@ -981,13 +999,40 @@ class ECGTable(object):
         is_type(tab_compression, (type(None), str))
         is_type(write_failed, bool)
         is_type(write_chunk_record, bool)
-        is_type(file_type, str)
-        # set to self
-        setattr(self, TabNames.WRITE_TYPE, file_type)
-        # confirm file_type is correct
-        if not file_type in EXP_WRITE:
-            raise ValueError(
-                Error_MSG.CHOICE_PARM.format('file_type', EXP_WRITE))
+        is_type(file_type, (type(None), str))
+        # #### resolve the writer
+        # NOTE `file_type` is deprecated: when passed explicitly it warns and
+        # overrules `writer`. Otherwise `writer` is used, defaulting to the
+        # `table` writer when neither is supplied.
+        if file_type is not None:
+            warnings.warn(
+                written.DEPRECATED.format(
+                    'file_type', written.REMOVAL_VERSION, 'writer'),
+                DeprecationWarning, stacklevel=2)
+            if file_type not in EXP_WRITE:
+                raise ValueError(
+                    Error_MSG.CHOICE_PARM.format('file_type', EXP_WRITE))
+            writer = file_type
+        if writer is None:
+            writer = TabNames.WRITE_TAB
+        write_selector = writer
+        # resolve to a concrete writer object from the registry (string key)
+        # or a user-supplied writer/callable. For a string key WRITE_TYPE is
+        # recorded so the shared `_write_file_names` helper picks the correct
+        # extension; a custom writer owns its own filenames.
+        if isinstance(write_selector, str):
+            setattr(self, TabNames.WRITE_TYPE, write_selector)
+        else:
+            setattr(self, TabNames.WRITE_TYPE, None)
+        resolved_writer = resolve_writer(write_selector)
+        # configure the tabular writer with its options; also record the
+        # tabular write type so the shared `_write_file_names` helper picks
+        # the correct extension.
+        if isinstance(resolved_writer, TableWriter):
+            setattr(self, TabNames.WRITE_TYPE, TabNames.WRITE_TAB)
+            resolved_writer.tab_append = tab_append
+            resolved_writer.tab_sep = tab_sep
+            resolved_writer.tab_compression = tab_compression
         # check readability
         _check_presence(target_path)
         _check_readable(target_path)
@@ -1017,8 +1062,6 @@ class ECGTable(object):
         else:
             # making this into  single chunk [[ ]]
             path_list = [getattr(self, TabNames.CPATH_L)]
-        # NOTE First is only relevant when writing to a file using append.
-        first=True
         # #### loop over the path_list
         try:
             for n, p in enumerate(path_list, start=1):
@@ -1032,41 +1075,14 @@ class ECGTable(object):
                     kwargs_reader_call=kwargs_reader_call,
                     kwargs_reader_extract=kwargs_reader_extract,
                 )
-                # write based on the supplied file type
-                if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TAB:
-                    if tab_append == False:
-                        self._write_tab(
-                            meta_list, wave_list, median_list, target,
-                            chunk_num=n if chunk is not None else None,
-                            header=True, sep=tab_sep,
-                            compression=tab_compression,
-                                        )
-                    # Write to a single file
-                    elif first==True:
-                        first = False
-                        # write first file
-                        self._write_tab(meta_list, wave_list, median_list,
-                                        target, chunk_num=None,
-                                        header=True, sep=tab_sep,
-                                        compression=tab_compression,
-                                        )
-                    else:
-                        # append
-                        self._write_tab(meta_list, wave_list, median_list,
-                                        target, chunk_num=None,
-                                        header=False, mode='a', sep=tab_sep,
-                                        compression=tab_compression,
-                                        )
-                if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NUMPY:
-                    self._write_numpy(
-                        meta_list, wave_list, median_list, target,
-                        chunk_num=n if chunk is not None else None,
-                    )
-                if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TFLOW:
-                    self._write_tfr(
-                        meta_list, wave_list, median_list, target,
-                        chunk_num=n if chunk is not None else None,
-                    )
+                # the chunk number is only used when writing separate files
+                chunk_num = n if chunk is not None else None
+                # #### write the extracted chunk
+                # the writer owns any format-specific append/chunk semantics.
+                ctx = self._build_write_context(
+                    target=target, chunk_num=chunk_num)
+                resolved_writer.write(
+                    meta_list, wave_list, median_list, ctx)
                 # deleting the current key list
                 if hasattr(self, TabNames.KEY_L) == True:
                     delattr(self, TabNames.KEY_L)
@@ -1083,9 +1099,6 @@ class ECGTable(object):
                     # if CHUNK_SPLIT in chunk_record:
                     #     # NOTE using strip to remove redundant white space
                     #     fpaths = [s.strip() for s in fpaths.split(CHUNK_SPLIT)]
-                    print('fpaths: ')
-                    print(fpaths)
-                    print(type(fpaths))
                     # Ensure file_paths is a list or iterable of file paths:
                     for fp in fpaths:
                         chnk_lst.append({'Chunk number': cnum, 'Files': fp})
@@ -1185,209 +1198,33 @@ class ECGTable(object):
         # return
         return META_FILE, WAVE_FILE, MEDIAN_FILE, ECG_FILE
     # /////////////////////////////////////////////////////////////////////////
-    def _write_tab(self, meta_list:list[dict[str, Any]],
-                   wave_list:list[dict[str, np.ndarray]],
-                   median_list:list[dict[str, np.ndarray]],
-                   target:str,
-                   chunk_num:int | None,
-                   **kwargs,
-                   ) -> None:
+    def _build_write_context(self, target:str, chunk_num:int | None,
+                             ) -> WriteContext:
         """
-        Writes data to a flat tsv table.
+        Assemble the `WriteContext` a registry/custom writer needs.
         
         Parameters
         ----------
-        wave_list : `list` [`dict` [`str`, `any`]]
-            A list of dictionaries containing metadata.
-        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
-            A list of dictionaries containing waveform signals.
-        median_list : `list` [`dict` [`str`, `np.ndarray`]]
-            A list of dictionaries containing medianbeats signals.
-        target: `str`
-            The target directory.
+        target : `str`
+            The directory the writer writes files to.
         chunk_num : `int` or `NoneType`
-            Appends the chunk number with a '_' separator before the file
-            extension.
+            The current chunk number, or `NoneType` for a single file.
         
-        Notes
-        -----
-        This function does not return anything.
+        Returns
+        -------
+        context : `WriteContext`
+            The populated context passed to `BaseWriter.write`.
         """
-        # #### check input
-        is_type(chunk_num, (int, type(None)))
-        kwargs_tab_combi = {**self.kwargs_tab, **kwargs}
-        # #### Set the filenames
-        META_FILE, WAVE_FILE, MEDIAN_FILE, _=\
-            self._write_file_names(chunk_num=chunk_num, **kwargs_tab_combi)
-        # #### write individual files
-        if getattr(self, TabNames.E_META):
-            pd.DataFrame(meta_list, index=getattr(self, TabNames.KEY_L)
-                         ).to_csv(
-                os.path.join(target, META_FILE),
-                **kwargs_tab_combi,
-            )
-        if getattr(self, TabNames.E_WAVE):
-            self._get_long_table(
-                wave_list, signal_type=CTypes.WaveForms,
-                purge_header=True,
-            ).to_csv(
-                os.path.join(target, WAVE_FILE),
-                **kwargs_tab_combi,
-            )
-        if getattr(self, TabNames.E_MEDIAN):
-            self._get_long_table(
-                median_list, signal_type=CTypes.MedianBeats,
-                purge_header=True,
-            ).to_csv(
-                os.path.join(target, MEDIAN_FILE),
-                **kwargs_tab_combi,
-            )
-    # /////////////////////////////////////////////////////////////////////////
-    def _write_numpy(self, meta_list:list[dict[str, Any]],
-                     wave_list:list[dict[str, np.ndarray]],
-                     median_list:list[dict[str, np.ndarray]],
-                     target:str,
-                     chunk_num:int | None,
-                     numeric_meta:bool = True,
-                     ) -> None:
-        """
-        Writes data to a compressed numpy file `.npz`.
-        
-        Parameters
-        ----------
-        wave_list : `list` [`dict` [`str`, `any`]]
-            A list of dictionaries containing metadata.
-        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
-            A list of dictionaries containing waveform signals.
-        median_list : `list` [`dict` [`str`, `np.ndarray`]]
-            A list of dictionaries containing medianbeats signals.
-        target: `str`
-            The target directory.
-        chunk_num : `int` or `NoneType`
-            Appends the chunk number with a '_' separator before the file
-            extension.
-        numeric_meta : `bool`, default `True`
-            Whether non-numeric data should be dropped from the metadata.
-        
-        Notes
-        -----
-        This function does not return anything.
-        """
-        # #### check input
-        is_type(chunk_num, (int, type(None)))
-        is_type(numeric_meta, bool)
-        # Set the filenames
-        _, _, _, ECG_FILE=\
-            self._write_file_names(chunk_num=chunk_num)
-        # #### write individual files
-        res_dict = {}
-        if getattr(self, TabNames.E_META):
-            tab1  = pd.DataFrame(meta_list)
-            if numeric_meta:
-                old_cols = set(tab1.columns)
-                tab1 = tab1.select_dtypes(include=[np.number])
-                new_cols = set(tab1.columns)
-                drop_cols = old_cols - new_cols
-                if len(drop_cols) > 0:
-                    _log.warning(Warn_MSG.DROP_NONE_NUMERIC, drop_cols)
-            # get the header
-            tab1_header = list(tab1.columns)
-            res_dict[CTypes.MetaData] = tab1.to_numpy()
-        if getattr(self, TabNames.E_WAVE):
-            # `padding=False` will rely on `ECGTable._pad_or_truncate`
-            res_dict[CTypes.WaveForms] = signal_dicts_to_numpy_array(
-                wave_list, padding=False)
-        if getattr(self, TabNames.E_MEDIAN):
-            res_dict[CTypes.MedianBeats] = signal_dicts_to_numpy_array(
-                median_list, padding=False)
-        # finally write to a single file
-        np.savez(os.path.join(target, ECG_FILE), **res_dict)
-        # include the header
-        if getattr(self, TabNames.E_META):
-            type(self)._write_header(target, tab1_header)
-    # /////////////////////////////////////////////////////////////////////////
-    def _write_tfr(self, meta_list:list[dict[str, Any]],
-                   wave_list:list[dict[str, np.ndarray]],
-                   median_list:list[dict[str, np.ndarray]],
-                   target:str,
-                   chunk_num:int | None,
-                   numeric_meta:bool = True,
-                   ) -> None:
-        """
-        Writes data to a compressed tfrecord.
-        
-        Parameters
-        ----------
-        wave_list : `list` [`dict` [`str`, `any`]]
-            A list of dictionaries containing metadata.
-        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
-            A list of dictionaries containing waveform signals.
-        median_list : `list` [`dict` [`str`, `np.ndarray`]]
-            A list of dictionaries containing medianbeats signals.
-        target: `str`
-            The target directory.
-        chunk_num : `int` or `NoneType`
-            Appends the chunk number with a '_' separator before the file
-            extension.
-        numeric_meta : `bool`, default `True`
-            Whether non-numeric data should be dropped from the metadata.
-        
-        Notes
-        -----
-        This function does not return anything.
-        """
-        # #### check input
-        is_type(chunk_num, (int, type(None)))
-        is_type(numeric_meta, bool)
-        # Set the filenames
-        _, _, _, ECG_FILE=\
-            self._write_file_names(chunk_num=chunk_num)
-        # #### write individual files
-        res_dict = {}
-        if getattr(self, TabNames.E_META):
-            tab1  = pd.DataFrame(meta_list)
-            if numeric_meta:
-                old_cols = set(tab1.columns)
-                tab1 = tab1.select_dtypes(include=[np.number])
-                new_cols = set(tab1.columns)
-                drop_cols = old_cols - new_cols
-                if len(drop_cols) > 0:
-                    _log.warning(Warn_MSG.DROP_NONE_NUMERIC, drop_cols)
-            # get the header
-            tab1_header = list(tab1.columns)
-            # write the dict
-            res_dict[CTypes.MetaData] = tf.train.Feature(
-                float_list=tf.train.FloatList(
-                    value=tab1.to_numpy().flatten()
-                ))
-        if getattr(self, TabNames.E_WAVE):
-            # `padding=False`: see _write_numpy for the rationale.
-            res_dict[CTypes.WaveForms] = tf.train.Feature(
-                float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(
-                        wave_list, padding=False).flatten()
-                ))
-        if getattr(self, TabNames.E_MEDIAN):
-            res_dict[CTypes.MedianBeats] = tf.train.Feature(
-                float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(
-                        median_list, padding=False).flatten()
-                ))
-        # finally write to a single file
-        with tf.io.TFRecordWriter(os.path.join(target, ECG_FILE)) as writer:
-            writer.write(
-                tf.train.Example(features=tf.train.Features(feature=res_dict)).\
-                SerializeToString()
-            )
-        # include the header
-        if getattr(self, TabNames.E_META):
-            type(self)._write_header(target, tab1_header)
-    # /////////////////////////////////////////////////////////////////////////
-    @staticmethod
-    def _write_header(target:str, header:list[str]):
-        """Write list entries a file with each entry on a new line"""
-        with open(os.path.join(target, 'header_metadata.txt'), 'w') as file:
-            # Iterate over the list with enumeration starting at 1
-            for line_number, head in enumerate(header, start=1):
-                # Write each element with its line number to the file
-                file.write(f"{line_number}\t{head}\n")
+        # NOTE KEY_L is only set by _loop_table when metadata is extracted;
+        # default to None so context construction never raises.
+        return WriteContext(
+            e_meta=getattr(self, TabNames.E_META),
+            e_wave=getattr(self, TabNames.E_WAVE),
+            e_median=getattr(self, TabNames.E_MEDIAN),
+            kwargs_tab=self.kwargs_tab,
+            key_list=getattr(self, TabNames.KEY_L, None),
+            target=target,
+            chunk_num=chunk_num,
+            write_file_names=self._write_file_names,
+            get_long_table=self._get_long_table,
+        )
