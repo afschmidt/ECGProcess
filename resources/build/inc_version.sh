@@ -67,11 +67,11 @@ bumpversion "${VERSION}"
 # #### Update the CHANGELOG.md
 # Insert date after version heading in CHANGELOG.md
 readonly TODAY="$(date '+%Y-%m-%d')"
-sed -i "s/^### ${NEW_VER}$/### ${NEW_VER} - ${TODAY}/" CHANGELOG.md
+sed -i "s/^## ${NEW_VER}$/## ${NEW_VER} - ${TODAY}/" CHANGELOG.md
 
 # Add a fresh Unreleased section after the # Changelog heading
 # NOTE find # Changelog$ and "a" appends "\n### Unreleased
-sed -i '/^# Changelog$/a\\n### Unreleased' CHANGELOG.md
+sed -i '/^# Changelog$/a\\n## Unreleased' CHANGELOG.md
 
 # Amend the bump commit to include CHANGELOG date and new Unreleased section
 git add CHANGELOG.md
