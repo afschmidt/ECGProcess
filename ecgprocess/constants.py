@@ -130,8 +130,12 @@ class TabularNames(object):
     INVALID_L      = 'invalid_list'
     TABLE_CALLED   = 'table_called'
     WRITE_TAB      = 'table'
+    # NOTE 'numpy' is a legacy `file_type` alias for 'npz'; it is removed
+    # together with the deprecated `file_type` parameter
     WRITE_NUMPY    = 'numpy'
+    WRITE_NPZ      = 'npz'
     WRITE_TFLOW    = 'tensorflow'
+    WRITE_NPY      = 'npy'
     WRITE_ECG_PATH = 'target_path'
     WRITE_TYPE     = 'file_type'
     ID_START       = '_id_start_number'

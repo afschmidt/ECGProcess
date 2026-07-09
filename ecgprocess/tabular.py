@@ -9,7 +9,6 @@ class attributes extracts the requested data.
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # imports
 import os
-# import re
 import sys
 import uuid
 import pathlib
@@ -17,7 +16,6 @@ import logging
 import warnings
 import numpy as np
 import pandas as pd
-# import matplotlib.pylab as plt
 from typing import (
     Callable, Self, Optional, Any, Literal,
 )
@@ -41,7 +39,6 @@ from ecgprocess.writer import (
     BaseWriter,
     TableWriter,
     WriteContext,
-    WRITERS,
     resolve_writer,
 )
 from ecgprocess.utils.general import (
@@ -423,7 +420,7 @@ class ECGTable(object):
             passed to the kwargs of the `BaseReader` call method.
         kwargs_reader_extract: `dict` [`any`, `any`]  or None, default `NoneType`
             passed to the `BaseReader` extract method.
-         
+        
         Attributes
         ----------
         key_list: `list` [`str`]
@@ -451,7 +448,7 @@ class ECGTable(object):
         each file processed.
         """
         # #### check input
-        # NOTE path_list has already been test - not doing this again because
+        # NOTE path_list has already been tested - not doing this again because
         # it is a private method.
         is_type(unique, bool)
         # if kwargs is None assigned an empty dict
@@ -875,7 +872,8 @@ class ECGTable(object):
                   chunk:int | None = None, target_tar: None | str = None,
                   target_path:str='.', tar_mode:str='w:gz',
                   writer: str | BaseWriter | Callable | None = None,
-                  file_type:Literal['table', 'numpy', 'tensorflow']
+                  file_type:Literal['table', 'numpy', 'npz', 'tensorflow',
+                                    'npy']
                   | None = None,
                   tab_sep:str='\t', tab_compression:str | None ='gzip',
                   tab_append:bool=True, unique:bool=True,
@@ -910,7 +908,7 @@ class ECGTable(object):
             The full path where the files should be written to. If provided
             `target_tar` will be created underneath this path, otherwise the
             files will be directly written to the `target_path` terminal
-            directory (assuming this is writable).
+            directory.
         writer : `str`, `BaseWriter`, `Callable`, or `NoneType`, default \
 `NoneType`
             The primary writer selector. Accepts a registry-key string
@@ -920,14 +918,10 @@ class ECGTable(object):
             signature. A bare callable bypasses the `BaseWriter` abstract
             base class guarantees. When `NoneType` and `file_type` is also
             `NoneType`, the `'table'` writer is used.
-        file_type : {'table', 'numpy', 'tensorflow'} or `NoneType`, default \
-`NoneType`
-            Deprecated. Kept for backward compatibility: whether to write the
-            files to `tsv` using pandas.DataFrame, to `npz` using
-            numpy.savez, or to `tfrecord` using tensorflow.io.TFRecordWriter.
-            When passed explicitly a `DeprecationWarning` is emitted and, if
-            `writer` is also given, `file_type` overrules `writer`. Use
-            `writer` instead.
+        file_type : {'table', 'numpy', 'npz', 'tensorflow', 'npy'} or \
+`NoneType`, default `NoneType`
+            Deprecated,  use `writer` instead. 'numpy' is a legacy alias
+            for 'npz'.
         tar_mode : `str`, default `w:gz`
             The tarfile.open mode.
         tab_sep : `str`, default `\\t`
@@ -973,21 +967,16 @@ class ECGTable(object):
         Notes
         -----
         While the `table` writer can store any kind of information, the
-        `numpy` and `tensorflow` writers are best used to store
+        `npz`, `npy`, and `tensorflow` writers are best used to store
         numerical/float data. Currently non-numerical data are therefore
         dropped from metadata for these writers.
-        
-        For `numpy` and `tensorflow` all records in a chunk must share a
-        signal length (set `signal_length_w`/`signal_length_m`); the writers
-        do not pad across records. Absent leads are presented as np.nan. The
-        array columns match the canonical ECG lead order, please refer to
-        `ecg_tools.signal_dicts_to_numpy_array` for the exact order.
         '''
         # #### set defaults
         self.kwargs_tab = kwargs_tab or {}
         # expected built-in file_types
         EXP_WRITE=[TabNames.WRITE_TAB, TabNames.WRITE_NUMPY,
-                   TabNames.WRITE_TFLOW]
+                   TabNames.WRITE_NPZ, TabNames.WRITE_TFLOW,
+                   TabNames.WRITE_NPY]
         # #### check input
         is_type(parsed_config, ConfigParser)
         is_type(chunk, (type(None), int))
@@ -1000,6 +989,7 @@ class ECGTable(object):
         is_type(write_failed, bool)
         is_type(write_chunk_record, bool)
         is_type(file_type, (type(None), str))
+        is_type(writer, (type(None), str, BaseWriter, Callable))
         # #### resolve the writer
         # NOTE `file_type` is deprecated: when passed explicitly it warns and
         # overrules `writer`. Otherwise `writer` is used, defaulting to the
@@ -1012,6 +1002,10 @@ class ECGTable(object):
             if file_type not in EXP_WRITE:
                 raise ValueError(
                     Error_MSG.CHOICE_PARM.format('file_type', EXP_WRITE))
+            # map the legacy 'numpy' alias to the canonical 'npz' key; the
+            # alias is removed together with `file_type`
+            if file_type == TabNames.WRITE_NUMPY:
+                file_type = TabNames.WRITE_NPZ
             writer = file_type
         if writer is None:
             writer = TabNames.WRITE_TAB
@@ -1182,10 +1176,12 @@ class ECGTable(object):
                     EXT = EXT + '.zst'
             except KeyError:
                 pass
-        elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NUMPY:
+        elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NPZ:
             EXT = '.npz'
         elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TFLOW:
             EXT = '.tfrecord'
+        elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NPY:
+            EXT = '.npy'
         # Are we writing in chunks?
         if not chunk_num is None:
             SEP = '_'

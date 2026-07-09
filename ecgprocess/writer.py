@@ -1,12 +1,11 @@
 """
 Pluggable output writers for ECG data.
 
-This module decouples the file-writing logic from :class:`ecgprocess.tabular.
-ECGTable`. Writers subclass :class:`BaseWriter`, register themselves in the
-module-level :data:`WRITERS` registry via the :func:`register_writer`
-decorator, and receive all the state they need through a :class:`WriteContext`
-dataclass. :func:`resolve_writer` normalises a user-supplied writer (subclass,
-instance, or bare callable) into an object exposing a ``write`` method.
+This module introduces ECG writing callables which can be used with the
+`tabular` module to bulk wrote metadata and/or signal data.
+
+Writers subclass register themselves in the module-level `WRITERS` registry via
+the `register_writer` decorator, allowing for user supplied callables.
 """
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -17,7 +16,7 @@ import abc
 import logging
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 import numpy as np
 import pandas as pd
 from ecgprocess.constants import (
@@ -25,6 +24,7 @@ from ecgprocess.constants import (
     TabularNames as TabNames,
 )
 from ecgprocess.errors import (
+    is_type,
     Error_MSG,
     Warn_MSG,
 )
@@ -41,6 +41,10 @@ _log = logging.getLogger(__name__)
 # writer classes are defined at module top level so their decorators run
 # before the registry is read.
 WRITERS: dict[str, type["BaseWriter"]] = {}
+# type variable preserving the concrete class type through the
+# register_writer decorator (a bare type[BaseWriter] return would erase
+# the decorated writer's constructor signature for static analysis)
+_W = TypeVar('_W', bound='BaseWriter')
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @dataclass
@@ -71,6 +75,8 @@ class WriteContext(object):
         Helper mapping a list of lead dictionaries to a long-format
         `pandas.DataFrame`.
     """
+    # NOTE add input tests?
+    # NOTE 2 kwargs_tab, get_long_table might be better as options parameters?
     e_meta: bool
     e_wave: bool
     e_median: bool
@@ -111,13 +117,26 @@ class BaseWriter(abc.ABC):
             The context carrying export flags, target path, and helpers.
         """
         raise NotImplementedError
+    # /////////////////////////////////////////////////////////////////////////
+    def __repr__(self) -> str:
+        """
+        Return a constructor-like representation of the writer.
+        
+        Uses the runtime class name and the public instance attributes, so
+        subclasses (including user-registered writers) inherit an accurate
+        representation without overriding it. `str()` falls back to this
+        method as no `__str__` is defined.
+        """
+        options = ', '.join(
+            f'{name}={value!r}' for name, value in vars(self).items()
+            if not name.startswith('_'))
+        return f'{type(self).__name__}({options})'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def register_writer(name: str,
-                    ) -> Callable[[type[BaseWriter]], type[BaseWriter]]:
+                    ) -> Callable[[type[_W]], type[_W]]:
     """
-    Class decorator registering a writer under `name` in :data:`WRITERS`.
+    Class decorator registering a writer under `name` in `WRITERS`.
     
     Parameters
     ----------
@@ -136,11 +155,14 @@ def register_writer(name: str,
     ValueError
         If `name` is already present in the registry.
     """
-    def _decorator(cls: type[BaseWriter]) -> type[BaseWriter]:
+    is_type(name, str)
+    # internal function
+    def _decorator(cls: type[_W]) -> type[_W]:
         if not (isinstance(cls, type) and issubclass(cls, BaseWriter)):
             raise TypeError(
                 f'`{getattr(cls, "__name__", cls)}` must be a `BaseWriter` '
                 'subclass to be registered.')
+        # check if already registered
         if name in WRITERS:
             raise ValueError(
                 f'A writer is already registered under `{name}`.')
@@ -176,6 +198,7 @@ def resolve_writer(writer: Any) -> BaseWriter:
         If `writer` is a class that is not a `BaseWriter` subclass, or is
         neither a `str`, `BaseWriter`, subclass, nor callable.
     """
+    # if string look-up in WRITERS
     if isinstance(writer, str):
         try:
             cls = WRITERS[writer]
@@ -184,15 +207,18 @@ def resolve_writer(writer: Any) -> BaseWriter:
                 f'`{writer}` is not a registered writer; available: '
                 f'{sorted(WRITERS)}.') from None
         return cls()
+    # if type make sure it inherits from BaseWriter
     if isinstance(writer, type):
         if not issubclass(writer, BaseWriter):
             raise TypeError(
                 f'`{writer.__name__}` must be a `BaseWriter` subclass.')
         return writer()
+    # return
     if isinstance(writer, BaseWriter):
         return writer
     if callable(writer):
         return _CallableWriter(writer)
+    # otherwise raise error
     raise TypeError(
         '`writer` must be a `BaseWriter` subclass, instance, or callable, '
         f'not `{type(writer).__name__}`.')
@@ -205,7 +231,7 @@ class _CallableWriter(BaseWriter):
     The callable must accept `(meta_list, wave_list, median_list, ctx)`.
     """
     # /////////////////////////////////////////////////////////////////////////
-    def __init__(self, func: Callable[..., None]) -> None:
+    def __init__(self, func: Callable[..., Any]) -> None:
         """
         Initialise the adapter.
         
@@ -221,7 +247,20 @@ class _CallableWriter(BaseWriter):
               median_list: list[dict[str, "np.ndarray"]],
               ctx: WriteContext,
               ) -> None:
-        """Delegate to the wrapped callable. See `BaseWriter.write`."""
+        """
+        Delegate the write call to the wrapped callable.
+        
+        Parameters
+        ----------
+        meta_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing median beat signals.
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        """
         return self._func(meta_list, wave_list, median_list, ctx)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -229,13 +268,6 @@ class _CallableWriter(BaseWriter):
 class TableWriter(BaseWriter):
     """
     Writes ECG data to flat, long-format tsv tables.
-    
-    Reproduces the behaviour of the former `ECGTable._write_tab`: up to
-    three files (metadata, waveforms, medianbeats) gated by the export
-    flags on the :class:`WriteContext`. The writer owns the tabular
-    append semantics: when `tab_append` is `True` the first chunk is
-    written with a header and subsequent chunks are appended without one;
-    the cross-chunk state is held on the instance.
     
     Parameters
     ----------
@@ -251,6 +283,9 @@ class TableWriter(BaseWriter):
                  tab_compression: str | None = 'gzip',
                  ) -> None:
         """Initialise the tabular writer and its append state."""
+        is_type(tab_append, bool)
+        is_type(tab_sep, str)
+        is_type(tab_compression, (type(None), str))
         self.tab_append = tab_append
         self.tab_sep = tab_sep
         self.tab_compression = tab_compression
@@ -263,7 +298,22 @@ class TableWriter(BaseWriter):
               ctx: WriteContext,
               ) -> None:
         """
-        Write a chunk of data to tsv tables. See `BaseWriter.write`.
+        Write a chunk of ECG data to long-format tsv tables.
+        
+        Each enabled source is written to its own file (`metadata`,
+        `waveforms`, `medianbeats`), honouring the append, separator, and
+        compression options set on the writer instance.
+        
+        Parameters
+        ----------
+        meta_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing median beat signals.
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
         """
         # #### derive the per-call to_csv keyword arguments
         # the header/mode/chunk logic is a tabular-writer concern; `_first`
@@ -282,7 +332,7 @@ class TableWriter(BaseWriter):
             chunk_num = None
         self._first = False
         # NOTE only pass `mode` when appending so the header cases match the
-        # pandas default ('w') byte-for-byte.
+        # pandas default ('w').
         writer_kwargs = {'header': header, 'sep': self.tab_sep,
                          'compression': self.tab_compression}
         if mode == 'a':
@@ -315,7 +365,316 @@ class TableWriter(BaseWriter):
             )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class NumpyWriter(BaseWriter):
+    """
+    Abstract base class for the numpy-family writers.
+    
+    Assembles the enabled sources into numpy arrays (shared by all
+    subclasses) and delegates persistence to the abstract `_save` method.
+    The base class is not registered; only its concrete subclasses are reachable.
+    
+    Parameters
+    ----------
+    numeric_meta : `bool`, default `True`
+        Whether non-numeric metadata columns are dropped before writing.
+    """
+    # /////////////////////////////////////////////////////////////////////////
+    def __init__(self, numeric_meta: bool = True) -> None:
+        """Initialise the numpy-family writer."""
+        is_type(numeric_meta, bool)
+        self.numeric_meta = numeric_meta
+    # /////////////////////////////////////////////////////////////////////////
+    def write(self, meta_list: list[dict[str, Any]],
+              wave_list: list[dict[str, "np.ndarray"]],
+              median_list: list[dict[str, "np.ndarray"]],
+              ctx: WriteContext,
+              ) -> None:
+        """
+        Write a chunk of ECG data as numpy arrays.
+        
+        Assembles the enabled sources via `_assemble`, delegates the file
+        layout to the subclass `_save` implementation, and writes the
+        metadata header sidecar when metadata is exported.
+        
+        Parameters
+        ----------
+        meta_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing median beat signals.
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        """
+        # #### assemble the arrays for the enabled sources
+        res_dict, header = self._assemble(
+            meta_list, wave_list, median_list, ctx)
+        # #### persist the arrays (the subclass owns the file layout)
+        self._save(res_dict, ctx)
+        # #### write the metadata header sidecar
+        # NOTE header is not None exactly when metadata was exported
+        if header is not None:
+            _write_metadata_header(ctx.target, header)
+    # /////////////////////////////////////////////////////////////////////////
+    def _assemble(self, meta_list: list[dict[str, Any]],
+                  wave_list: list[dict[str, "np.ndarray"]],
+                  median_list: list[dict[str, "np.ndarray"]],
+                  ctx: WriteContext,
+                  ) -> tuple[dict[str, "np.ndarray"], list[str] | None]:
+        """
+        Assemble numpy arrays for the sources enabled in the context.
+        
+        Parameters
+        ----------
+        meta_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing median beat signals.
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        
+        Returns
+        -------
+        res_dict : `dict` [`str`, `np.ndarray`]
+            The assembled arrays keyed by data type, enabled sources only.
+        header : `list` [`str`] or `NoneType`
+            The metadata column names, or `NoneType` when metadata is not
+            exported.
+        """
+        res_dict = {}
+        header = None
+        if ctx.e_meta:
+            res_dict[CTypes.MetaData], header = _meta_to_array(
+                meta_list, self.numeric_meta)
+        if ctx.e_wave:
+            res_dict[CTypes.WaveForms] = signal_dicts_to_numpy_array(
+                wave_list, padding=False)
+        if ctx.e_median:
+            res_dict[CTypes.MedianBeats] = signal_dicts_to_numpy_array(
+                median_list, padding=False)
+        return res_dict, header
+    # /////////////////////////////////////////////////////////////////////////
+    @abc.abstractmethod
+    def _save(self, res_dict: dict[str, "np.ndarray"],
+              ctx: WriteContext,
+              ) -> None:
+        """
+        Persist the assembled arrays to disk.
+        
+        Parameters
+        ----------
+        res_dict : `dict` [`str`, `np.ndarray`]
+            The assembled arrays keyed by data type.
+        ctx : `WriteContext`
+            The context carrying the target path and filename helper.
+        """
+        raise NotImplementedError
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+@register_writer(TabNames.WRITE_NPZ)
+class NpzWriter(NumpyWriter):
+    """
+    Writes ECG data to a single uncompressed `.npz` archive.
+    
+    All enabled sources are bundled into one `ecg_data.npz` file; the
+    metadata column names are written to a `header_metadata.txt` sidecar.
+    
+    Parameters
+    ----------
+    numeric_meta : `bool`, default `True`
+        Whether non-numeric metadata columns are dropped before writing.
+    """
+    # /////////////////////////////////////////////////////////////////////////
+    def _save(self, res_dict: dict[str, "np.ndarray"],
+              ctx: WriteContext,
+              ) -> None:
+        """
+        Bundle the assembled arrays into a single uncompressed `.npz`.
+        
+        Parameters
+        ----------
+        res_dict : `dict` [`str`, `np.ndarray`]
+            The assembled arrays keyed by data type.
+        ctx : `WriteContext`
+            The context carrying the target path and filename helper.
+        """
+        # #### set the filename
+        _, _, _, ECG_FILE = ctx.write_file_names(chunk_num=ctx.chunk_num)
+        # NOTE typed as `Any` so the ** unpacking does not collide with the
+        # `allow_pickle` keyword in the numpy savez stubs
+        arrays: dict[str, Any] = dict(res_dict)
+        np.savez(os.path.join(ctx.target, ECG_FILE), **arrays)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+@register_writer(TabNames.WRITE_NPY)
+class NpyWriter(NumpyWriter):
+    """
+    Writes ECG data to one `.npy` file per source.
+    
+    Each enabled source is written to its own uncompressed `.npy` file
+    (`metadata.npy`, `waveforms.npy`, `medianbeats.npy`, with the `_N`
+    chunk suffix when writing chunks). The metadata column names are
+    written to a `header_metadata.txt` sidecar.
+    
+    Parameters
+    ----------
+    numeric_meta : `bool`, default `True`
+        Whether non-numeric metadata columns are dropped before writing.
+    dtype : `np.dtype`, `type`, or `str`, default `np.float32`
+        The dtype signal arrays are cast to before writing; metadata keeps
+        its own dtype. Note integer dtypes cannot represent the `np.nan`
+        used for absent leads.
+    """
+    # /////////////////////////////////////////////////////////////////////////
+    def __init__(self, numeric_meta: bool = True,
+                 dtype: "np.dtype | type | str" = np.float32,
+                 ) -> None:
+        """Initialise the npy writer."""
+        super().__init__(numeric_meta=numeric_meta)
+        # normalise the signal dtype (raises TypeError when invalid)
+        self.dtype = np.dtype(dtype)
+    # /////////////////////////////////////////////////////////////////////////
+    def _save(self, res_dict: dict[str, "np.ndarray"],
+              ctx: WriteContext,
+              ) -> None:
+        """
+        Write each assembled array to its own `.npy` file.
+        
+        Parameters
+        ----------
+        res_dict : `dict` [`str`, `np.ndarray`]
+            The assembled arrays keyed by data type.
+        ctx : `WriteContext`
+            The context carrying the target path and filename helper.
+        """
+        # #### set the per-source filenames
+        META_FILE, WAVE_FILE, MEDIAN_FILE, _ = ctx.write_file_names(
+            chunk_num=ctx.chunk_num)
+        file_names = {
+            CTypes.MetaData: META_FILE,
+            CTypes.WaveForms: WAVE_FILE,
+            CTypes.MedianBeats: MEDIAN_FILE,
+        }
+        # #### write each enabled source to its own file
+        for data_type, array in res_dict.items():
+            # signals are cast to the configured dtype; metadata keeps its
+            # own dtype
+            if data_type != CTypes.MetaData:
+                array = array.astype(self.dtype)
+            # NOTE allow_pickle=False guards against object arrays, which
+            # cannot be memory-mapped
+            np.save(os.path.join(ctx.target, file_names[data_type]),
+                    array, allow_pickle=False)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+@register_writer(TabNames.WRITE_TFLOW)
+class TFRecordWriter(BaseWriter):
+    """
+    Writes ECG data to a single `.tfrecord`.
+    
+    Parameters
+    ----------
+    numeric_meta : `bool`, default `True`
+        Whether non-numeric metadata columns are dropped before writing.
+    """
+    # /////////////////////////////////////////////////////////////////////////
+    def __init__(self, numeric_meta: bool = True) -> None:
+        """Initialise the tfrecord writer."""
+        is_type(numeric_meta, bool)
+        self.numeric_meta = numeric_meta
+    # /////////////////////////////////////////////////////////////////////////
+    @staticmethod
+    def _import_tensorflow() -> ModuleType:
+        """
+        Lazily import tensorflow.
+        
+        TensorFlow is an optional dependency: it is imported here, per
+        `write` call, rather than at module import time, so that the rest
+        of the package works without it.
+        
+        Returns
+        -------
+        tf : `ModuleType`
+            The imported tensorflow module.
+        
+        Raises
+        ------
+        ImportError
+            If tensorflow is not installed, naming the install route.
+        """
+        try:
+            # filtering out TF warnings
+            os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+            import tensorflow as tf
+        except ImportError as exc:
+            raise ImportError(Error_MSG.MISSING_TENSORFLOW) from exc
+        return tf
+    # /////////////////////////////////////////////////////////////////////////
+    def write(self, meta_list: list[dict[str, Any]],
+              wave_list: list[dict[str, "np.ndarray"]],
+              median_list: list[dict[str, "np.ndarray"]],
+              ctx: WriteContext,
+              ) -> None:
+        """
+        Write a chunk of ECG data to a single `.tfrecord`.
+        
+        The enabled sources are stored as flattened `tf.train.Feature`
+        float lists in one `tf.train.Example`; the metadata column names
+        are written to a `header_metadata.txt` sidecar.
+        
+        Parameters
+        ----------
+        meta_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing median beat signals.
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        
+        Raises
+        ------
+        ImportError
+            If tensorflow is not installed.
+        """
+        # #### import tensorflow lazily before any file is written
+        tf = self._import_tensorflow()
+        # #### set the filename
+        _, _, _, ECG_FILE = ctx.write_file_names(chunk_num=ctx.chunk_num)
+        # #### assemble the features for the enabled sources
+        res_dict = {}
+        header = None
+        if ctx.e_meta:
+            array, header = _meta_to_array(meta_list, self.numeric_meta)
+            res_dict[CTypes.MetaData] = tf.train.Feature(
+                float_list=tf.train.FloatList(value=array.flatten()))
+        if ctx.e_wave:
+            res_dict[CTypes.WaveForms] = tf.train.Feature(
+                float_list=tf.train.FloatList(
+                    value=signal_dicts_to_numpy_array(
+                        wave_list, padding=False).flatten()))
+        if ctx.e_median:
+            res_dict[CTypes.MedianBeats] = tf.train.Feature(
+                float_list=tf.train.FloatList(
+                    value=signal_dicts_to_numpy_array(
+                        median_list, padding=False).flatten()))
+        # #### write the record and the metadata header sidecar
+        with tf.io.TFRecordWriter(
+                os.path.join(ctx.target, ECG_FILE)) as record_writer:
+            record_writer.write(
+                tf.train.Example(
+                    features=tf.train.Features(feature=res_dict)
+                ).SerializeToString())
+        # NOTE header is not None exactly when metadata was exported
+        if header is not None:
+            _write_metadata_header(ctx.target, header)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# helpers
 def _meta_to_array(meta_list: list[dict[str, Any]], numeric_meta: bool,
                    ) -> tuple["np.ndarray", list[str]]:
     """
@@ -365,139 +724,4 @@ def _write_metadata_header(target: str, header: list[str]) -> None:
         # NOTE line numbering starts at 1 to match the sidecar convention.
         for line_number, head in enumerate(header, start=1):
             file.write(f"{line_number}\t{head}\n")
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-@register_writer(TabNames.WRITE_NUMPY)
-class NumpyWriter(BaseWriter):
-    """
-    Writes ECG data to a single uncompressed `.npz` archive.
-    
-    Reproduces the behaviour of the former `ECGTable._write_numpy`: the
-    enabled sources (metadata, waveforms, medianbeats) are bundled into one
-    `ecg_data.npz` via `numpy.savez` (uncompressed), and the metadata column
-    names are written to a `header_metadata.txt` sidecar. Signal arrays are
-    built with `signal_dicts_to_numpy_array(..., padding=False)`, so all
-    records in a chunk must share a length (set `signal_length_w`/`_m`).
-    
-    Parameters
-    ----------
-    numeric_meta : `bool`, default `True`
-        Whether non-numeric metadata columns are dropped before writing.
-    """
-    # /////////////////////////////////////////////////////////////////////////
-    def __init__(self, numeric_meta: bool = True) -> None:
-        """Initialise the numpy writer."""
-        self.numeric_meta = numeric_meta
-    # /////////////////////////////////////////////////////////////////////////
-    def write(self, meta_list: list[dict[str, Any]],
-              wave_list: list[dict[str, "np.ndarray"]],
-              median_list: list[dict[str, "np.ndarray"]],
-              ctx: WriteContext,
-              ) -> None:
-        """Write a chunk to an uncompressed `.npz`. See `BaseWriter.write`."""
-        # #### set the filename
-        _, _, _, ECG_FILE = ctx.write_file_names(chunk_num=ctx.chunk_num)
-        # #### assemble the arrays for the enabled sources
-        res_dict = {}
-        header = None
-        if ctx.e_meta:
-            res_dict[CTypes.MetaData], header = _meta_to_array(
-                meta_list, self.numeric_meta)
-        if ctx.e_wave:
-            res_dict[CTypes.WaveForms] = signal_dicts_to_numpy_array(
-                wave_list, padding=False)
-        if ctx.e_median:
-            res_dict[CTypes.MedianBeats] = signal_dicts_to_numpy_array(
-                median_list, padding=False)
-        # #### write the bundle and the metadata header sidecar
-        np.savez(os.path.join(ctx.target, ECG_FILE), **res_dict)
-        if ctx.e_meta:
-            _write_metadata_header(ctx.target, header)
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-@register_writer(TabNames.WRITE_TFLOW)
-class TFRecordWriter(BaseWriter):
-    """
-    Writes ECG data to a single `.tfrecord`.
-    
-    Reproduces the behaviour of the former `ECGTable._write_tfr`: the enabled
-    sources are stored as flattened `tf.train.Feature` float lists in one
-    `tf.train.Example`. Signal arrays are built with
-    `signal_dicts_to_numpy_array(..., padding=False)`, so all records in a
-    chunk must share a length. The metadata column names are written to a
-    `header_metadata.txt` sidecar.
-    
-    Parameters
-    ----------
-    numeric_meta : `bool`, default `True`
-        Whether non-numeric metadata columns are dropped before writing.
-    """
-    # /////////////////////////////////////////////////////////////////////////
-    def __init__(self, numeric_meta: bool = True) -> None:
-        """Initialise the tfrecord writer."""
-        self.numeric_meta = numeric_meta
-    # /////////////////////////////////////////////////////////////////////////
-    @staticmethod
-    def _import_tensorflow() -> ModuleType:
-        """
-        Lazily import tensorflow.
-
-        TensorFlow is an optional dependency: it is imported here, per
-        `write` call, rather than at module import time, so that the rest
-        of the package works without it.
-
-        Returns
-        -------
-        tf : `ModuleType`
-            The imported tensorflow module.
-
-        Raises
-        ------
-        ImportError
-            If tensorflow is not installed, naming the install route.
-        """
-        # filtering out TF warnings
-        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-        try:
-            import tensorflow as tf
-        except ImportError as exc:
-            raise ImportError(Error_MSG.MISSING_TENSORFLOW) from exc
-        return tf
-    # /////////////////////////////////////////////////////////////////////////
-    def write(self, meta_list: list[dict[str, Any]],
-              wave_list: list[dict[str, "np.ndarray"]],
-              median_list: list[dict[str, "np.ndarray"]],
-              ctx: WriteContext,
-              ) -> None:
-        """Write a chunk to a `.tfrecord`. See `BaseWriter.write`."""
-        # #### import tensorflow lazily before any file is written
-        tf = self._import_tensorflow()
-        # #### set the filename
-        _, _, _, ECG_FILE = ctx.write_file_names(chunk_num=ctx.chunk_num)
-        # #### assemble the features for the enabled sources
-        res_dict = {}
-        header = None
-        if ctx.e_meta:
-            array, header = _meta_to_array(meta_list, self.numeric_meta)
-            res_dict[CTypes.MetaData] = tf.train.Feature(
-                float_list=tf.train.FloatList(value=array.flatten()))
-        if ctx.e_wave:
-            res_dict[CTypes.WaveForms] = tf.train.Feature(
-                float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(
-                        wave_list, padding=False).flatten()))
-        if ctx.e_median:
-            res_dict[CTypes.MedianBeats] = tf.train.Feature(
-                float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(
-                        median_list, padding=False).flatten()))
-        # #### write the record and the metadata header sidecar
-        with tf.io.TFRecordWriter(
-                os.path.join(ctx.target, ECG_FILE)) as record_writer:
-            record_writer.write(
-                tf.train.Example(
-                    features=tf.train.Features(feature=res_dict)
-                ).SerializeToString())
-        if ctx.e_meta:
-            _write_metadata_header(ctx.target, header)
 

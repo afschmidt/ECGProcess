@@ -377,6 +377,27 @@ class TestTable(object):
         assert wave.shape == (2, 12, 5000)
         assert median.shape == (2, 12, 600)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg_npy(self, tmp_path):
+        expected_content = ['metadata.npy', 'waveforms.npy',
+                            'medianbeats.npy', 'FailedFiles.txt',
+                            'header_metadata.txt']
+        # change current directory
+        os.chdir(tmp_path)
+        # run; array writers require equal-length records, so opt in to
+        # the pad/truncate.
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            signal_length_w=5000, signal_length_m=600)
+        res = ecgtable(verbose=False).write_ecg(
+            parsed_config=parser_dicom, file_type='npy')
+        # one .npy per source plus the sidecar
+        content = os.listdir(getattr(res, TabNames.WRITE_ECG_PATH))
+        assert set(content) == set(expected_content)
+        # signal arrays are float32 and memory-mappable
+        wave = np.load('waveforms.npy', mmap_mode='r')
+        assert wave.shape == (2, 12, 5000)
+        assert wave.dtype == np.float32
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @pytest.mark.tensorflow
     def test_write_ecg_tfrecords(self, tmp_path):
         expected_content = ['ecg_data.tfrecord', 'FailedFiles.txt',

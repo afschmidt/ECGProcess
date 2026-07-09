@@ -36,7 +36,7 @@ def get_param_name(param:Any) -> str | None:  # pragma: no cover
     return param_names[0] if param_names else None
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def is_type(param: Any, types: tuple[Type] | Type,
+def is_type(param: Any, types: tuple[Type, ...] | Type,
             param_name: str | None=None) -> bool:
     """
     Checks if a given parameter matches any of the supplied types.
