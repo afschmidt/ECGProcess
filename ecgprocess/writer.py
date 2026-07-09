@@ -16,19 +16,16 @@ import os
 import abc
 import logging
 from dataclasses import dataclass
+from types import ModuleType
 from typing import Any, Callable
 import numpy as np
 import pandas as pd
-# filtering out TF warnings
-# NOTE tensorflow is imported at module top level for now; task .3 makes it
-# an optional, lazily imported dependency.
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-import tensorflow as tf
 from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
 )
 from ecgprocess.errors import (
+    Error_MSG,
     Warn_MSG,
 )
 from ecgprocess.utils.ecg_tools import (
@@ -204,14 +201,14 @@ def resolve_writer(writer: Any) -> BaseWriter:
 class _CallableWriter(BaseWriter):
     """
     Adapter wrapping a bare callable as a :class:`BaseWriter`.
-
+    
     The callable must accept `(meta_list, wave_list, median_list, ctx)`.
     """
     # /////////////////////////////////////////////////////////////////////////
     def __init__(self, func: Callable[..., None]) -> None:
         """
         Initialise the adapter.
-
+        
         Parameters
         ----------
         func : `Callable`
@@ -232,14 +229,14 @@ class _CallableWriter(BaseWriter):
 class TableWriter(BaseWriter):
     """
     Writes ECG data to flat, long-format tsv tables.
-
+    
     Reproduces the behaviour of the former `ECGTable._write_tab`: up to
     three files (metadata, waveforms, medianbeats) gated by the export
     flags on the :class:`WriteContext`. The writer owns the tabular
     append semantics: when `tab_append` is `True` the first chunk is
     written with a header and subsequent chunks are appended without one;
     the cross-chunk state is held on the instance.
-
+    
     Parameters
     ----------
     tab_append : `bool`, default `True`
@@ -323,7 +320,7 @@ def _meta_to_array(meta_list: list[dict[str, Any]], numeric_meta: bool,
                    ) -> tuple["np.ndarray", list[str]]:
     """
     Build a metadata array and its column header from a list of dicts.
-
+    
     Parameters
     ----------
     meta_list : `list` [`dict` [`str`, `any`]]
@@ -331,7 +328,7 @@ def _meta_to_array(meta_list: list[dict[str, Any]], numeric_meta: bool,
     numeric_meta : `bool`
         When True, non-numeric columns are dropped (with a warning) so the
         result is a purely numeric array.
-
+    
     Returns
     -------
     array : `np.ndarray`
@@ -352,11 +349,11 @@ def _meta_to_array(meta_list: list[dict[str, Any]], numeric_meta: bool,
 def _write_metadata_header(target: str, header: list[str]) -> None:
     """
     Write the metadata column names to a `header_metadata.txt` sidecar.
-
+    
     The array formats (`.npz`, `.tfrecord`) store metadata as a bare numeric
     array with no column labels, so the header is written alongside as a
     line-numbered lookup.
-
+    
     Parameters
     ----------
     target : `str`
@@ -374,14 +371,14 @@ def _write_metadata_header(target: str, header: list[str]) -> None:
 class NumpyWriter(BaseWriter):
     """
     Writes ECG data to a single uncompressed `.npz` archive.
-
+    
     Reproduces the behaviour of the former `ECGTable._write_numpy`: the
     enabled sources (metadata, waveforms, medianbeats) are bundled into one
     `ecg_data.npz` via `numpy.savez` (uncompressed), and the metadata column
     names are written to a `header_metadata.txt` sidecar. Signal arrays are
     built with `signal_dicts_to_numpy_array(..., padding=False)`, so all
     records in a chunk must share a length (set `signal_length_w`/`_m`).
-
+    
     Parameters
     ----------
     numeric_meta : `bool`, default `True`
@@ -422,14 +419,14 @@ class NumpyWriter(BaseWriter):
 class TFRecordWriter(BaseWriter):
     """
     Writes ECG data to a single `.tfrecord`.
-
+    
     Reproduces the behaviour of the former `ECGTable._write_tfr`: the enabled
     sources are stored as flattened `tf.train.Feature` float lists in one
     `tf.train.Example`. Signal arrays are built with
     `signal_dicts_to_numpy_array(..., padding=False)`, so all records in a
     chunk must share a length. The metadata column names are written to a
     `header_metadata.txt` sidecar.
-
+    
     Parameters
     ----------
     numeric_meta : `bool`, default `True`
@@ -440,12 +437,41 @@ class TFRecordWriter(BaseWriter):
         """Initialise the tfrecord writer."""
         self.numeric_meta = numeric_meta
     # /////////////////////////////////////////////////////////////////////////
+    @staticmethod
+    def _import_tensorflow() -> ModuleType:
+        """
+        Lazily import tensorflow.
+
+        TensorFlow is an optional dependency: it is imported here, per
+        `write` call, rather than at module import time, so that the rest
+        of the package works without it.
+
+        Returns
+        -------
+        tf : `ModuleType`
+            The imported tensorflow module.
+
+        Raises
+        ------
+        ImportError
+            If tensorflow is not installed, naming the install route.
+        """
+        # filtering out TF warnings
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+        try:
+            import tensorflow as tf
+        except ImportError as exc:
+            raise ImportError(Error_MSG.MISSING_TENSORFLOW) from exc
+        return tf
+    # /////////////////////////////////////////////////////////////////////////
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
               median_list: list[dict[str, "np.ndarray"]],
               ctx: WriteContext,
               ) -> None:
         """Write a chunk to a `.tfrecord`. See `BaseWriter.write`."""
+        # #### import tensorflow lazily before any file is written
+        tf = self._import_tensorflow()
         # #### set the filename
         _, _, _, ECG_FILE = ctx.write_file_names(chunk_num=ctx.chunk_num)
         # #### assemble the features for the enabled sources
@@ -474,3 +500,4 @@ class TFRecordWriter(BaseWriter):
                 ).SerializeToString())
         if ctx.e_meta:
             _write_metadata_header(ctx.target, header)
+

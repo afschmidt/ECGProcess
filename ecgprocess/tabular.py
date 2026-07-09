@@ -976,7 +976,7 @@ class ECGTable(object):
         `numpy` and `tensorflow` writers are best used to store
         numerical/float data. Currently non-numerical data are therefore
         dropped from metadata for these writers.
-
+        
         For `numpy` and `tensorflow` all records in a chunk must share a
         signal length (set `signal_length_w`/`signal_length_m`); the writers
         do not pad across records. Absent leads are presented as np.nan. The
@@ -1228,3 +1228,4 @@ class ECGTable(object):
             write_file_names=self._write_file_names,
             get_long_table=self._get_long_table,
         )
+

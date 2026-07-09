@@ -315,6 +315,11 @@ class Error_MSG(object):  # pragma: no cover
     MISSING_ATTR='attribute `{}` not found in object `{}`.'
     CHOICE_PARM='`{}` is constrained to `{}`.'
     MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
+    MISSING_TENSORFLOW=(
+        "TensorFlow is required for the `tensorflow` writer. Install it "
+        "with `pip install ecgprocess[tensorflow]` or "
+        "`conda install tensorflow`."
+    )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class Warn_MSG(object):  # pragma: no cover

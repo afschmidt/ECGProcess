@@ -377,6 +377,7 @@ class TestTable(object):
         assert wave.shape == (2, 12, 5000)
         assert median.shape == (2, 12, 600)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.tensorflow
     def test_write_ecg_tfrecords(self, tmp_path):
         expected_content = ['ecg_data.tfrecord', 'FailedFiles.txt',
                             'header_metadata.txt']
