@@ -57,3 +57,10 @@ markers = [
 [tool.ruff]
 line-length = 79
 target-version = "py311"
+
+[tool.pyright]
+# the conda env NAME is shared; its parent directory is machine-specific
+# and must be supplied per user as `venvPath` in the editor settings
+# (e.g. coc-settings/VS Code "python.venvPath": "~/miniforge3/envs")
+venv = "ECGProcess"
+pythonVersion = "3.11"
