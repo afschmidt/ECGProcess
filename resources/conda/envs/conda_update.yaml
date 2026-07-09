@@ -9,9 +9,11 @@ dependencies:
   - pandas>=2.1.1
   - numpy>=1.26
   - scipy>=1.7
-  - tensorflow>=2.16
   - pydicom>=2.0
   - matplotlib>=3.9
+  # tensorflow is an optional runtime dependency (tfrecord writer only);
+  # it is installed here so the dev environment can run the full test suite
+  - tensorflow>=2.16
   - pytest>=6
   - pytest-mock>=3.0
   - pytest-dependency>=0.5

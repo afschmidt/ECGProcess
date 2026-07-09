@@ -32,6 +32,8 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.dynamic.optional-dependencies]
 dev = { file = ["requirements-dev.txt"] }
+tensorflow = { file = ["requirements-tensorflow.txt"] }
+all = { file = ["requirements-tensorflow.txt"] }
 
 [tool.setuptools.packages.find]
 include = ["ecgprocess*"]
@@ -48,6 +50,9 @@ include-package-data = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "tensorflow: test requires the optional tensorflow dependency",
+]
 
 [tool.ruff]
 line-length = 79

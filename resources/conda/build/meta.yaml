@@ -26,9 +26,12 @@ requirements:
     - pandas >=2.1.1
     - numpy >=1.26
     - scipy >=1.7
-    - tensorflow >=2.16
     - pydicom >=2
     - matplotlib-base >=3.9
+  # tensorflow is optional (only the tfrecord writer needs it); constrain
+  # the version when a user installs it alongside ecgprocess
+  run_constrained:
+    - tensorflow >=2.16
 
 test:
   source_files:

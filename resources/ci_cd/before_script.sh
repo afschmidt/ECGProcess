@@ -38,5 +38,13 @@ pip install -r requirements.txt
 # Install the package being built/tested
 pip install .
 
-# Run all the tests
+# Phase 1: run the tests WITHOUT tensorflow installed (the docker image
+# deliberately does not bake it in). tensorflow-marked tests skip and the
+# lazy-import guarantees are exercised in a genuinely tensorflow-free
+# environment.
+pytest tests
+
+# Phase 2: install the optional tensorflow dependency and re-run the full
+# suite, now including the tfrecord writer tests.
+pip install -r requirements-tensorflow.txt
 pytest tests
