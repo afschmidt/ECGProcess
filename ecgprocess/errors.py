@@ -320,6 +320,15 @@ class Error_MSG(object):  # pragma: no cover
         "with `pip install ecgprocess[tensorflow]` or "
         "`conda install tensorflow`."
     )
+    FIGURE_SOURCE_NOT_EXTRACTED=(
+        "FigureWriter source={!r} requires the corresponding source to be "
+        "extracted; enable extract_wave/extract_median accordingly."
+    )
+    FIGURE_DUAL_SOURCE=(
+        "FigureWriter renders a single signal source, but both WaveForms "
+        "and MedianBeats are extracted. Disable one extraction flag "
+        "(extract_wave/extract_median) or run write_ecg once per source."
+    )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class Warn_MSG(object):  # pragma: no cover

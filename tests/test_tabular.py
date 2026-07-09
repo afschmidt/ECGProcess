@@ -28,9 +28,12 @@ from ecgprocess.tabular import (
 from ecgprocess.utils.engineering_tools import(
     signal_standardise_res,
 )
-# from ecgprocess.plot_ecgs import (
-#     ECGDrawing,
-# )
+from ecgprocess.plot_ecgs import (
+    ECGStyle,
+)
+from ecgprocess.writer import (
+    FigureWriter,
+)
 from ecgprocess.example_data.examples import (
     parsed_config,
     list_dicom_paths,
@@ -397,6 +400,27 @@ class TestTable(object):
         wave = np.load('waveforms.npy', mmap_mode='r')
         assert wave.shape == (2, 12, 5000)
         assert wave.dtype == np.float32
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_ecg_figure(self, tmp_path):
+        # change current directory
+        os.chdir(tmp_path)
+        # run; the default layout renders the clinical 3x4 grid with a
+        # rhythm strip, one image per record named by UID. The writer
+        # renders a single source, so median extraction is disabled.
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False)
+        writer = FigureWriter(
+            kwargs_call={'style': ECGStyle(figsize=(4., 2.), dpi=50)})
+        res = ecgtable(verbose=False).write_ecg(
+            parsed_config=parser_dicom, writer=writer)
+        # one valid PNG per record
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        pngs = [c for c in os.listdir(target) if c.endswith('.png')]
+        assert len(pngs) == 2
+        for p in pngs:
+            with open(os.path.join(target, p), 'rb') as fh:
+                assert fh.read(8) == b'\x89PNG\r\n\x1a\n'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @pytest.mark.tensorflow
     def test_write_ecg_tfrecords(self, tmp_path):

@@ -4,10 +4,13 @@ import subprocess
 import pytest
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
 )
+from ecgprocess.errors import InputValidationError
+from ecgprocess.plot_ecgs import ECGDrawing, ECGStyle
 from ecgprocess.writer import (
     BaseWriter,
     WriteContext,
@@ -16,6 +19,7 @@ from ecgprocess.writer import (
     NpzWriter,
     NpyWriter,
     TFRecordWriter,
+    FigureWriter,
     WRITERS,
     register_writer,
     resolve_writer,
@@ -24,6 +28,17 @@ from ecgprocess.writer import (
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # core names
 CTypes = Core.DataTypes
+CMeta = Core.MetaData
+
+# the 12 standard leads in clinical column order
+_LEADS_12 = [
+    'I', 'II', 'III', 'aVR', 'aVL', 'aVF',
+    'V1', 'V2', 'V3', 'V4', 'V5', 'V6',
+]
+# the PNG file signature (first 8 bytes of any valid PNG)
+_PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
+# a small render style keeping the figure tests fast
+_SMALL_STYLE = ECGStyle(figsize=(4., 2.), dpi=40)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # helpers
@@ -342,6 +357,87 @@ class TestNpyWriter(object):
                                   ext='.npy')
         NpyWriter(dtype=np.float64).write([], wave, [], ctx)
         assert np.load(tmp_path / 'waveforms.npy').dtype == np.float64
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _make_figure_records(leads, n=2, length=100):
+    """Signal dicts for `leads` plus metadata carrying the sampling rate."""
+    rng = np.random.default_rng(7)
+    sig_list = [
+        {lead: rng.standard_normal(length) for lead in leads}
+        for _ in range(n)
+    ]
+    meta_list = [{CMeta.SF: 100.0} for _ in range(n)]
+    return meta_list, sig_list
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestFigureWriter(object):
+    """
+    Testing the plotting-specific behaviour of the per-record image
+    writer: the default clinical layout (3x4 grid plus full-width
+    rhythm strip), per-UID image files, format selection, source
+    selection, and figure cleanup.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_default_mapper(self):
+        # the built-in layout is the clinical 3x4 grid, column order
+        # (I II III) (aVR aVL aVF) (V1 V2 V3) (V4 V5 V6), plus a
+        # full-width lead II rhythm strip on its own bottom row
+        mapper = FigureWriter.DEFAULT_MAPPER
+        assert mapper['I'] == (0, slice(0, 1))
+        assert mapper['II'] == (1, slice(0, 1))
+        assert mapper['aVR'] == (0, slice(1, 2))
+        assert mapper['V6'] == (2, slice(3, 4))
+        assert mapper['II strip'] == (3, slice(0, 4))
+        assert len(mapper) == 13
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_one_png_per_uid(self, tmp_path):
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_median=False)
+        FigureWriter(kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, wave, [], ctx)
+        assert set(os.listdir(tmp_path)) == {'a.png', 'b.png'}
+        for name in ('a.png', 'b.png'):
+            with open(tmp_path / name, 'rb') as fh:
+                assert fh.read(8) == _PNG_MAGIC
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_image_format_svg(self, tmp_path):
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_median=False)
+        FigureWriter(image_format='svg',
+                     kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, wave, [], ctx)
+        assert set(os.listdir(tmp_path)) == {'a.svg', 'b.svg'}
+        with open(tmp_path / 'a.svg') as fh:
+            assert '<svg' in fh.read(1024)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_dual_source_raises(self, tmp_path):
+        # the writer renders exactly one source; extracting both would
+        # silently drop one and collide on the <UID> filenames
+        meta, wave = _make_figure_records(['I'])
+        _, median = _make_figure_records(['I'], length=60)
+        ctx = _make_context(tmp_path)
+        with pytest.raises(InputValidationError):
+            FigureWriter().write(meta, wave, median, ctx)
+        # fail-fast: nothing is written
+        assert os.listdir(tmp_path) == []
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_median_source(self, tmp_path):
+        # a median beat is a single short beat; tiling would slice it
+        # into meaningless column windows, so tile_x is disabled
+        meta, median = _make_figure_records(_LEADS_12, length=60)
+        ctx = _make_context(tmp_path, e_wave=False)
+        FigureWriter(source='median', tile_x=False,
+                     kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, [], median, ctx)
+        assert set(os.listdir(tmp_path)) == {'a.png', 'b.png'}
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_figures_closed_after_write(self, tmp_path):
+        open_before = plt.get_fignums()
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_median=False)
+        FigureWriter(kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, wave, [], ctx)
+        assert plt.get_fignums() == open_before
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @pytest.mark.tensorflow

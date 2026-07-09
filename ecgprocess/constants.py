@@ -136,6 +136,7 @@ class TabularNames(object):
     WRITE_NPZ      = 'npz'
     WRITE_TFLOW    = 'tensorflow'
     WRITE_NPY      = 'npy'
+    WRITE_FIGURE   = 'figure'
     WRITE_ECG_PATH = 'target_path'
     WRITE_TYPE     = 'file_type'
     ID_START       = '_id_start_number'
