@@ -128,6 +128,7 @@ class TabularNames(object):
     KEY_L          = 'key_list'
     NO_DATA_L      = 'no_data_list'
     INVALID_L      = 'invalid_list'
+    FAILED_REC_L   = 'failed_record_list'
     TABLE_CALLED   = 'table_called'
     WRITE_TAB      = 'table'
     # NOTE 'numpy' is a legacy `file_type` alias for 'npz'; it is removed
@@ -159,6 +160,10 @@ class WriteNames(object):
     # deprecation message template: {name}, {version}, {replacement}
     DEPRECATED = ('`{}` is deprecated and will be removed in v{}; '
                   'use `{}` instead.')
+    # /////////////////////////////////////////////////////////////////////////
+    # the FailedFiles.txt cause for a write-stage annotation failure:
+    # {error}
+    ANNOT_CAUSE = 'Annotation failed: {}'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class PlotNames:
@@ -172,8 +177,12 @@ class PlotNames:
     # #### standard ECG paper grid dimensions (mm)
     MINOR_GRID_MM   = 1.0
     MAJOR_GRID_MM   = 5.0
+    # #### annotation spec-dict keys
+    ANNOT_TEXT      = 'text'
+    ANNOT_XY        = 'xy'
     # #### ECGDrawing slot names
     DEFAULT_LEADS   = '_default_leads'
+    META_DATA       = '_meta_data'
     FIGURE          = 'figure'
     AXES            = 'axes'
     LAYOUT_MAPPER   = 'layout_mapper'

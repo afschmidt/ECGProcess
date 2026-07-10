@@ -553,3 +553,48 @@ class TestWriteEcgDispatch(object):
         assert 'called' not in records
         assert 'marker.txt' not in content
         assert 'metadata.tsv.gz' in content
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestWriteEcgAnnotateFailures(object):
+    """
+    Testing that write-stage annotation failures follow the ignore_data
+    flag: raising by default, or skipping the record and adding it to
+    FailedFiles.txt when ignore_data is set.
+    """
+    # a template referencing a key absent from the example metadata
+    _SPEC_ABSENT = [{'text': '{absent key}', 'xy': (0.5, 0.99)}]
+    _SMALL_STYLE = ECGStyle(figsize=(4., 2.), dpi=40)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_annotation_failure_raises_by_default(self, tmp_path):
+        os.chdir(tmp_path)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False)
+        writer = FigureWriter(
+            annotate=self._SPEC_ABSENT,
+            kwargs_call={'style': self._SMALL_STYLE})
+        with pytest.raises(InputValidationError, match='absent key'):
+            ecgtable(verbose=False).write_ecg(
+                parsed_config=parser_dicom, writer=writer)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_annotation_failure_recorded_with_ignore_data(self, tmp_path):
+        os.chdir(tmp_path)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False)
+        writer = FigureWriter(
+            annotate=self._SPEC_ABSENT,
+            kwargs_call={'style': self._SMALL_STYLE})
+        res = ecgtable(verbose=False, ignore_data=True).write_ecg(
+            parsed_config=parser_dicom, writer=writer)
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        content = os.listdir(target)
+        # every record fails the annotation: no images are written but
+        # both failures land in FailedFiles.txt with the write-stage cause
+        assert not any(c.endswith('.png') for c in content)
+        assert 'FailedFiles.txt' in content
+        with open(os.path.join(target, 'FailedFiles.txt')) as fh:
+            rows = [r for r in fh.read().splitlines() if r]
+        assert len(rows) == 2
+        assert all('Annotation failed' in r for r in rows)
+        assert all('absent key' in r for r in rows)

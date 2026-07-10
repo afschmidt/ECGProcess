@@ -1101,14 +1101,17 @@ class ECGTable(object):
                                  sep='\t', header=True, index=False)
             # #### write failed files
             if write_failed == True:
-                # adding the reason for failing
+                # adding the reason for failing; write-stage failures
+                # (identifier, cause) reported by the writer via the
+                # WriteContext are included as-is
                 total_failures =\
                     [(p, 'File permission') for p in\
                      getattr(self, TabNames.FPATH_L) ] +\
                     [ (p, 'No data') for p in\
                      getattr(self, TabNames.NO_DATA_L)] +\
                     [(p, 'Invalid data') for p in\
-                     getattr(self, TabNames.INVALID_L)]
+                     getattr(self, TabNames.INVALID_L)] +\
+                    list(getattr(self, TabNames.FAILED_REC_L, []))
                 # writing to text file
                 with open(os.path.join(target, 'FailedFiles.txt'), 'w') as file:
                     for p, cause in total_failures:
@@ -1127,6 +1130,8 @@ class ECGTable(object):
                 delattr(self, TabNames.INVALID_L)
             if hasattr(self, TabNames.ID_START) == True:
                 delattr(self, TabNames.ID_START)
+            if hasattr(self, TabNames.FAILED_REC_L) == True:
+                delattr(self, TabNames.FAILED_REC_L)
         # #### return
         return self
     # /////////////////////////////////////////////////////////////////////////
@@ -1213,6 +1218,11 @@ class ECGTable(object):
         """
         # NOTE KEY_L is only set by _loop_table when metadata is extracted;
         # default to None so context construction never raises.
+        # the write-stage failure list persists across chunks: created
+        # lazily (like KEY_L), shared with every chunk's context, merged
+        # into FailedFiles.txt and cleaned up by `write_ecg`.
+        if not hasattr(self, TabNames.FAILED_REC_L):
+            setattr(self, TabNames.FAILED_REC_L, [])
         return WriteContext(
             e_meta=getattr(self, TabNames.E_META),
             e_wave=getattr(self, TabNames.E_WAVE),
@@ -1223,5 +1233,7 @@ class ECGTable(object):
             chunk_num=chunk_num,
             write_file_names=self._write_file_names,
             get_long_table=self._get_long_table,
+            skip_data=getattr(self, TabNames.SKIP_DATA, False),
+            failed_records=getattr(self, TabNames.FAILED_REC_L),
         )
 

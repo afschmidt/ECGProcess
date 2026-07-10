@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import abc
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import ModuleType, SimpleNamespace
 from typing import Any, Callable, TypeVar
 import matplotlib.pyplot as plt
@@ -22,7 +22,9 @@ import numpy as np
 import pandas as pd
 from ecgprocess.constants import (
     CoreData as Core,
+    PlotNames as PDNames,
     TabularNames as TabNames,
+    WriteNames,
 )
 from ecgprocess.errors import (
     is_type,
@@ -30,7 +32,11 @@ from ecgprocess.errors import (
     InputValidationError,
     Warn_MSG,
 )
-from ecgprocess.plot_ecgs import ECGDrawing
+from ecgprocess.plot_ecgs import (
+    ECGDrawing,
+    _annotation_fields,
+    _split_annotation_spec,
+)
 from ecgprocess.utils.ecg_tools import (
     signal_dicts_to_numpy_array,
 )
@@ -77,6 +83,13 @@ class WriteContext(object):
     get_long_table : `Callable`
         Helper mapping a list of lead dictionaries to a long-format
         `pandas.DataFrame`.
+    skip_data : `bool`, default `False`
+        Whether records failing at the write stage (e.g. a missing
+        annotation key) are skipped and recorded instead of raising.
+        Mirrors the `ECGTable` `ignore_data` flag.
+    failed_records : `list` [`tuple` [`str`, `str`]]
+        The (identifier, cause) pairs for records skipped at the write
+        stage; merged into `FailedFiles.txt` by `ECGTable.write_ecg`.
     """
     # NOTE add input tests?
     # NOTE 2 kwargs_tab, get_long_table might be better as options parameters?
@@ -89,6 +102,8 @@ class WriteContext(object):
     chunk_num: int | None
     write_file_names: Callable[..., tuple[str, str, str, str]]
     get_long_table: Callable[..., pd.DataFrame]
+    skip_data: bool = False
+    failed_records: list[tuple[str, str]] = field(default_factory=list)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class BaseWriter(abc.ABC):
@@ -717,7 +732,17 @@ default `NoneType`
     kwargs_savefig : `dict` or `NoneType`, default `NoneType`
         Extra keyword arguments forwarded to `Figure.savefig` (e.g.
         `dpi`).
-    
+    annotate : `list` [`dict`] or `NoneType`, default `NoneType`
+        Annotation spec dicts forwarded to `ECGDrawing.annotate` for
+        every record (see there for the spec format). `'{key}'`
+        placeholders are resolved per record from that record's
+        MetaData, so templates require metadata extraction; literal
+        strings do not. A record with a missing or `NoneType`
+        referenced key raises `InputValidationError` naming the record,
+        or, when `ctx.skip_data` is set (the `ECGTable` `ignore_data`
+        flag), is skipped (no image file) and recorded on
+        `ctx.failed_records`.
+
     Notes
     -----
     Rendering uses the active matplotlib backend; for large headless
@@ -755,6 +780,7 @@ default `NoneType`
                  tile_x: bool = True,
                  kwargs_call: dict | None = None,
                  kwargs_savefig: dict | None = None,
+                 annotate: list[dict[str, Any]] | None = None,
                  ) -> None:
         """Initialise the figure writer."""
         is_type(drawing, (ECGDrawing, type(None)))
@@ -764,6 +790,11 @@ default `NoneType`
         is_type(tile_x, bool)
         is_type(kwargs_call, (dict, type(None)))
         is_type(kwargs_savefig, (dict, type(None)))
+        is_type(annotate, (list, type(None)))
+        # a malformed annotation spec is systematic: validate at
+        # construction so it cannot fail (or be skip-recorded) mid-batch
+        for spec in (annotate or []):
+            _split_annotation_spec(spec)
         self.drawing = drawing or ECGDrawing()
         self.mapper = mapper
         self.source = source
@@ -772,6 +803,7 @@ default `NoneType`
         self.tile_x = tile_x
         self.kwargs_call = kwargs_call or {}
         self.kwargs_savefig = kwargs_savefig or {}
+        self.annotate = annotate or []
     # /////////////////////////////////////////////////////////////////////////
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
@@ -797,14 +829,23 @@ default `NoneType`
         InputValidationError
             If `source` is not a `drawing.SOURCE_MAP` key, if both
             waveforms and median beats are extracted (the writer renders
-            exactly one source), or if the selected source was not
-            extracted.
+            exactly one source), if the selected source was not
+            extracted, if annotation templates are used without metadata
+            extraction, or if a record misses a referenced metadata key
+            while `ctx.skip_data` is unset.
         """
         # #### the figure writer renders exactly one signal source
         # both sources would silently drop one and collide on the
         # per-UID filenames
         if ctx.e_wave and ctx.e_median:
             raise InputValidationError(Error_MSG.FIGURE_DUAL_SOURCE)
+        # #### annotation templates resolve from per-record metadata;
+        # without metadata extraction every placeholder would fail, so
+        # this is a configuration error and always raises upfront
+        if not ctx.e_meta and any(
+                _annotation_fields(spec[PDNames.ANNOT_TEXT])
+                for spec in self.annotate):
+            raise InputValidationError(Error_MSG.ANNOTATE_NEEDS_META)
         # #### resolve which extracted source to render
         source_map = self.drawing.SOURCE_MAP
         if self.source not in source_map:
@@ -851,6 +892,21 @@ default `NoneType`
             try:
                 if self.tile_x:
                     drawing.tile_x_axis()
+                # #### metadata-driven annotation; a missing key is a
+                # data failure governed by the ECGTable ignore_data flag
+                # (spec-shape errors were already raised at __init__)
+                if self.annotate:
+                    try:
+                        drawing.annotate(self.annotate)
+                    except InputValidationError as err:
+                        if ctx.skip_data:
+                            ctx.failed_records.append(
+                                (uid, WriteNames.ANNOT_CAUSE.format(err)))
+                            _log.warning(Warn_MSG.ANNOTATE_SKIPPED, uid, err)
+                            continue
+                        raise InputValidationError(
+                            Error_MSG.ANNOTATE_RECORD.format(uid, err),
+                        ) from err
                 fig.savefig(
                     os.path.join(
                         ctx.target, f'{uid}.{self.image_format}'),

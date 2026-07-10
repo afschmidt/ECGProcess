@@ -9,12 +9,15 @@ clinical ECG paper scaling.
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # from __future__ import annotations
 import logging
+import string
 import numpy as np
 import matplotlib.pylab as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import MultipleLocator
 from typing import Any, NamedTuple, Self, Literal
-from ecgprocess.errors import InputValidationError, NotCalledError, is_type
+from ecgprocess.errors import (
+    InputValidationError, NotCalledError, is_type, Error_MSG,
+)
 from ecgprocess.constants import PlotNames as PDNames, CoreData
 from ecgprocess.utils.general import _update_kwargs
 
@@ -124,6 +127,111 @@ def _resolve_lead_kwargs(
         "Mixed dict/non-dict values in kwargs, either pass a flat dict "
         "(uniform) or a dict of dicts (per-lead)."
     )
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _annotation_fields(text: str) -> list[str]:
+    """
+    Return the replacement-field names in an annotation template.
+
+    Parameters
+    ----------
+    text : `str`
+        An annotation template, e.g. ``'ECG {unique identifier}'``.
+
+    Returns
+    -------
+    fields : `list` [`str`]
+        The field names referenced by the template, in order of
+        appearance; empty for a literal string.
+
+    Raises
+    ------
+    ValueError
+        If the template contains malformed replacement fields (e.g. a
+        single unmatched ``'{'``).
+    """
+    return [
+        field for _, field, _, _ in string.Formatter().parse(text)
+        if field is not None
+    ]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _split_annotation_spec(
+    spec: dict[str, Any],
+) -> tuple[str, tuple[float, float], dict[str, Any]]:
+    """
+    Validate an annotation spec dict and split it into its parts.
+
+    Parameters
+    ----------
+    spec : `dict` [`str`, `any`]
+        One annotation spec with the required keys ``'text'`` (`str`)
+        and ``'xy'`` (a 2-item tuple/list of numbers); all remaining
+        keys are treated as `matplotlib.figure.Figure.text` kwargs.
+
+    Returns
+    -------
+    text : `str`
+        The annotation template string.
+    xy : `tuple` [`float`, `float`]
+        The figure-fraction position.
+    extras : `dict` [`str`, `any`]
+        The remaining fig.text keyword arguments.
+
+    Raises
+    ------
+    InputValidationError
+        If required keys are absent or of the wrong type.
+    """
+    is_type(spec, dict)
+    if PDNames.ANNOT_TEXT not in spec or PDNames.ANNOT_XY not in spec:
+        raise InputValidationError(Error_MSG.ANNOTATE_SPEC.format(spec))
+    text = spec[PDNames.ANNOT_TEXT]
+    xy = spec[PDNames.ANNOT_XY]
+    if not isinstance(text, str) or not (
+            isinstance(xy, (tuple, list)) and len(xy) == 2
+            and all(isinstance(v, (int, float)) for v in xy)):
+        raise InputValidationError(Error_MSG.ANNOTATE_SPEC.format(spec))
+    extras = {k: v for k, v in spec.items()
+              if k not in (PDNames.ANNOT_TEXT, PDNames.ANNOT_XY)}
+    return text, (float(xy[0]), float(xy[1])), extras
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _resolve_annotation(text: str, meta: Any) -> str:
+    """
+    Resolve ``'{key}'`` placeholders in a template from metadata.
+
+    Parameters
+    ----------
+    text : `str`
+        The annotation template. Literal strings (no placeholders) pass
+        through unchanged apart from ``'{{'``/``'}}'`` brace unescaping.
+    meta : mapping or `None`
+        The metadata mapping (supports ``.get``) the field names are
+        resolved against.
+
+    Returns
+    -------
+    resolved : `str`
+        The template with every placeholder substituted.
+
+    Raises
+    ------
+    InputValidationError
+        If a referenced metadata key is missing or None.
+    """
+    fields = _annotation_fields(text)
+    if not fields:
+        # unescape any literal '{{' / '}}' braces
+        return text.format_map({})
+    values = {}
+    for field in fields:
+        value = meta.get(field) if meta is not None else None
+        if value is None:
+            raise InputValidationError(
+                Error_MSG.ANNOTATE_MISSING_KEY.format(text, field))
+        values[field] = value
+    return text.format_map(values)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ECGStyle(NamedTuple):
@@ -260,6 +368,9 @@ class ECGDrawing:
     tile_x_axis(xlims)
         Tiles each column's x-axis to an equal slice of the full signal,
         mimicking continuous ECG paper. Per-lead overrides via ``xlims``.
+    annotate(annotations)
+        Adds free-form templated text annotations to the figure;
+        ``'{key}'`` placeholders resolve from the captured MetaData.
     to_numpy(crop, close)
         Renders the figure to a 3-D numpy array (RGBA).
     
@@ -276,7 +387,7 @@ class ECGDrawing:
     # __slots__
     # reducing memory overhead and making the public attribute surface explicit.
     __slots__ = (
-        PDNames.DEFAULT_LEADS,
+        PDNames.DEFAULT_LEADS, PDNames.META_DATA,
         PDNames.FIGURE, PDNames.AXES, PDNames.LAYOUT_MAPPER, PDNames.STYLE,
         PDNames.MINOR_STEP_X, PDNames.MAJOR_STEP_X,
         PDNames.MINOR_STEP_Y, PDNames.MAJOR_STEP_Y,
@@ -296,6 +407,7 @@ class ECGDrawing:
         ][2:]
         # set to leads or the CoreData.Leads
         setattr(self, PDNames.DEFAULT_LEADS, leads or lead_default)
+        setattr(self, PDNames.META_DATA,     None)
         setattr(self, PDNames.FIGURE,        None)
         setattr(self, PDNames.AXES,          None)
         setattr(self, PDNames.LAYOUT_MAPPER, None)
@@ -766,10 +878,12 @@ class ECGDrawing:
         setattr(self, PDNames.FIGURE,        fig)
         setattr(self, PDNames.AXES,          axes)
         setattr(self, PDNames.LAYOUT_MAPPER, mapper)
+        # #### capture metadata for annotation templates and sampling rate
+        meta = getattr(reader, CoreData.DataTypes.MetaData, None) or {}
+        setattr(self, PDNames.META_DATA, meta)
         # #### resolve sampling rate
         # trying to pull this from the metadata
         if sampling_rate is None:
-            meta = getattr(reader, CoreData.DataTypes.MetaData, None) or {}
             sampling_rate = meta.get(CoreData.MetaData.SF)
         # if still None raise an error
         if sampling_rate is None:
@@ -867,6 +981,74 @@ optional
                 line.set_xdata(xd[mask])
                 line.set_ydata(yd[mask])
             ax.set_xlim(col_x_min, col_x_max)
+        return self
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def annotate(
+        self,
+        annotations: list[dict[str, Any]],
+    ) -> Self:
+        """
+        Add free-form templated text annotations to the rendered figure.
+
+        Each annotation is a spec dict pairing a template string with a
+        figure-fraction position; any layout (line breaks, spacing, unit
+        text) lives in the string itself. ``'{key}'`` placeholders are
+        resolved against the MetaData captured from the reader during
+        the `__call__` render; plain strings without placeholders are
+        drawn literally and need no metadata.
+
+        Parameters
+        ----------
+        annotations : `list` [`dict` [`str`, `any`]]
+            One spec dict per annotation. Required keys: ``'text'``
+            (`str`, the template) and ``'xy'`` (a 2-item tuple of
+            `float`, the position in 0-1 figure-fraction coordinates).
+            All remaining keys are forwarded to
+            `matplotlib.figure.Figure.text`, merged with the defaults
+            ``fontsize=7``, ``ha='left'``, ``va='bottom'``
+            (caller-supplied values win).
+
+        Returns
+        -------
+        self : ECGDrawing
+            The instance, allowing chaining after `__call__` and
+            `tile_x_axis`.
+
+        Raises
+        ------
+        NotCalledError
+            If __call__ has not been invoked yet.
+        InputValidationError
+            If a spec dict is malformed, or a referenced metadata key
+            is missing or None.
+
+        Notes
+        -----
+        Templates support ``\\n`` line breaks, format specs such as
+        ``'{key:.1f}'``, and literal braces via ``'{{'``/``'}}'``.
+        Metadata keys containing ``'.'`` or ``'['`` are interpreted by
+        the `str.format` field grammar and cannot be referenced.
+        """
+        # #### the figure must exist before it can be annotated
+        fig = getattr(self, PDNames.FIGURE)
+        if fig is None:
+            raise NotCalledError(
+                "ECGDrawing must be called before annotate()."
+            )
+        # #### check input
+        is_type(annotations, list)
+        meta = getattr(self, PDNames.META_DATA)
+        # #### resolve and draw each annotation
+        for spec in annotations:
+            text, xy, extras = _split_annotation_spec(spec)
+            resolved = _resolve_annotation(text, meta)
+            # caller-supplied keys override the defaults
+            txt_kw = _update_kwargs(
+                extras,
+                fontsize=7, ha='left', va='bottom',
+            )
+            fig.text(xy[0], xy[1], resolved, **txt_kw)
+        # return
         return self
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def to_numpy(

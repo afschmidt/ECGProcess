@@ -329,6 +329,20 @@ class Error_MSG(object):  # pragma: no cover
         "and MedianBeats are extracted. Disable one extraction flag "
         "(extract_wave/extract_median) or run write_ecg once per source."
     )
+    ANNOTATE_SPEC=(
+        "each annotation spec requires 'text' (`str`) and 'xy' (a 2-item "
+        "tuple of numbers); got {!r}."
+    )
+    ANNOTATE_MISSING_KEY=(
+        'annotation template {!r} references metadata key {!r} which is '
+        'missing or None.'
+    )
+    ANNOTATE_NEEDS_META=(
+        'FigureWriter annotate templates reference MetaData, but metadata '
+        'extraction is disabled; enable metadata extraction or use literal '
+        'annotation strings.'
+    )
+    ANNOTATE_RECORD='record {!r}: {}'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class Warn_MSG(object):  # pragma: no cover
@@ -345,6 +359,8 @@ class Warn_MSG(object):  # pragma: no cover
         'be calculated (sampling number or sampling frequency is '
         'None); resampling skipped for this file.'
     )
+    ANNOTATE_SKIPPED = ('record %s was skipped and recorded due to a '
+                        'failed annotation: %s')
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

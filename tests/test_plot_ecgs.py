@@ -432,3 +432,103 @@ class TestECGDrawingTileXAxis:
                     x_min + col_slice.stop * segment,
                 )
                 assert ax_xlim == pytest.approx(expected)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestECGDrawingAnnotate:
+    """Tests for the templated free-text annotation method."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_not_called_raises(self) -> None:
+        """Annotating before rendering raises NotCalledError."""
+        with pytest.raises(NotCalledError):
+            ECGDrawing().annotate([{'text': 'x', 'xy': (0.5, 0.5)}])
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_literal_text_and_defaults(self, mock_reader) -> None:
+        """A literal spec lands on fig.texts with the default styling and
+        the call chains (returns self)."""
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        out = drawing.annotate([{'text': 'reviewed', 'xy': (0.9, 0.05)}])
+        assert out is drawing
+        texts = drawing.figure.texts
+        assert len(texts) == 1
+        note = texts[0]
+        assert note.get_text() == 'reviewed'
+        assert note.get_position() == (0.9, 0.05)
+        assert note.get_fontsize() == 7
+        assert note.get_horizontalalignment() == 'left'
+        assert note.get_verticalalignment() == 'bottom'
+        plt.close(drawing.figure)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_template_resolves_metadata(self, mock_reader) -> None:
+        """'{key}' placeholders resolve from the MetaData captured at
+        __call__, including newlines and format specs."""
+        uid_key = CoreData.MetaData.UID
+        sf_key = CoreData.MetaData.SF
+        mock_reader.MetaData[uid_key] = 'ecg42'
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        drawing.annotate([{
+            'text': f'ECG {{{uid_key}}}\n{{{sf_key}:.0f}} Hz',
+            'xy': (0.5, 0.99),
+        }])
+        assert drawing.figure.texts[0].get_text() == 'ECG ecg42\n500 Hz'
+        plt.close(drawing.figure)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_missing_key_raises(self, mock_reader) -> None:
+        """A template referencing an absent metadata key raises."""
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        with pytest.raises(InputValidationError, match='absent'):
+            drawing.annotate([{'text': '{absent}', 'xy': (0.1, 0.1)}])
+        plt.close(drawing.figure)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_none_key_raises(self, mock_reader) -> None:
+        """A template referencing a metadata key set to None raises."""
+        mock_reader.MetaData['nulled'] = None
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        with pytest.raises(InputValidationError, match='nulled'):
+            drawing.annotate([{'text': '{nulled}', 'xy': (0.1, 0.1)}])
+        plt.close(drawing.figure)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_bad_spec_raises(self, mock_reader) -> None:
+        """Spec dicts missing 'text'/'xy' or with wrong types raise."""
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        bad_specs = [
+            {'xy': (0.5, 0.5)},
+            {'text': 'x'},
+            {'text': 3, 'xy': (0.5, 0.5)},
+            {'text': 'x', 'xy': (0.5,)},
+            {'text': 'x', 'xy': (0.5, 'y')},
+        ]
+        for spec in bad_specs:
+            with pytest.raises(InputValidationError):
+                drawing.annotate([spec])
+        plt.close(drawing.figure)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_kwargs_override_defaults(self, mock_reader) -> None:
+        """Caller-supplied fig.text kwargs win over the defaults."""
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        drawing.annotate([{
+            'text': 'big', 'xy': (0.5, 0.99),
+            'fontsize': 12, 'ha': 'center', 'rotation': 90,
+        }])
+        note = drawing.figure.texts[0]
+        assert note.get_fontsize() == 12
+        assert note.get_horizontalalignment() == 'center'
+        assert note.get_rotation() == 90
+        plt.close(drawing.figure)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_escaped_braces_literal(self, mock_reader) -> None:
+        """'{{'/'}}' escapes render literal braces without metadata."""
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        drawing.annotate([{'text': '{{lead}}', 'xy': (0.1, 0.1)}])
+        assert drawing.figure.texts[0].get_text() == '{lead}'
+        plt.close(drawing.figure)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_batch_specs(self, mock_reader) -> None:
+        """One annotate() call places every spec in the list."""
+        drawing = ECGDrawing()(mock_reader, mapper=_12LEAD_MAPPER)
+        drawing.annotate([
+            {'text': 'top', 'xy': (0.5, 0.99)},
+            {'text': 'bottom', 'xy': (0.5, 0.01)},
+        ])
+        rendered = [t.get_text() for t in drawing.figure.texts]
+        assert rendered == ['top', 'bottom']
+        plt.close(drawing.figure)

@@ -66,7 +66,7 @@ def _fake_write_file_names(chunk_num=None, **kwargs):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _make_context(target, e_meta=True, e_wave=True, e_median=True,
-                  chunk_num=None, get_long_table=None):
+                  chunk_num=None, get_long_table=None, skip_data=False):
     """Build a WriteContext backed by inert stub helpers."""
     def _default_long_table(lead_list, signal_type, purge_header=True):
         return pd.DataFrame({'Voltage': [1.0, 2.0],
@@ -81,6 +81,7 @@ def _make_context(target, e_meta=True, e_wave=True, e_median=True,
         chunk_num=chunk_num,
         write_file_names=_fake_write_file_names,
         get_long_table=get_long_table or _default_long_table,
+        skip_data=skip_data,
     )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -161,6 +162,8 @@ class TestWriteContext(object):
         assert ctx.chunk_num == 3
         assert callable(ctx.write_file_names)
         assert callable(ctx.get_long_table)
+        assert ctx.skip_data is False
+        assert ctx.failed_records == []
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestResolveWriter(object):
@@ -437,6 +440,103 @@ class TestFigureWriter(object):
         ctx = _make_context(tmp_path, e_median=False)
         FigureWriter(kwargs_call={'style': _SMALL_STYLE}).write(
             meta, wave, [], ctx)
+        assert plt.get_fignums() == open_before
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestFigureWriterAnnotate(object):
+    """
+    Testing the metadata-driven annotation option: per-record template
+    resolution, the metadata-extraction guard, and the skip-and-record
+    error path governed by `ctx.skip_data`.
+    """
+    # a literal annotation needing no metadata
+    _SPEC_LIT = [{'text': 'HELLOMARK', 'xy': (0.5, 0.99)}]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_bad_spec_raises_at_init(self):
+        # a malformed spec is systematic; it must fail at construction,
+        # not mid-batch
+        with pytest.raises(InputValidationError):
+            FigureWriter(annotate=[{'xy': (0.5, 0.5)}])
+        with pytest.raises(InputValidationError):
+            FigureWriter(annotate=[{'text': 'x', 'xy': (0.5,)}])
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_annotate_forwarded_per_record(self, tmp_path, monkeypatch):
+        calls = []
+        original = ECGDrawing.annotate
+        def _spy(self, annotations):
+            calls.append(annotations)
+            return original(self, annotations)
+        monkeypatch.setattr(ECGDrawing, 'annotate', _spy)
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_median=False)
+        FigureWriter(annotate=self._SPEC_LIT,
+                     kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, wave, [], ctx)
+        assert calls == [self._SPEC_LIT, self._SPEC_LIT]
+        assert set(os.listdir(tmp_path)) == {'a.png', 'b.png'}
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_template_resolves_per_record(self, tmp_path):
+        # svg keeps text as text (with fonttype 'none'), so the resolved
+        # per-record annotation is observable in the output file
+        meta, wave = _make_figure_records(_LEADS_12)
+        meta[0][CMeta.UID] = 'rec1'
+        meta[1][CMeta.UID] = 'rec2'
+        spec = [{'text': 'ECG {' + CMeta.UID + '}', 'xy': (0.5, 0.99)}]
+        ctx = _make_context(tmp_path, e_median=False)
+        with plt.rc_context({'svg.fonttype': 'none'}):
+            FigureWriter(annotate=spec, image_format='svg',
+                         kwargs_call={'style': _SMALL_STYLE}).write(
+                meta, wave, [], ctx)
+        with open(tmp_path / 'a.svg') as fh:
+            assert 'ECG rec1' in fh.read()
+        with open(tmp_path / 'b.svg') as fh:
+            assert 'ECG rec2' in fh.read()
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_template_needs_meta_guard(self, tmp_path):
+        # a template without extracted metadata is a configuration
+        # error: fail before any file is written
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False)
+        spec = [{'text': '{' + CMeta.UID + '}', 'xy': (0.5, 0.5)}]
+        with pytest.raises(InputValidationError):
+            FigureWriter(annotate=spec,
+                         kwargs_call={'style': _SMALL_STYLE}).write(
+                meta, wave, [], ctx)
+        assert os.listdir(tmp_path) == []
+        # literal annotations do not need metadata; without extracted
+        # metadata the sampling rate must be supplied explicitly
+        FigureWriter(annotate=self._SPEC_LIT,
+                     kwargs_call={'style': _SMALL_STYLE,
+                                  'sampling_rate': 100.0}).write(
+            meta, wave, [], ctx)
+        assert set(os.listdir(tmp_path)) == {'a.png', 'b.png'}
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_missing_key_raises_with_uid(self, tmp_path):
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_median=False)
+        spec = [{'text': '{absent}', 'xy': (0.5, 0.5)}]
+        with pytest.raises(InputValidationError, match="record 'a'"):
+            FigureWriter(annotate=spec,
+                         kwargs_call={'style': _SMALL_STYLE}).write(
+                meta, wave, [], ctx)
+        assert os.listdir(tmp_path) == []
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_skip_data_records_failure(self, tmp_path):
+        # only record 'b' carries the referenced key; with skip_data the
+        # failing record is skipped, recorded, and the batch continues
+        open_before = plt.get_fignums()
+        meta, wave = _make_figure_records(_LEADS_12)
+        meta[1]['extra'] = 'X'
+        spec = [{'text': '{extra}', 'xy': (0.5, 0.5)}]
+        ctx = _make_context(tmp_path, e_median=False, skip_data=True)
+        FigureWriter(annotate=spec,
+                     kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, wave, [], ctx)
+        assert set(os.listdir(tmp_path)) == {'b.png'}
+        assert len(ctx.failed_records) == 1
+        uid, cause = ctx.failed_records[0]
+        assert uid == 'a'
+        assert 'Annotation failed' in cause
         assert plt.get_fignums() == open_before
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
