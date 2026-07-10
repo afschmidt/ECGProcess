@@ -78,10 +78,6 @@ class WriteContext(object):
     write_file_names : `Callable`
         Helper returning the (metadata, waveforms, medianbeats, ecg_data)
         filenames including extensions.
-    get_long_table : `Callable` or `NoneType`, default `NoneType`
-        Helper mapping a list of lead dictionaries to a long-format
-        `pandas.DataFrame`. Only the `TableWriter` needs it; that writer
-        raises `InputValidationError` when it is `NoneType`.
     skip_data : `bool`, default `False`
         Whether records failing at the write stage (e.g. a missing
         annotation key) are skipped and recorded instead of raising.
@@ -98,7 +94,6 @@ class WriteContext(object):
     target: str
     chunk_num: int | None
     write_file_names: Callable[..., tuple[str, str, str, str]]
-    get_long_table: Callable[..., pd.DataFrame] | None = None
     skip_data: bool = False
     failed_records: list[tuple[str, str]] = field(default_factory=list)
 
@@ -336,18 +331,7 @@ class TableWriter(BaseWriter):
             A list of dictionaries containing median beat signals.
         ctx : `WriteContext`
             The context carrying export flags, target path, and helpers.
-
-        Raises
-        ------
-        InputValidationError
-            If a signal source is exported while `ctx.get_long_table`
-            is `NoneType`.
         """
-        # #### the long-format helper is required for signal sources
-        if (ctx.e_wave or ctx.e_median) and ctx.get_long_table is None:
-            raise InputValidationError(
-                Error_MSG.MISSING_ATTR.format(
-                    'get_long_table', type(ctx).__name__))
         # #### derive the per-call to_csv keyword arguments
         # the header/mode/chunk logic is a tabular-writer concern; `_first`
         # is only relevant when appending to a single file.
@@ -381,17 +365,17 @@ class TableWriter(BaseWriter):
                 **kwargs_tab_combi,
             )
         if ctx.e_wave:
-            ctx.get_long_table(
-                wave_list, signal_type=CTypes.WaveForms,
-                purge_header=True,
+            signal_dicts_to_long_table(
+                wave_list, key_list=ctx.key_list,
+                signal_type=CTypes.WaveForms,
             ).to_csv(
                 os.path.join(ctx.target, WAVE_FILE),
                 **kwargs_tab_combi,
             )
         if ctx.e_median:
-            ctx.get_long_table(
-                median_list, signal_type=CTypes.MedianBeats,
-                purge_header=True,
+            signal_dicts_to_long_table(
+                median_list, key_list=ctx.key_list,
+                signal_type=CTypes.MedianBeats,
             ).to_csv(
                 os.path.join(ctx.target, MEDIAN_FILE),
                 **kwargs_tab_combi,
@@ -932,6 +916,119 @@ default `NoneType`
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # helpers
+def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
+                               key_list: list[Any], signal_type: str,
+                               prev_keys: list[str] | None = None,
+                               **kwargs_pd: Any,
+                               ) -> pd.DataFrame:
+    """
+    Map lists of dictionaries containing lead specific numpy arrays to a
+    long-formatted pandas table.
+    
+    Parameters
+    ----------
+    lead_list : `list` [`dict` [`str`, `np.ndarray`]]
+        A list of dictionaries with the lead names mapped to the keys and
+        the voltage mapped to the values.
+    key_list : `list`
+        The per-record unique keys, aligned with `lead_list`.
+    signal_type : `str`
+        Adds a column `Signal type` containing this string as a constant.
+    prev_keys : `list` [`str`] or `NoneType`, default `NoneType`
+        The lead names from a previous call, seeding the key-consistency
+        check so file headers can persist between calls; `NoneType`
+        starts fresh.
+    kwargs_pd
+        keyword arguments passed to `pd.DataFrame`.
+    
+    Returns
+    -------
+    long_table : `pd.DataFrame`
+        A long-formatted table with lead, voltage, sampling sequence
+        columns grouped by file (including an unique file indicator
+        column).
+    
+    Raises
+    ------
+    ValueError
+        If the number of signals differs between the leads of a record.
+    KeyError
+        If the lead names differ between records, or from `prev_keys`.
+    """
+    # #### check input and set constants
+    is_type(lead_list, list, 'lead_list')
+    is_type(key_list, list, 'key_list')
+    is_type(signal_type, str, 'signal_type')
+    is_type(prev_keys, (list, type(None)), 'prev_keys')
+    SAMPLING_SEQ = 'Sampling sequence'
+    # the last set of valid lead names; seeded by prev_keys so cross-call
+    # key persistence is an explicit parameter, not instance state
+    prev = prev_keys
+    # #### initiate table and map lists
+    table = pd.DataFrame()
+    # NOTE w contains a dictionary with k: lead names and v: signals.
+    for w, k in zip(lead_list, key_list, strict=True):
+        # ##### are there leads with None instead of signals
+        # FIRST get the length of the array and make sure this is unique.
+        # SECOND replace these by arrays by NaN
+        array_length = []
+        for value in w.values():
+            if isinstance(value, np.ndarray):
+                array_length.append(len(value))
+        arr_len = np.unique(array_length)
+        if len(arr_len) == 0:
+            # add a place holder length
+            _log.warning(
+                'All the signal data is set to None, replacing these '
+                'by arrays of length one.',
+            )
+            arr_len = 1
+        elif len(arr_len) > 1:
+            raise ValueError('The number of signals differs per lead: '
+                             f'`{arr_len}`.')
+        for key, sig in w.items():
+            if sig is None:
+                w[key] = np.full(arr_len, np.nan)
+                if arr_len != 1:
+                    _log.warning(
+                        "Lead '%s' had a None value and has been "
+                        "replaced by an array of NaN.",
+                        key,
+                    )
+        # ##### confirm the dictionary keys/lead names are identical
+        current_keys = list(w.keys())
+        if prev is not None:
+            if current_keys != prev:
+                raise KeyError('The dictionaries contain distinct keys. '
+                               'The last set of valid keys was {}, '
+                               'compared to {}.'.\
+                               format(prev, current_keys))
+        # ##### if the same map to dataframe
+        temp_df = pd.DataFrame(w, **kwargs_pd)
+        temp_df[TabNames.KEY] = k
+        # FIXME this will be fairly slow/inefficient
+        table = pd.concat([table, temp_df], ignore_index=True)
+        # clean
+        prev = current_keys
+        del current_keys
+        del temp_df
+    # #### formatting to long
+    if table.empty == False:
+        table[SAMPLING_SEQ] = table.groupby(
+            TabNames.KEY).cumcount()
+        long_table = pd.melt(table, id_vars=\
+                             [TabNames.KEY, SAMPLING_SEQ],
+                             value_vars=prev,
+                             var_name='Lead',
+                             value_name='Voltage',
+                             )
+        long_table['Signal type'] = signal_type
+    else:
+        long_table = table
+    # #### return
+    return long_table
+    
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _meta_to_array(meta_list: list[dict[str, Any]], numeric_meta: bool,
                    ) -> tuple["np.ndarray", list[str]]:
     """

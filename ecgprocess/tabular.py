@@ -40,6 +40,7 @@ from ecgprocess.writer import (
     TableWriter,
     WriteContext,
     resolve_writer,
+    signal_dicts_to_long_table,
 )
 from ecgprocess.utils.general import (
     replace_with_tar,
@@ -741,14 +742,14 @@ class ECGTable(object):
                     meta_list, index=getattr(self, TabNames.KEY_L)
                 ))
             if getattr(self, TabNames.E_WAVE):
-                setattr(self, CTypes.WaveForms, self._get_long_table(
-                    wave_list, signal_type=CTypes.WaveForms,
-                    purge_header=True,
+                setattr(self, CTypes.WaveForms, signal_dicts_to_long_table(
+                    wave_list, key_list=getattr(self, TabNames.KEY_L),
+                    signal_type=CTypes.WaveForms,
                 ))
             if getattr(self, TabNames.E_MEDIAN):
-                setattr(self, CTypes.MedianBeats, self._get_long_table(
-                    median_list, signal_type=CTypes.MedianBeats,
-                    purge_header=True,
+                setattr(self, CTypes.MedianBeats, signal_dicts_to_long_table(
+                    median_list, key_list=getattr(self, TabNames.KEY_L),
+                    signal_type=CTypes.MedianBeats,
                 ))
         finally:
             # cleaning-up.
@@ -763,110 +764,6 @@ class ECGTable(object):
         # #### Return
         setattr(self, TabNames.TABLE_CALLED, 'True')
         return self
-    # /////////////////////////////////////////////////////////////////////////
-    def _get_long_table(self, lead_list:list[dict[str, np.ndarray]],
-                        signal_type:str, purge_header:bool=True,
-                        **kwargs,
-                        ) -> pd.DataFrame:
-        '''
-        Mapping lists of dictionaries containing lead specific numpy arrays
-        to a long-formatted pandas table.
-        
-        Parameters
-        ----------
-        lead_list : `list` [`dict` [`str`, `np.ndarray`]
-            A list of dictionaries with the lead names mapped to the keys and
-            the voltage mapped to the values.
-        signal_type : `str`,
-            Adds a column `Waveform type` containing this string as a constant.
-        purge_header : `bool`, default True
-            Set to `False` to make sure the file header persists between calls.
-            This is used to ensure the headers are the same between files.
-        kwargs
-            keyword arguments passed to pd.DataFrame.
-        
-        Returns
-        -------
-        pd.DataFrame
-            A long-formatted table with lead, voltage, sampling sequence
-            columns grouped by file (including an unique file indicator column)
-        '''
-        # #### check input and set constants
-        is_type(lead_list, list, 'lead_list')
-        is_type(signal_type, str, 'signal_type')
-        kwargs_pdd = kwargs
-        PREV = 'previous'
-        SAMPLING_SEQ = 'Sampling sequence'
-        # do we need to purge the header information
-        # otherwise this persists across repeated calls
-        if purge_header == True:
-            setattr(self, PREV, None)
-        else:
-            if not hasattr(self, PREV):
-                setattr(self, PREV, None)
-        # #### initiate table and map lists
-        table = pd.DataFrame()
-        # NOTE w contains a dictionary with k: lead names and v: signals.
-        for w, k in zip(lead_list, getattr(self, TabNames.KEY_L), strict=True):
-            # ##### are there leads with None instead of signals
-            # FIRST get the length of the array and make sure this is unique.
-            # SECOND replace these by arrays by NaN
-            array_length = []
-            for value in w.values():
-                if isinstance(value, np.ndarray):
-                    array_length.append(len(value))
-            arr_len = np.unique(array_length)
-            if len(arr_len) == 0:
-                # add a place holder length
-                _log.warning(
-                    'All the signal data is set to None, replacing these '
-                    'by arrays of length one.',
-                )
-                arr_len = 1
-            elif len(arr_len) > 1:
-                raise ValueError('The number of signals differs per lead: '
-                                 f'`{arr_len}`.')
-            for key, sig in w.items():
-                if sig is None:
-                    w[key] = np.full(arr_len, np.nan)
-                    if arr_len != 1:
-                        _log.warning(
-                            "Lead '%s' had a None value and has been "
-                            "replaced by an array of NaN.",
-                            key,
-                        )
-            # ##### confirm the dictionary keys/lead names are identical
-            current_keys = list(w.keys())
-            if getattr(self, PREV) is not None:
-                if current_keys != getattr(self, PREV):
-                    raise KeyError('The dictionaries contain distinct keys. '
-                                   'The last set of valid keys was {}, '
-                                   'compared to {}.'.\
-                                   format(getattr(self, PREV), current_keys))
-            # ##### if the same map to dataframe
-            temp_df = pd.DataFrame(w, **kwargs_pdd)
-            temp_df[TabNames.KEY] = k
-            # FIXME this will be fairly slow/inefficient
-            table = pd.concat([table, temp_df], ignore_index=True)
-            # clean
-            setattr(self, PREV, current_keys)
-            del current_keys
-            del temp_df
-        # #### formatting to long
-        if table.empty == False:
-            table[SAMPLING_SEQ] = table.groupby(
-                TabNames.KEY).cumcount()
-            long_table = pd.melt(table, id_vars=\
-                                 [TabNames.KEY, SAMPLING_SEQ],
-                                 value_vars=getattr(self, PREV),
-                                 var_name='Lead',
-                                 value_name='Voltage',
-                                 )
-            long_table['Signal type'] = signal_type
-        else:
-            long_table = table
-        # #### return
-        return long_table
     # /////////////////////////////////////////////////////////////////////////
     def write_ecg(self, parsed_config=ConfigParser,
                   chunk:int | None = None, target_tar: None | str = None,
@@ -1232,7 +1129,6 @@ class ECGTable(object):
             target=target,
             chunk_num=chunk_num,
             write_file_names=self._write_file_names,
-            get_long_table=self._get_long_table,
             skip_data=getattr(self, TabNames.SKIP_DATA, False),
             failed_records=getattr(self, TabNames.FAILED_REC_L),
         )
