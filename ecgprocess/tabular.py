@@ -1027,6 +1027,7 @@ class ECGTable(object):
             resolved_writer.tab_append = tab_append
             resolved_writer.tab_sep = tab_sep
             resolved_writer.tab_compression = tab_compression
+            resolved_writer.kwargs_tab = self.kwargs_tab
         # check readability
         _check_presence(target_path)
         _check_readable(target_path)
@@ -1227,7 +1228,6 @@ class ECGTable(object):
             e_meta=getattr(self, TabNames.E_META),
             e_wave=getattr(self, TabNames.E_WAVE),
             e_median=getattr(self, TabNames.E_MEDIAN),
-            kwargs_tab=self.kwargs_tab,
             key_list=getattr(self, TabNames.KEY_L, None),
             target=target,
             chunk_num=chunk_num,

@@ -69,8 +69,6 @@ class WriteContext(object):
         Whether waveform signals should be exported.
     e_median : `bool`
         Whether median beat signals should be exported.
-    kwargs_tab : `dict` [`str`, `any`]
-        Base keyword arguments forwarded to `pandas.DataFrame.to_csv`.
     key_list : `list`
         The per-record unique key list used as the metadata index.
     target : `str`
@@ -80,9 +78,10 @@ class WriteContext(object):
     write_file_names : `Callable`
         Helper returning the (metadata, waveforms, medianbeats, ecg_data)
         filenames including extensions.
-    get_long_table : `Callable`
+    get_long_table : `Callable` or `NoneType`, default `NoneType`
         Helper mapping a list of lead dictionaries to a long-format
-        `pandas.DataFrame`.
+        `pandas.DataFrame`. Only the `TableWriter` needs it; that writer
+        raises `InputValidationError` when it is `NoneType`.
     skip_data : `bool`, default `False`
         Whether records failing at the write stage (e.g. a missing
         annotation key) are skipped and recorded instead of raising.
@@ -92,16 +91,14 @@ class WriteContext(object):
         stage; merged into `FailedFiles.txt` by `ECGTable.write_ecg`.
     """
     # NOTE add input tests?
-    # NOTE 2 kwargs_tab, get_long_table might be better as options parameters?
     e_meta: bool
     e_wave: bool
     e_median: bool
-    kwargs_tab: dict[str, Any]
     key_list: list[Any]
     target: str
     chunk_num: int | None
     write_file_names: Callable[..., tuple[str, str, str, str]]
-    get_long_table: Callable[..., pd.DataFrame]
+    get_long_table: Callable[..., pd.DataFrame] | None = None
     skip_data: bool = False
     failed_records: list[tuple[str, str]] = field(default_factory=list)
 
@@ -295,18 +292,25 @@ class TableWriter(BaseWriter):
         The field separator passed to `pandas.DataFrame.to_csv`.
     tab_compression : `str` or `NoneType`, default `'gzip'`
         The compression passed to `pandas.DataFrame.to_csv`.
+    kwargs_tab : `dict` [`str`, `any`] or `NoneType`, default `NoneType`
+        Base keyword arguments forwarded to `pandas.DataFrame.to_csv`;
+        the per-call header/mode/separator/compression options override
+        matching keys.
     """
     # /////////////////////////////////////////////////////////////////////////
     def __init__(self, tab_append: bool = True, tab_sep: str = '\t',
                  tab_compression: str | None = 'gzip',
+                 kwargs_tab: dict[str, Any] | None = None,
                  ) -> None:
         """Initialise the tabular writer and its append state."""
         is_type(tab_append, bool)
         is_type(tab_sep, str)
         is_type(tab_compression, (type(None), str))
+        is_type(kwargs_tab, (dict, type(None)))
         self.tab_append = tab_append
         self.tab_sep = tab_sep
         self.tab_compression = tab_compression
+        self.kwargs_tab = kwargs_tab or {}
         # NOTE tracks whether the next write is the first for append mode
         self._first = True
     # /////////////////////////////////////////////////////////////////////////
@@ -332,7 +336,18 @@ class TableWriter(BaseWriter):
             A list of dictionaries containing median beat signals.
         ctx : `WriteContext`
             The context carrying export flags, target path, and helpers.
+
+        Raises
+        ------
+        InputValidationError
+            If a signal source is exported while `ctx.get_long_table`
+            is `NoneType`.
         """
+        # #### the long-format helper is required for signal sources
+        if (ctx.e_wave or ctx.e_median) and ctx.get_long_table is None:
+            raise InputValidationError(
+                Error_MSG.MISSING_ATTR.format(
+                    'get_long_table', type(ctx).__name__))
         # #### derive the per-call to_csv keyword arguments
         # the header/mode/chunk logic is a tabular-writer concern; `_first`
         # is only relevant when appending to a single file.
@@ -355,7 +370,7 @@ class TableWriter(BaseWriter):
                          'compression': self.tab_compression}
         if mode == 'a':
             writer_kwargs['mode'] = 'a'
-        kwargs_tab_combi = {**ctx.kwargs_tab, **writer_kwargs}
+        kwargs_tab_combi = {**self.kwargs_tab, **writer_kwargs}
         # #### set the filenames
         META_FILE, WAVE_FILE, MEDIAN_FILE, _ = ctx.write_file_names(
             chunk_num=chunk_num, **kwargs_tab_combi)

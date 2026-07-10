@@ -75,7 +75,6 @@ def _make_context(target, e_meta=True, e_wave=True, e_median=True,
         e_meta=e_meta,
         e_wave=e_wave,
         e_median=e_median,
-        kwargs_tab={},
         key_list=['a', 'b'],
         target=str(target),
         chunk_num=chunk_num,
@@ -99,12 +98,10 @@ def _make_array_context(target, e_meta=True, e_wave=True, e_median=True,
         e_meta=e_meta,
         e_wave=e_wave,
         e_median=e_median,
-        kwargs_tab={},
         key_list=['a', 'b'],
         target=str(target),
         chunk_num=chunk_num,
         write_file_names=_npz_names,
-        get_long_table=lambda *a, **kw: None,
     )
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -156,7 +153,6 @@ class TestWriteContext(object):
         assert ctx.e_meta is True
         assert ctx.e_wave is True
         assert ctx.e_median is True
-        assert ctx.kwargs_tab == {}
         assert ctx.key_list == ['a', 'b']
         assert ctx.target == str(tmp_path)
         assert ctx.chunk_num == 3
