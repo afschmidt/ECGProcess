@@ -138,8 +138,8 @@ class TabularNames(object):
     WRITE_TFLOW    = 'tensorflow'
     WRITE_NPY      = 'npy'
     WRITE_FIGURE   = 'figure'
+    WRITE_PIXEL    = 'pixel'
     WRITE_ECG_PATH = 'target_path'
-    WRITE_TYPE     = 'file_type'
     ID_START       = '_id_start_number'
     KEY            = 'key'
     FILENAM        = 'filename'
@@ -149,6 +149,30 @@ class TabularNames(object):
     SN_W_PADDED    = 'sampling number padded (waveforms)'
     SN_M_PADDED    = 'sampling number padded (medianbeats)'
     DURATION_PADDED = 'duration padded (sec)'
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class FileNames(object):
+    """
+    Filenames written by `ECGTable.write_ecg` and the writer module.
+
+    All on-disk names are defined here so the naming standard is
+    enforced in one place; no writer or `ECGTable` method carries an
+    inline filename literal.
+    """
+    # /////////////////////////////////////////////////////////////////////////
+    # #### per-chunk data-file base names
+    # the `_N` chunk suffix and the writer-owned extension are appended
+    # by `BaseWriter.file_names`
+    METADATA     = 'metadata'
+    WAVEFORMS    = 'waveforms'
+    MEDIANBEATS  = 'medianbeats'
+    ECG_DATA     = 'ecg_data'
+    FIGURES      = 'figures'
+    # /////////////////////////////////////////////////////////////////////////
+    # #### bookkeeping files (fixed names, no chunk suffix)
+    META_HEADER  = 'header_metadata.txt'
+    CHUNK_RECORD = 'chunkrecord.txt'
+    FAILED_FILES = 'FailedFiles.txt'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class WriteNames(object):
@@ -164,6 +188,11 @@ class WriteNames(object):
     # the FailedFiles.txt cause for a write-stage annotation failure:
     # {error}
     ANNOT_CAUSE = 'Annotation failed: {}'
+    # /////////////////////////////////////////////////////////////////////////
+    # #### the pixel writer channel formats
+    RGBA = 'rgba'
+    RGB  = 'rgb'
+    GRAY = 'gray'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class PlotNames:

@@ -21,6 +21,7 @@ from ecgprocess.writer import (
     NpyWriter,
     TFRecordWriter,
     FigureWriter,
+    PixelWriter,
     WRITERS,
     register_writer,
     resolve_writer,
@@ -44,32 +45,14 @@ _SMALL_STYLE = ECGStyle(figsize=(4., 2.), dpi=40)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # helpers
-# NOTE these fakes keep the writer tests independent of `ECGTable`: the
-# helper callables that a real `WriteContext` carries as bound `ECGTable`
-# methods are replaced by lightweight stubs.
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def _fake_write_file_names(chunk_num=None, **kwargs):
-    """Stub of ``ECGTable._write_file_names`` with tsv extension logic."""
-    ext = '.tsv'
-    if kwargs.get('compression') in ('gz', 'gzip'):
-        ext = ext + '.gz'
-    sep = ''
-    chunk = ''
-    if chunk_num is not None:
-        sep = '_'
-        chunk = str(chunk_num)
-    return (
-        'metadata' + sep + chunk + ext,
-        'waveforms' + sep + chunk + ext,
-        'medianbeats' + sep + chunk + ext,
-        'ecg_data' + sep + chunk + ext,
-    )
+# NOTE writers own their filenames (`BaseWriter.file_names`), so the
+# context needs no ECGTable-bound helpers and the writer tests stay
+# independent of `ECGTable`.
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _make_context(target, e_meta=True, e_wave=True, e_median=True,
                   chunk_num=None, skip_data=False):
-    """Build a WriteContext backed by inert stub helpers."""
+    """Build a WriteContext for two records keyed 'a' and 'b'."""
     return WriteContext(
         e_meta=e_meta,
         e_wave=e_wave,
@@ -77,29 +60,7 @@ def _make_context(target, e_meta=True, e_wave=True, e_median=True,
         key_list=['a', 'b'],
         target=str(target),
         chunk_num=chunk_num,
-        write_file_names=_fake_write_file_names,
         skip_data=skip_data,
-    )
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def _make_array_context(target, e_meta=True, e_wave=True, e_median=True,
-                        chunk_num=None, ext='.npz'):
-    """WriteContext whose filename stub mirrors `_write_file_names`."""
-    def _npz_names(chunk_num=None, **kwargs):
-        sep = '' if chunk_num is None else '_'
-        chunk = '' if chunk_num is None else str(chunk_num)
-        return ('metadata' + sep + chunk + ext,
-                'waveforms' + sep + chunk + ext,
-                'medianbeats' + sep + chunk + ext,
-                'ecg_data' + sep + chunk + ext)
-    return WriteContext(
-        e_meta=e_meta,
-        e_wave=e_wave,
-        e_median=e_median,
-        key_list=['a', 'b'],
-        target=str(target),
-        chunk_num=chunk_num,
-        write_file_names=_npz_names,
     )
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -154,7 +115,6 @@ class TestWriteContext(object):
         assert ctx.key_list == ['a', 'b']
         assert ctx.target == str(tmp_path)
         assert ctx.chunk_num == 3
-        assert callable(ctx.write_file_names)
         assert ctx.skip_data is False
         assert ctx.failed_records == []
 
@@ -186,10 +146,10 @@ class TestResolveWriter(object):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestTableWriter(object):
     """
-    Unit testing TableWriter.write in isolation from ECGTable, using a
-    WriteContext backed by stub helpers. The tab-specific options
-    (append/sep/compression) live on the writer instance, mirroring how
-    ECGTable.write_ecg configures it.
+    Unit testing TableWriter.write in isolation from ECGTable. The
+    tab-specific options (append/sep/compression) live on the writer
+    instance, mirroring how ECGTable.write_ecg configures it; filenames
+    (including the compression suffix) come from the writer itself.
     """
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_writes_all_files(self, tmp_path):
@@ -231,8 +191,10 @@ class TestTableWriter(object):
         wave = [{'I': np.arange(3.0)}, {'I': np.arange(3.0) + 1}]
         median = [{'I': np.arange(2.0)}, {'I': np.arange(2.0) + 1}]
         ctx = _make_context(tmp_path, chunk_num=2)
-        TableWriter(tab_append=False, tab_compression='gzip').write(
-            [{'age': 1}, {'age': 2}], wave, median, ctx)
+        writer = TableWriter(tab_append=False, tab_compression='gzip')
+        # the compression suffix is writer-owned via file_ext
+        assert writer.file_ext() == '.tsv.gz'
+        writer.write([{'age': 1}, {'age': 2}], wave, median, ctx)
         assert set(os.listdir(tmp_path)) == {
             'metadata_2.tsv.gz', 'waveforms_2.tsv.gz',
             'medianbeats_2.tsv.gz'}
@@ -337,7 +299,7 @@ class TestNpzWriter(object):
                 {'I': np.arange(5.0) + 2, 'II': np.arange(5.0) + 3}]
         # 'note' is non-numeric and must be dropped by numeric_meta
         meta = [{'age': 50, 'note': 'x'}, {'age': 60, 'note': 'y'}]
-        ctx = _make_array_context(tmp_path, e_median=False)
+        ctx = _make_context(tmp_path, e_median=False)
         NpzWriter().write(meta, wave, [], ctx)
         assert 'ecg_data.npz' in os.listdir(tmp_path)
         assert 'header_metadata.txt' in os.listdir(tmp_path)
@@ -358,7 +320,7 @@ class TestNpzWriter(object):
     def test_flag_gating_single_lead_only(self, tmp_path):
         # a single present lead is valid; the rest are NaN
         wave = [{'I': np.arange(5.0)}, {'I': np.arange(5.0) + 1}]
-        ctx = _make_array_context(tmp_path, e_meta=False, e_median=False)
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False)
         NpzWriter().write([], wave, [], ctx)
         data = np.load(tmp_path / 'ecg_data.npz')
         try:
@@ -389,7 +351,7 @@ class TestNpyWriter(object):
         median = [{'I': np.arange(3.0)}, {'I': np.arange(3.0) + 1}]
         # 'note' is non-numeric and must be dropped by numeric_meta
         meta = [{'age': 50, 'note': 'x'}, {'age': 60, 'note': 'y'}]
-        ctx = _make_array_context(tmp_path, ext='.npy')
+        ctx = _make_context(tmp_path)
         NpyWriter().write(meta, wave, median, ctx)
         # #### one file per source plus the metadata header sidecar
         assert set(os.listdir(tmp_path)) == {
@@ -413,23 +375,21 @@ class TestNpyWriter(object):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_chunk_suffix(self, tmp_path):
         wave = [{'I': np.arange(5.0)}, {'I': np.arange(5.0) + 1}]
-        ctx = _make_array_context(tmp_path, e_meta=False, e_median=False,
-                                  chunk_num=2, ext='.npy')
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False,
+                            chunk_num=2)
         NpyWriter().write([], wave, [], ctx)
         assert os.listdir(tmp_path) == ['waveforms_2.npy']
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_flag_gating(self, tmp_path):
         wave = [{'I': np.arange(5.0)}, {'I': np.arange(5.0) + 1}]
-        ctx = _make_array_context(tmp_path, e_meta=False, e_median=False,
-                                  ext='.npy')
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False)
         NpyWriter().write([], wave, [], ctx)
         # only the enabled source is written; no metadata -> no sidecar
         assert os.listdir(tmp_path) == ['waveforms.npy']
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_custom_dtype(self, tmp_path):
         wave = [{'I': np.arange(5.0)}, {'I': np.arange(5.0) + 1}]
-        ctx = _make_array_context(tmp_path, e_meta=False, e_median=False,
-                                  ext='.npy')
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False)
         NpyWriter(dtype=np.float64).write([], wave, [], ctx)
         assert np.load(tmp_path / 'waveforms.npy').dtype == np.float64
 
@@ -612,6 +572,101 @@ class TestFigureWriterAnnotate(object):
         assert plt.get_fignums() == open_before
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestPixelWriter(object):
+    """
+    Testing the pixel-tensor writer: NHWC stacking, channel variants,
+    dtype casting, metadata row alignment, and the uniform-size guard.
+    """
+    # the expected canvas size: _SMALL_STYLE figsize (4, 2) at dpi 40
+    _H, _W = 80, 160
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_registered(self):
+        assert WRITERS[TabNames.WRITE_PIXEL] is PixelWriter
+        assert issubclass(PixelWriter, FigureWriter)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_stacked_tensor_and_metadata(self, tmp_path):
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_median=False)
+        PixelWriter(kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, wave, [], ctx)
+        assert set(os.listdir(tmp_path)) == {
+            'figures.npy', 'metadata.npy', 'header_metadata.txt'}
+        stack = np.load(tmp_path / 'figures.npy')
+        # one NHWC slice per record, RGBA by default, float32 by default
+        assert stack.shape == (2, self._H, self._W, 4)
+        assert stack.dtype == np.float32
+        # rows align with the tensor slices
+        meta_arr = np.load(tmp_path / 'metadata.npy')
+        assert meta_arr.shape[0] == 2
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_channel_variants(self, tmp_path):
+        meta, wave = _make_figure_records(_LEADS_12)
+        for channels, depth in (('rgb', 3), ('gray', 1)):
+            out = tmp_path / channels
+            out.mkdir()
+            ctx = _make_context(out, e_meta=False, e_median=False)
+            PixelWriter(channels=channels,
+                        kwargs_call={'style': _SMALL_STYLE,
+                                     'sampling_rate': 100.0}).write(
+                meta, wave, [], ctx)
+            stack = np.load(out / 'figures.npy')
+            # grayscale keeps the channel axis: uniform NHWC rank
+            assert stack.shape == (2, self._H, self._W, depth)
+        # an unknown channel format is systematic: fail at construction
+        with pytest.raises(InputValidationError):
+            PixelWriter(channels='cmyk')
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_dtype_cast(self, tmp_path):
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False)
+        PixelWriter(dtype=np.uint8,
+                    kwargs_call={'style': _SMALL_STYLE,
+                                 'sampling_rate': 100.0}).write(
+            meta, wave, [], ctx)
+        stack = np.load(tmp_path / 'figures.npy')
+        assert stack.dtype == np.uint8
+        # the white figure background keeps the native 0-255 range
+        assert stack.max() == 255
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_size_mismatch_raises(self, tmp_path, monkeypatch):
+        # stacking requires a shared (height, width) across the chunk;
+        # simulate per-record canvas drift and expect a loud failure
+        shapes = iter([(10, 20, 4), (12, 20, 4)])
+        monkeypatch.setattr(
+            ECGDrawing, 'to_numpy',
+            lambda self, crop=False, close=True: np.zeros(
+                next(shapes), dtype=np.uint8))
+        meta, wave = _make_figure_records(_LEADS_12)
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False)
+        with pytest.raises(InputValidationError, match='height'):
+            PixelWriter(kwargs_call={'style': _SMALL_STYLE,
+                                     'sampling_rate': 100.0}).write(
+                meta, wave, [], ctx)
+        # fail-fast: nothing is written
+        assert os.listdir(tmp_path) == []
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_skip_data_keeps_alignment(self, tmp_path):
+        # only record 'b' carries the referenced key; with skip_data the
+        # failing record is dropped from BOTH the tensor and the
+        # metadata rows, so row i still matches slice i
+        open_before = plt.get_fignums()
+        meta, wave = _make_figure_records(_LEADS_12)
+        meta[1]['extra'] = 7.0
+        spec = [{'text': '{extra}', 'xy': (0.5, 0.5)}]
+        ctx = _make_context(tmp_path, e_median=False, skip_data=True)
+        PixelWriter(annotate=spec,
+                    kwargs_call={'style': _SMALL_STYLE}).write(
+            meta, wave, [], ctx)
+        stack = np.load(tmp_path / 'figures.npy')
+        meta_arr = np.load(tmp_path / 'metadata.npy')
+        assert stack.shape[0] == 1
+        assert meta_arr.shape[0] == 1
+        uid, cause = ctx.failed_records[0]
+        assert uid == 'a'
+        assert 'Annotation failed' in cause
+        assert plt.get_fignums() == open_before
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @pytest.mark.tensorflow
 class TestTFRecordWriter(object):
     """
@@ -627,7 +682,7 @@ class TestTFRecordWriter(object):
                 {'I': np.arange(5.0) + 2, 'II': np.arange(5.0) + 3}]
         # 'note' is non-numeric and must be dropped by numeric_meta
         meta = [{'age': 50.0, 'note': 'x'}, {'age': 60.0, 'note': 'y'}]
-        ctx = _make_array_context(tmp_path, e_median=False, ext='.tfrecord')
+        ctx = _make_context(tmp_path, e_median=False)
         TFRecordWriter().write(meta, wave, [], ctx)
         assert 'ecg_data.tfrecord' in os.listdir(tmp_path)
         assert 'header_metadata.txt' in os.listdir(tmp_path)
@@ -681,7 +736,7 @@ class TestLazyTensorflow(object):
         # emulating an absent installation regardless of prior imports
         monkeypatch.setitem(sys.modules, 'tensorflow', None)
         wave = [{'I': np.arange(5.0)}, {'I': np.arange(5.0) + 1}]
-        ctx = _make_array_context(tmp_path, e_meta=False, e_median=False)
+        ctx = _make_context(tmp_path, e_meta=False, e_median=False)
         with pytest.raises(ImportError, match=r'ecgprocess\[tensorflow\]'):
             TFRecordWriter().write([], wave, [], ctx)
         # the import is checked before any file is written

@@ -343,6 +343,12 @@ class Error_MSG(object):  # pragma: no cover
         'annotation strings.'
     )
     ANNOTATE_RECORD='record {!r}: {}'
+    PIXEL_SHAPE_MISMATCH=(
+        'PixelWriter stacking requires every rendered figure in a chunk '
+        'to share the same (height, width); got shapes {}. Render all '
+        'records with one fixed figure size '
+        '(`ECGStyle(figsize=..., dpi=...)`).'
+    )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class Warn_MSG(object):  # pragma: no cover
@@ -361,6 +367,8 @@ class Warn_MSG(object):  # pragma: no cover
     )
     ANNOTATE_SKIPPED = ('record %s was skipped and recorded due to a '
                         'failed annotation: %s')
+    PIXEL_EMPTY_CHUNK = ('all records in the chunk were skipped; no '
+                         'pixel tensor was written.')
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

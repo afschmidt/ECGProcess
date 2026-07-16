@@ -17,7 +17,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from typing import (
-    Callable, Self, Optional, Any, Literal,
+    Callable, Self, Any, Literal,
 )
 from ecgprocess.errors import (
     FileValidationError,
@@ -32,6 +32,7 @@ from ecgprocess.errors import (
 )
 from ecgprocess.constants import (
     CoreData as Core,
+    FileNames,
     TabularNames as TabNames,
     WriteNames as written,
 )
@@ -908,19 +909,12 @@ class ECGTable(object):
             writer = TabNames.WRITE_TAB
         write_selector = writer
         # resolve to a concrete writer object from the registry (string key)
-        # or a user-supplied writer/callable. For a string key WRITE_TYPE is
-        # recorded so the shared `_write_file_names` helper picks the correct
-        # extension; a custom writer owns its own filenames.
-        if isinstance(write_selector, str):
-            setattr(self, TabNames.WRITE_TYPE, write_selector)
-        else:
-            setattr(self, TabNames.WRITE_TYPE, None)
+        # or a user-supplied writer/callable
         resolved_writer = resolve_writer(write_selector)
-        # configure the tabular writer with its options; also record the
-        # tabular write type so the shared `_write_file_names` helper picks
-        # the correct extension.
+        # configure the tabular writer with its options; the writer owns
+        # its filenames (`BaseWriter.file_names`), including the
+        # compression-dependent extension
         if isinstance(resolved_writer, TableWriter):
-            setattr(self, TabNames.WRITE_TYPE, TabNames.WRITE_TAB)
             resolved_writer.tab_append = tab_append
             resolved_writer.tab_sep = tab_sep
             resolved_writer.tab_compression = tab_compression
@@ -995,8 +989,9 @@ class ECGTable(object):
                     for fp in fpaths:
                         chnk_lst.append({'Chunk number': cnum, 'Files': fp})
                 chunk_tab = pd.DataFrame(chnk_lst)
-                chunk_tab.to_csv(os.path.join(target, 'chunkrecord.txt'),
-                                 sep='\t', header=True, index=False)
+                chunk_tab.to_csv(
+                    os.path.join(target, FileNames.CHUNK_RECORD),
+                    sep='\t', header=True, index=False)
             # #### write failed files
             if write_failed == True:
                 # adding the reason for failing; write-stage failures
@@ -1011,7 +1006,8 @@ class ECGTable(object):
                      getattr(self, TabNames.INVALID_L)] +\
                     list(getattr(self, TabNames.FAILED_REC_L, []))
                 # writing to text file
-                with open(os.path.join(target, 'FailedFiles.txt'), 'w') as file:
+                with open(os.path.join(target, FileNames.FAILED_FILES),
+                          'w') as file:
                     for p, cause in total_failures:
                         file.write(p + "\t" + cause + "\n")
             # #### if needed replace directory by a tarball
@@ -1032,70 +1028,6 @@ class ECGTable(object):
                 delattr(self, TabNames.FAILED_REC_L)
         # #### return
         return self
-    # /////////////////////////////////////////////////////////////////////////
-    def _write_file_names(self, chunk_num:int|None = None,
-                          **kwargs:Optional[Any],
-                          ) -> tuple[str, str, str, str]:
-        """
-        Creates filenames with relevant extensions, optionally accounting
-        for chunks by adding the chunk number as suffix.
-        
-        Parameters
-        ----------
-        chunk_num : `int` or `NoneType`, default `NoneType`
-            Appends the chunk number with a '_' separator before the file
-            extension.
-        
-        Returns
-        -------
-        tuple of strings
-            The filenames for metadata, waveforms, medianbeats, and ecg_data.
-        """
-        # #### check input
-        is_type(chunk_num, (int, type(None)))
-        # Set the initial filenames
-        META_FILE = 'metadata'
-        WAVE_FILE = 'waveforms'
-        MEDIAN_FILE = 'medianbeats'
-        ECG_FILE = 'ecg_data'
-        SEP = ''
-        CHUNK = ''
-        # determine file type
-        if getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TAB:
-            EXT = '.tsv'
-            # is the file compressed?
-            try:
-                if kwargs['compression'] == 'gz':
-                    EXT = EXT + '.gz'
-                if kwargs['compression'] == 'gzip':
-                    EXT = EXT + '.gz'
-                if kwargs['compression'] == 'bz2':
-                    EXT = EXT + '.bz2'
-                if kwargs['compression'] == 'zip':
-                    EXT = EXT + '.zip'
-                if kwargs['compression'] == 'xz':
-                    EXT = EXT + '.xz'
-                if kwargs['compression'] == 'zst':
-                    EXT = EXT + '.zst'
-            except KeyError:
-                pass
-        elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NPZ:
-            EXT = '.npz'
-        elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_TFLOW:
-            EXT = '.tfrecord'
-        elif getattr(self, TabNames.WRITE_TYPE) == TabNames.WRITE_NPY:
-            EXT = '.npy'
-        # Are we writing in chunks?
-        if not chunk_num is None:
-            SEP = '_'
-            CHUNK = str(chunk_num)
-        # the final file names
-        META_FILE = META_FILE + SEP + CHUNK + EXT
-        WAVE_FILE = WAVE_FILE + SEP + CHUNK + EXT
-        MEDIAN_FILE = MEDIAN_FILE + SEP + CHUNK + EXT
-        ECG_FILE = ECG_FILE + SEP + CHUNK + EXT
-        # return
-        return META_FILE, WAVE_FILE, MEDIAN_FILE, ECG_FILE
     # /////////////////////////////////////////////////////////////////////////
     def _build_write_context(self, target:str, chunk_num:int | None,
                              ) -> WriteContext:
@@ -1128,7 +1060,6 @@ class ECGTable(object):
             key_list=getattr(self, TabNames.KEY_L, None),
             target=target,
             chunk_num=chunk_num,
-            write_file_names=self._write_file_names,
             skip_data=getattr(self, TabNames.SKIP_DATA, False),
             failed_records=getattr(self, TabNames.FAILED_REC_L),
         )

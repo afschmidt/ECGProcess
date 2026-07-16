@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 from ecgprocess.constants import (
     CoreData as Core,
+    FileNames,
     PlotNames as PDNames,
     TabularNames as TabNames,
     WriteNames,
@@ -74,10 +75,8 @@ class WriteContext(object):
     target : `str`
         The target directory the files are written to.
     chunk_num : `int` or `NoneType`
-        The chunk number, appended to filenames when not `NoneType`.
-    write_file_names : `Callable`
-        Helper returning the (metadata, waveforms, medianbeats, ecg_data)
-        filenames including extensions.
+        The chunk number, appended to filenames when not `NoneType`
+        (see `BaseWriter.file_names`).
     skip_data : `bool`, default `False`
         Whether records failing at the write stage (e.g. a missing
         annotation key) are skipped and recorded instead of raising.
@@ -93,7 +92,6 @@ class WriteContext(object):
     key_list: list[Any]
     target: str
     chunk_num: int | None
-    write_file_names: Callable[..., tuple[str, str, str, str]]
     skip_data: bool = False
     failed_records: list[tuple[str, str]] = field(default_factory=list)
 
@@ -104,7 +102,66 @@ class BaseWriter(abc.ABC):
     
     Concrete writers implement :meth:`write`, which receives the extracted
     per-chunk data lists and a :class:`WriteContext`.
+    
+    Attributes
+    ----------
+    FILE_EXT : `str`
+        The on-disk extension (including the leading dot) applied to the
+        standard data-file names returned by `file_names`. Writers that
+        name their own files (e.g. the per-UID figure writer) keep the
+        empty default.
     """
+    # /////////////////////////////////////////////////////////////////////////
+    FILE_EXT: str = ''
+    # /////////////////////////////////////////////////////////////////////////
+    def file_ext(self) -> str:
+        """
+        Return the extension for this writer's standard data files.
+        
+        Subclasses with an option-dependent extension (e.g. a
+        compression suffix) override this method; the `FILE_EXT` class
+        attribute covers the common fixed case.
+        
+        Returns
+        -------
+        ext : `str`
+            The file extension, including the leading dot.
+        """
+        return self.FILE_EXT
+    # /////////////////////////////////////////////////////////////////////////
+    def file_names(self, chunk_num: int | None = None,
+                   ) -> tuple[str, str, str, str, str]:
+        """
+        Return the standard per-chunk data-file names for this writer.
+
+        The base names come from the `FileNames` constants and the
+        extension from `file_ext`, so registered and user-supplied
+        writers alike get standard names without `ECGTable` knowing
+        their format.
+
+        Parameters
+        ----------
+        chunk_num : `int` or `NoneType`, default `NoneType`
+            Appends the chunk number with a '_' separator before the
+            file extension.
+
+        Returns
+        -------
+        tuple of strings
+            The filenames for metadata, waveforms, medianbeats,
+            ecg_data, and figures.
+        """
+        is_type(chunk_num, (int, type(None)))
+        ext = self.file_ext()
+        sep = '' if chunk_num is None else '_'
+        chunk = '' if chunk_num is None else str(chunk_num)
+        return (
+            FileNames.METADATA + sep + chunk + ext,
+            FileNames.WAVEFORMS + sep + chunk + ext,
+            FileNames.MEDIANBEATS + sep + chunk + ext,
+            FileNames.ECG_DATA + sep + chunk + ext,
+            FileNames.FIGURES + sep + chunk + ext,
+        )
     # /////////////////////////////////////////////////////////////////////////
     @abc.abstractmethod
     def write(self, meta_list: list[dict[str, Any]],
@@ -293,6 +350,17 @@ class TableWriter(BaseWriter):
         matching keys.
     """
     # /////////////////////////////////////////////////////////////////////////
+    FILE_EXT = '.tsv'
+    # maps the pandas `compression` values to their filename suffixes
+    _COMPRESSION_SUFFIX = {
+        'gz':   '.gz',
+        'gzip': '.gz',
+        'bz2':  '.bz2',
+        'zip':  '.zip',
+        'xz':   '.xz',
+        'zst':  '.zst',
+    }
+    # /////////////////////////////////////////////////////////////////////////
     def __init__(self, tab_append: bool = True, tab_sep: str = '\t',
                  tab_compression: str | None = 'gzip',
                  kwargs_tab: dict[str, Any] | None = None,
@@ -308,6 +376,18 @@ class TableWriter(BaseWriter):
         self.kwargs_tab = kwargs_tab or {}
         # NOTE tracks whether the next write is the first for append mode
         self._first = True
+    # /////////////////////////////////////////////////////////////////////////
+    def file_ext(self) -> str:
+        """
+        Return the `.tsv` extension with the compression suffix.
+        
+        Returns
+        -------
+        ext : `str`
+            The file extension, including the leading dot.
+        """
+        suffix = self._COMPRESSION_SUFFIX.get(self.tab_compression, '')
+        return self.FILE_EXT + suffix
     # /////////////////////////////////////////////////////////////////////////
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
@@ -356,8 +436,8 @@ class TableWriter(BaseWriter):
             writer_kwargs['mode'] = 'a'
         kwargs_tab_combi = {**self.kwargs_tab, **writer_kwargs}
         # #### set the filenames
-        META_FILE, WAVE_FILE, MEDIAN_FILE, _ = ctx.write_file_names(
-            chunk_num=chunk_num, **kwargs_tab_combi)
+        META_FILE, WAVE_FILE, MEDIAN_FILE, _, _ = self.file_names(
+            chunk_num=chunk_num)
         # #### write individual files
         if ctx.e_meta:
             pd.DataFrame(meta_list, index=ctx.key_list).to_csv(
@@ -505,6 +585,8 @@ class NpzWriter(NumpyWriter):
         Whether non-numeric metadata columns are dropped before writing.
     """
     # /////////////////////////////////////////////////////////////////////////
+    FILE_EXT = '.npz'
+    # /////////////////////////////////////////////////////////////////////////
     def _save(self, res_dict: dict[str, "np.ndarray"],
               ctx: WriteContext,
               ) -> None:
@@ -519,7 +601,7 @@ class NpzWriter(NumpyWriter):
             The context carrying the target path and filename helper.
         """
         # #### set the filename
-        _, _, _, ECG_FILE = ctx.write_file_names(chunk_num=ctx.chunk_num)
+        _, _, _, ECG_FILE, _ = self.file_names(chunk_num=ctx.chunk_num)
         # NOTE typed as `Any` so the ** unpacking does not collide with the
         # `allow_pickle` keyword in the numpy savez stubs
         arrays: dict[str, Any] = dict(res_dict)
@@ -546,6 +628,8 @@ class NpyWriter(NumpyWriter):
         used for absent leads.
     """
     # /////////////////////////////////////////////////////////////////////////
+    FILE_EXT = '.npy'
+    # /////////////////////////////////////////////////////////////////////////
     def __init__(self, numeric_meta: bool = True,
                  dtype: "np.dtype | type | str" = np.float32,
                  ) -> None:
@@ -568,12 +652,14 @@ class NpyWriter(NumpyWriter):
             The context carrying the target path and filename helper.
         """
         # #### set the per-source filenames
-        META_FILE, WAVE_FILE, MEDIAN_FILE, _ = ctx.write_file_names(
-            chunk_num=ctx.chunk_num)
+        META_FILE, WAVE_FILE, MEDIAN_FILE, _, FIG_FILE = \
+            self.file_names(chunk_num=ctx.chunk_num)
         file_names = {
             CTypes.MetaData: META_FILE,
             CTypes.WaveForms: WAVE_FILE,
             CTypes.MedianBeats: MEDIAN_FILE,
+            # the pixel writer delegates its stacked figure tensor here
+            FileNames.FIGURES: FIG_FILE,
         }
         # #### write each enabled source to its own file
         for data_type, array in res_dict.items():
@@ -597,6 +683,8 @@ class TFRecordWriter(BaseWriter):
     numeric_meta : `bool`, default `True`
         Whether non-numeric metadata columns are dropped before writing.
     """
+    # /////////////////////////////////////////////////////////////////////////
+    FILE_EXT = '.tfrecord'
     # /////////////////////////////////////////////////////////////////////////
     def __init__(self, numeric_meta: bool = True) -> None:
         """Initialise the tfrecord writer."""
@@ -661,7 +749,7 @@ class TFRecordWriter(BaseWriter):
         # #### import tensorflow lazily before any file is written
         tf = self._import_tensorflow()
         # #### set the filename
-        _, _, _, ECG_FILE = ctx.write_file_names(chunk_num=ctx.chunk_num)
+        _, _, _, ECG_FILE, _ = self.file_names(chunk_num=ctx.chunk_num)
         # #### assemble the features for the enabled sources
         res_dict = {}
         header = None
@@ -741,7 +829,7 @@ default `NoneType`
         or, when `ctx.skip_data` is set (the `ECGTable` `ignore_data`
         flag), is skipped (no image file) and recorded on
         `ctx.failed_records`.
-
+    
     Notes
     -----
     Rendering uses the active matplotlib backend; for large headless
@@ -906,13 +994,286 @@ default `NoneType`
                         raise InputValidationError(
                             Error_MSG.ANNOTATE_RECORD.format(uid, err),
                         ) from err
-                fig.savefig(
-                    os.path.join(
-                        ctx.target, f'{uid}.{self.image_format}'),
-                    format=self.image_format, **self.kwargs_savefig,
-                )
+                # #### persistence hook: `self` dispatches to the subclass
+                # override (PixelWriter buffers a frame; this class saves
+                # an image file), so subclasses reuse the loop above
+                self._persist_record(drawing, uid, meta, ctx)
             finally:
                 plt.close(fig)
+    # /////////////////////////////////////////////////////////////////////////
+    def _persist_record(self, drawing: ECGDrawing, uid: Any,
+                        meta: dict[str, Any], ctx: WriteContext,
+                        ) -> None:
+        """
+        Save one rendered record as `<UID>.<image_format>`.
+        
+        The persistence hook of the render loop in `write`; subclasses
+        (e.g. `PixelWriter`) override it to consume the rendered drawing
+        differently.
+        
+        Parameters
+        ----------
+        drawing : `ECGDrawing`
+            The called drawing holding the rendered figure.
+        uid : `any`
+            The record's unique key from `ctx.key_list`.
+        meta : `dict` [`str`, `any`]
+            The record's metadata (empty when metadata is not extracted).
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        """
+        # NOTE `meta` is unused here but part of the hook contract: the
+        # PixelWriter override needs it to keep tensor and metadata aligned
+        drawing.figure.savefig(
+            os.path.join(ctx.target, f'{uid}.{self.image_format}'),
+            format=self.image_format, **self.kwargs_savefig,
+        )
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+@register_writer(TabNames.WRITE_PIXEL)
+class PixelWriter(FigureWriter):
+    """
+    Writes rendered ECG figures as one stacked pixel tensor per chunk.
+    
+    Each record is rendered through an `ECGDrawing` exactly as in
+    `FigureWriter`, rasterised via `ECGDrawing.to_numpy`, and collected
+    into a `(n_records, height, width, channels)` NHWC tensor written as
+    `figures.npy` (with the `_N` chunk suffix when writing chunks).
+    Persistence is delegated to an internal `NpyWriter`, so the dtype
+    cast and the metadata handling (`metadata.npy` plus the
+    `header_metadata.txt` sidecar, row `i` aligned with tensor slice
+    `i`) match the `'npy'` writer.
+    
+    Parameters
+    ----------
+    drawing : `ECGDrawing` or `NoneType`, default `NoneType`
+        The drawing rendering each record. A default `ECGDrawing()` is
+        used when `NoneType`, making the bare `'pixel'` registry key a
+        working writer selector.
+    mapper : `dict` [`str`, `tuple` [`int`, `slice`]] or `NoneType`, \
+default `NoneType`
+        An explicit lead layout forwarded to `ECGDrawing.__call__`.
+        `DEFAULT_MAPPER` is used when `NoneType`.
+    source : {'waveforms', 'median'}, default `'waveforms'`
+        Which signal source to render, resolved through
+        `ECGDrawing.SOURCE_MAP`.
+    tile_x : `bool`, default `True`
+        Whether `ECGDrawing.tile_x_axis` is applied after rendering; see
+        `FigureWriter`.
+    kwargs_call : `dict` or `NoneType`, default `NoneType`
+        Extra keyword arguments forwarded to `ECGDrawing.__call__` for
+        every record. `mapper` and `source` are writer-owned and must
+        not be included.
+    annotate : `list` [`dict`] or `NoneType`, default `NoneType`
+        Annotation spec dicts forwarded to `ECGDrawing.annotate` for
+        every record; see `FigureWriter`. Annotations are drawn before
+        rasterising, so they are part of the pixel tensor. A record
+        failing annotation while `ctx.skip_data` is set (the `ECGTable`
+        `ignore_data` flag) is dropped from BOTH the pixel tensor and
+        the metadata rows, keeping them row-aligned, and recorded on
+        `ctx.failed_records`.
+    channels : {'rgba', 'rgb', 'gray'}, default `'rgba'`
+        The channel format of the tensor: RGBA (4 channels), RGB (3),
+        or ITU-R BT.601 luminosity grayscale (1). Grayscale keeps its
+        channel axis so the tensor rank is always 4.
+    crop : `bool`, default `False`
+        Whether whitespace is trimmed before rasterising, forwarded to
+        `ECGDrawing.to_numpy`.
+    numeric_meta : `bool`, default `True`
+        Whether non-numeric metadata columns are dropped before writing.
+    dtype : `np.dtype`, `type`, or `str`, default `np.float32`
+        The dtype the pixel tensor is cast to before writing; metadata
+        keeps its own dtype. `np.uint8` preserves the native 0-255
+        pixel range at a quarter of the float32 size.
+    
+    Raises
+    ------
+    InputValidationError
+        If a chunk's rendered figures do not share one (height, width);
+        render all records with one fixed figure size
+        (`ECGStyle(figsize=..., dpi=...)`).
+    
+    Notes
+    -----
+    Each chunk holds all of its rasterised figures in memory before the
+    stack is written; prefer modest chunk sizes, `dtype=np.uint8`, and
+    `channels='gray'` for large batches.
+    
+    The `image_format` and `kwargs_savefig` parameters of `FigureWriter`
+    do not apply: no per-record image files are written.
+    """
+    # /////////////////////////////////////////////////////////////////////////
+    FILE_EXT = '.npy'
+    # the supported channel formats mapped to their depths
+    CHANNEL_FORMATS = {
+        WriteNames.RGBA: 4,
+        WriteNames.RGB:  3,
+        WriteNames.GRAY: 1,
+    }
+    # the ITU-R BT.601 luminosity weights for grayscale conversion
+    _LUMINOSITY = np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    # /////////////////////////////////////////////////////////////////////////
+    def __init__(self, drawing: ECGDrawing | None = None,
+                 mapper: dict | None = None,
+                 source: str = 'waveforms',
+                 tile_x: bool = True,
+                 kwargs_call: dict | None = None,
+                 annotate: list[dict[str, Any]] | None = None,
+                 channels: str = WriteNames.RGBA,
+                 crop: bool = False,
+                 numeric_meta: bool = True,
+                 dtype: "np.dtype | type | str" = np.float32,
+                 ) -> None:
+        """Initialise the pixel writer."""
+        super().__init__(drawing=drawing, mapper=mapper, source=source,
+                         tile_x=tile_x, kwargs_call=kwargs_call,
+                         annotate=annotate)
+        # the image-file options are not part of the pixel writer's API;
+        # remove the parent defaults so the repr does not advertise them
+        del self.image_format, self.kwargs_savefig
+        is_type(channels, str)
+        is_type(crop, bool)
+        if channels not in self.CHANNEL_FORMATS:
+            raise InputValidationError(Error_MSG.CHOICE_PARM.format(
+                'channels', sorted(self.CHANNEL_FORMATS)))
+        self.channels = channels
+        self.crop = crop
+        # persistence is delegated to the npy writer: dtype cast,
+        # metadata handling, and the allow_pickle guard live there
+        self._npy = NpyWriter(numeric_meta=numeric_meta, dtype=dtype)
+        self.dtype = self._npy.dtype
+        # the per-write rasterisation buffers filled by `_persist_record`
+        self._frames: list["np.ndarray"] = []
+        self._kept_meta: list[dict[str, Any]] = []
+    # /////////////////////////////////////////////////////////////////////////
+    def write(self, meta_list: list[dict[str, Any]],
+              wave_list: list[dict[str, "np.ndarray"]],
+              median_list: list[dict[str, "np.ndarray"]],
+              ctx: WriteContext,
+              ) -> None:
+        """
+        Render all records and write one stacked pixel tensor.
+        
+        Runs the `FigureWriter` render loop (validation, layout,
+        annotation, and the `ctx.skip_data` policy included), buffering
+        each rasterised record instead of saving image files, then
+        stacks the buffer and delegates persistence to the internal
+        `NpyWriter`.
+        
+        Parameters
+        ----------
+        meta_list : `list` [`dict` [`str`, `any`]]
+            A list of dictionaries containing metadata.
+        wave_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing waveform signals.
+        median_list : `list` [`dict` [`str`, `np.ndarray`]]
+            A list of dictionaries containing median beat signals.
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        
+        Raises
+        ------
+        InputValidationError
+            As raised by `FigureWriter.write`, or if the rendered
+            figures do not share one (height, width).
+        """
+        # #### render into the buffers, then stack and persist
+        self._frames = []
+        self._kept_meta = []
+        try:
+            super().write(meta_list, wave_list, median_list, ctx)
+            self._save_stack(ctx)
+        finally:
+            # the buffers are per-write scratch state; do not let the
+            # last chunk's frames linger on the instance
+            self._frames = []
+            self._kept_meta = []
+    # /////////////////////////////////////////////////////////////////////////
+    def _persist_record(self, drawing: ECGDrawing, uid: Any,
+                        meta: dict[str, Any], ctx: WriteContext,
+                        ) -> None:
+        """
+        Buffer one rendered record as a pixel array.
+        
+        Overrides the `FigureWriter` persistence hook: the drawing is
+        rasterised and buffered together with its metadata, so records
+        skipped by the annotation policy stay absent from both.
+        
+        Parameters
+        ----------
+        drawing : `ECGDrawing`
+            The called drawing holding the rendered figure.
+        uid : `any`
+            The record's unique key from `ctx.key_list`.
+        meta : `dict` [`str`, `any`]
+            The record's metadata (empty when metadata is not extracted).
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        """
+        # invoked per record by the inherited FigureWriter.write loop;
+        # a record skipped there never reaches this point, so frame and
+        # metadata are appended (or omitted) together, keeping row i of
+        # the metadata aligned with tensor slice i
+        rgba = drawing.to_numpy(crop=self.crop, close=True)
+        self._frames.append(self._convert_channels(rgba))
+        self._kept_meta.append(meta)
+    # /////////////////////////////////////////////////////////////////////////
+    def _convert_channels(self, rgba: "np.ndarray") -> "np.ndarray":
+        """
+        Convert an `(H, W, 4)` RGBA frame to the configured channels.
+        
+        Parameters
+        ----------
+        rgba : `np.ndarray`
+            The rasterised frame in `(H, W, 4)` uint8 RGBA format.
+        
+        Returns
+        -------
+        frame : `np.ndarray`
+            The frame with `CHANNEL_FORMATS[self.channels]` channels;
+            grayscale keeps its channel axis for a uniform rank.
+        """
+        if self.channels == WriteNames.RGB:
+            return rgba[..., :3]
+        if self.channels == WriteNames.GRAY:
+            gray = rgba[..., :3].astype(np.float32) @ self._LUMINOSITY
+            return gray[..., np.newaxis]
+        return rgba
+    # /////////////////////////////////////////////////////////////////////////
+    def _save_stack(self, ctx: WriteContext) -> None:
+        """
+        Stack the buffered frames and delegate to the npy writer.
+        
+        Parameters
+        ----------
+        ctx : `WriteContext`
+            The context carrying export flags, target path, and helpers.
+        
+        Raises
+        ------
+        InputValidationError
+            If the buffered frames do not share one (height, width).
+        """
+        # an all-skipped chunk has nothing to stack; the failures are
+        # already recorded on ctx.failed_records
+        if not self._frames:
+            _log.warning(Warn_MSG.PIXEL_EMPTY_CHUNK)
+            return
+        # #### stacking requires one shared frame size across the chunk
+        shapes = {frame.shape for frame in self._frames}
+        if len(shapes) > 1:
+            raise InputValidationError(
+                Error_MSG.PIXEL_SHAPE_MISMATCH.format(sorted(shapes)))
+        res_dict = {FileNames.FIGURES: np.stack(self._frames)}
+        # #### align the optional metadata rows with the tensor slices
+        header = None
+        if ctx.e_meta:
+            res_dict[CTypes.MetaData], header = _meta_to_array(
+                self._kept_meta, self._npy.numeric_meta)
+        # #### delegate persistence (dtype cast, allow_pickle guard)
+        self._npy._save(res_dict, ctx)
+        if header is not None:
+            _write_metadata_header(ctx.target, header)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # helpers
@@ -1074,7 +1435,7 @@ def _write_metadata_header(target: str, header: list[str]) -> None:
     header : `list` [`str`]
         The metadata column names, in array-column order.
     """
-    with open(os.path.join(target, 'header_metadata.txt'), 'w') as file:
+    with open(os.path.join(target, FileNames.META_HEADER), 'w') as file:
         # NOTE line numbering starts at 1 to match the sidecar convention.
         for line_number, head in enumerate(header, start=1):
             file.write(f"{line_number}\t{head}\n")
