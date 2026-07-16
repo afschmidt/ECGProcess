@@ -1,12 +1,9 @@
 import logging
 import os
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import pytest
 import numpy as np
 import pandas as pd
 import pydicom
-# import tensorflow as tf
-# from typing import Any
 from ecgprocess.errors import (
     MissingTagError, XMLValidationError,
     InputValidationError,

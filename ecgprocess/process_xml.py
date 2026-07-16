@@ -253,45 +253,33 @@ class ECGXMLReader(BaseReader):
                 **kwargs,
             )
         # #### resample to 500hz
-        # first calculate the duration
-        try:
-            meta_data[CProc.Duration] =\
-                (meta_data[CMeta.SN_W]/meta_data[CMeta.SF]
-            )
-        except TypeError:
-            meta_data[CProc.Duration] = None
+        # first calculate the per-source durations
+        sf_org = meta_data.get(CMeta.SF)
+        meta_data[CProc.Duration_W] = _signal_duration(
+            meta_data.get(CMeta.SN_W), sf_org)
+        meta_data[CProc.Duration_M] = _signal_duration(
+            meta_data.get(CMeta.SN_M), sf_org)
         # only run when the parameter is True and SF is present
-        meta_data[CProc.SF_NEW] = None
+        meta_data[CProc.SF_NEW_W] = None
+        meta_data[CProc.SF_NEW_M] = None
         if getattr(self, PXMLNam.RESAMPLE):
             # confirm SF is present
-            if not CMeta.SF in meta_data or meta_data[CMeta.SF] is None:
+            if sf_org is None:
                 raise KeyError(f'`{CMeta.SF}` is necessary to resample '
                                'the ECG signal.')
-            if int(meta_data[CMeta.SF]) == 500:
+            if int(sf_org) == 500:
                 # already at target — record but skip resampling
-                meta_data[CProc.SF_NEW] = 500
-            elif meta_data[CProc.Duration] is None:
-                # cannot resample without duration; warn and leave SF_NEW None
-                warnings.warn(Warn_MSG.RESAMPLE_NO_DURATION)
+                meta_data[CProc.SF_NEW_W] = 500
+                meta_data[CProc.SF_NEW_M] = 500
             else:
-                # set the new SF
-                meta_data[CProc.SF_NEW] = 500
-                # confirm there is waveform data
-                if all(v is None for v in wave_data.values()):
-                    if not skip_empty:
-                        raise AttributeError(
-                            Error_MSG.MISSING_SIGNAL.format('waveform'))
-                else:
-                    wave_data = ecg_utils.resampling_500hz(
-                        wave_data, duration=meta_data[CProc.Duration])
-                # confirm there is median beats data
-                if all(v is None for v in median_data.values()):
-                    if not skip_empty:
-                        raise AttributeError(
-                            Error_MSG.MISSING_SIGNAL.format('median beat'))
-                else:
-                    median_data = ecg_utils.resampling_500hz(
-                        median_data, median=True)
+                # each source is gated on its own duration, so a missing
+                # sampling number for one does not block the other
+                wave_data, meta_data[CProc.SF_NEW_W] = _resample_source(
+                    wave_data, meta_data[CProc.Duration_W], 'waveform',
+                    skip_empty)
+                median_data, meta_data[CProc.SF_NEW_M] = _resample_source(
+                    median_data, meta_data[CProc.Duration_M], 'median beat',
+                    skip_empty)
         # ### See if we need to get the augmented leads
         # leads that can be derived from I and II
         _aug = {CLeads.III, CLeads.aVR, CLeads.aVL, CLeads.aVF}
@@ -317,3 +305,72 @@ class ECGXMLReader(BaseReader):
         # #### return stuff
         return self
 
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# helpers
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _signal_duration(sampling_number: int | float | None,
+                     sampling_freq: int | float | None,
+                     ) -> float | None:
+    """
+    Derive a signal duration in seconds from the sampling metadata.
+    
+    Parameters
+    ----------
+    sampling_number : `int`, `float`, or `NoneType`
+        The number of samples of the signal source.
+    sampling_freq : `int`, `float`, or `NoneType`
+        The original sampling frequency.
+    
+    Returns
+    -------
+    duration : `float` or `NoneType`
+        The duration in seconds, or `NoneType` when either input is
+        absent (the privileged metadata keys are optional).
+    """
+    try:
+        return sampling_number / sampling_freq
+    except TypeError:
+        return None
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _resample_source(signals: dict[str, np.array],
+                     duration: int | float | None,
+                     signal_name: str,
+                     skip_empty: bool,
+                     ) -> tuple[dict[str, np.array], int | None]:
+    """
+    Resample a single signal source to 500 hz.
+    
+    Parameters
+    ----------
+    signals : `dict` [`str`, `np.array`]
+        The lead signals of one source (waveforms or median beats).
+    duration : `int`, `float`, or `NoneType`
+        The duration of this source in seconds; `NoneType` when it could
+        not be derived, in which case the source is left untouched.
+    signal_name : `str`
+        The source name used in the warning and error messages.
+    skip_empty : `bool`
+        Whether a source without any data is skipped or raises.
+    
+    Returns
+    -------
+    signals : `dict` [`str`, `np.array`]
+        The resampled signals, or the originals when not resampled.
+    sf_new : `int` or `NoneType`
+        500 when the source is at the target, `NoneType` otherwise.
+    
+    Raises
+    ------
+    AttributeError
+        If the source holds no data while `skip_empty` is False.
+    """
+    if duration is None:
+        warnings.warn(Warn_MSG.RESAMPLE_NO_DURATION.format(signal_name))
+        return signals, None
+    if all(v is None for v in signals.values()):
+        if not skip_empty:
+            raise AttributeError(Error_MSG.MISSING_SIGNAL.format(signal_name))
+        return signals, 500
+    return ecg_utils.resampling_500hz(signals, duration=duration), 500

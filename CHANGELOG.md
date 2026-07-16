@@ -2,6 +2,35 @@
 
 ### Unreleased
 
+#### Added
+
+* `duration (waveforms, sec)` and `duration (medianbeats, sec)`
+  metadata columns, derived per source as sampling number divided by
+  the original sampling frequency
+* `sampling frequency (processed, waveforms)` and `sampling frequency
+  (processed, medianbeats)` metadata columns, each recording the rate
+  of its own stored signal source
+* `_signal_duration` and `_resample_source` helpers in `process_xml`
+
+#### Changed
+
+* Median beats are resampled to a length derived from their own
+  duration rather than a fixed 600 samples; a source median which is
+  not 1.2 s is no longer silently rescaled to 1.2 s
+* Waveform and median beat resampling are gated independently, so a
+  file carrying median beats but no `sampling number (waveforms)` now
+  resamples its median beats instead of silently skipping them
+* `Warn_MSG.RESAMPLE_NO_DURATION` names the source it skipped
+* `DURATION_PADDED` is derived from the processed waveform sampling
+  frequency
+
+#### Removed
+
+* The `median` parameter of `resampling_500hz`; the duration is now
+  supplied for every source, making the branch redundant
+* The `duration (sec)` and `sampling frequency (processed)` metadata
+  columns, replaced by the per-source columns above
+
 ### 1.1.0 - 2026-05-02
 
 #### Added

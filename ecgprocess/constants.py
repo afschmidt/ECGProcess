@@ -59,8 +59,12 @@ class CoreData:
         '''
         TAGS      = 'tags'
         RAW       = 'raw_data'
-        Duration  = 'duration (sec)'
-        SF_NEW    = 'sampling frequency (processed)'
+        # sampling number / sampling frequency (original)
+        Duration_W = 'duration (waveforms, sec)'
+        Duration_M = 'duration (medianbeats, sec)'
+        # the rate of each stored source: the target when at it, else None
+        SF_NEW_W  = 'sampling frequency (processed, waveforms)'
+        SF_NEW_M  = 'sampling frequency (processed, medianbeats)'
         RESAMPLE  = 'resample_500'
         AUG_LEADS = 'augment_leads'
 
@@ -154,12 +158,8 @@ class TabularNames(object):
 class FileNames(object):
     """
     Filenames written by `ECGTable.write_ecg` and the writer module.
-
-    All on-disk names are defined here so the naming standard is
-    enforced in one place; no writer or `ECGTable` method carries an
-    inline filename literal.
     """
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # #### per-chunk data-file base names
     # the `_N` chunk suffix and the writer-owned extension are appended
     # by `BaseWriter.file_names`
@@ -168,7 +168,7 @@ class FileNames(object):
     MEDIANBEATS  = 'medianbeats'
     ECG_DATA     = 'ecg_data'
     FIGURES      = 'figures'
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # #### bookkeeping files (fixed names, no chunk suffix)
     META_HEADER  = 'header_metadata.txt'
     CHUNK_RECORD = 'chunkrecord.txt'
@@ -177,19 +177,19 @@ class FileNames(object):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class WriteNames(object):
     """Names and messages used by the writer module."""
-    # /////////////////////////////////////////////////////////////////////////
-    # the version in which deprecated ECGTable._write_* shims are removed
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # NOTE REMOVE after file_type is removed in ECGTable
     REMOVAL_VERSION = '2.0.0'
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # deprecation message template: {name}, {version}, {replacement}
     DEPRECATED = ('`{}` is deprecated and will be removed in v{}; '
                   'use `{}` instead.')
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # the FailedFiles.txt cause for a write-stage annotation failure:
     # {error}
     ANNOT_CAUSE = 'Annotation failed: {}'
-    # /////////////////////////////////////////////////////////////////////////
-    # #### the pixel writer channel formats
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # the pixel writer channel formats
     RGBA = 'rgba'
     RGB  = 'rgb'
     GRAY = 'gray'

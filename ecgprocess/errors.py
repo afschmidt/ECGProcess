@@ -13,7 +13,9 @@ from typing import Any, Type
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class InputValidationError(Exception):  # pragma: no cover
-    """Exception raised when a function argument fails a type or value check."""
+    """
+    Exception raised when a function argument fails a type or value check.
+    """
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def get_param_name(param:Any) -> str | None:  # pragma: no cover
@@ -361,9 +363,9 @@ class Warn_MSG(object):  # pragma: no cover
                          'dropped when converting data to numpy '
                          'arrays: %s.')
     RESAMPLE_NO_DURATION = (
-        'Resampling to 500 Hz was requested but `duration` could not '
-        'be calculated (sampling number or sampling frequency is '
-        'None); resampling skipped for this file.'
+        'Resampling to 500 Hz was requested but the {} duration could '
+        'not be calculated (its sampling number or the sampling '
+        'frequency is None); resampling skipped for this source.'
     )
     ANNOTATE_SKIPPED = ('record %s was skipped and recorded due to a '
                         'failed annotation: %s')

@@ -45,16 +45,48 @@ section as well as the example Jupyter notebooks.
 Signal processing
 -----------------
 
-The reader classes include two optional signal processing steps 
-before returning data:
+The reader classes apply two optional processing steps, in order, once
+the configured data has been extracted:
 
-* ``resample_500`` (``bool``, default ``True``) — resamples all
+* ``resample_500`` (``bool``, default ``True``) — resamples the
   waveform and median beat signals to 500 Hz using
-  :func:`scipy.signal.resample`. Skipped if the source sampling
-  frequency is already 500 Hz.
+  :func:`scipy.signal.resample`. Each source is resampled to
+  ``duration × 500`` samples, its duration derived as ``sampling number
+  / sampling frequency (original)`` — using ``sampling number
+  (waveforms)`` for waveforms and ``sampling number (medianbeats)`` for
+  median beats. A median beat is conventionally 1.2 s, giving the
+  familiar 600 samples, but the duration is read from the metadata
+  rather than assumed.
+
+  The two sources are gated independently:
+
+  - the file is already at 500 Hz — no resampling is needed and the
+    arrays are left untouched;
+  - a source's duration cannot be derived (an absent sampling number) —
+    a warning is issued and that source alone is left at its original
+    rate;
+  - ``sampling frequency (original)`` is absent — a ``KeyError`` is
+    raised, as no resampling can be defined without it.
+
+  The readers record the rate of each stored source in the metadata,
+  under ``sampling frequency (processed, waveforms)``
+  (:attr:`~ecgprocess.constants.CoreData.ProcessingData.SF_NEW_W`) and
+  ``sampling frequency (processed, medianbeats)``
+  (:attr:`~ecgprocess.constants.CoreData.ProcessingData.SF_NEW_M`): 500
+  when that source is known to be at the target rate (whether or not a
+  resample was needed), and ``None`` otherwise, in which case it remains
+  at the original frequency. The derived durations are recorded
+  alongside as ``duration (waveforms, sec)`` and ``duration
+  (medianbeats, sec)``. Downstream consumers treat the processed
+  frequency as the authoritative rate of the stored arrays, falling back
+  to ``sampling frequency (original)`` — e.g. the ``duration padded
+  (sec)`` column written by the fixed-length option below.
+
 * ``augment_leads`` (``bool``, default ``False``) — derives the
-  augmented limb leads (III, aVR, aVL, aVF) from leads I and II when
-  those leads are absent from the source file.
+  remaining limb leads (III, aVR, aVL, aVF) from leads I and II,
+  filling only those absent from the source file; leads present in the
+  source are never overwritten. Both leads I and II must be present,
+  otherwise a ``KeyError`` is raised.
 
 Fixed-length signals
 --------------------

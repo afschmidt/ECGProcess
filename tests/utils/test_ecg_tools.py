@@ -13,20 +13,30 @@ class TestResampling(object):
     def test_resampling(self):
         signals = {"lead1": np.sin(np.linspace(0, 2 * np.pi, 1000))}
         duration = 2
-        res = ecg_utils.resampling_500hz(signals, duration=duration,
-                                         median=False)
+        res = ecg_utils.resampling_500hz(signals, duration=duration)
         assert len(res["lead1"]) == 2 * 500
         assert res["lead1"].ndim == 1
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_resampling_median(self):
+    def test_resampling_median_conventional(self):
+        # a 1.2 s median beat yields the conventional 600 samples
+        # whatever the source rate it was stored at
+        for source_rate in (250, 500, 1000):
+            signals = {"lead1": np.sin(
+                np.linspace(0, 2 * np.pi, int(1.2 * source_rate)))}
+            res = ecg_utils.resampling_500hz(signals, duration=1.2)
+            assert len(res["lead1"]) == 600
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_resampling_median_non_conventional(self):
+        # a median beat which is not 1.2 s keeps its true duration at
+        # 500 Hz; the old fixed 600 samples would have time-warped it
         signals = {"lead1": np.sin(np.linspace(0, 2 * np.pi, 1000))}
-        res = ecg_utils.resampling_500hz(signals, median=True)
-        assert len(res["lead1"]) == 600
+        res = ecg_utils.resampling_500hz(signals, duration=2.0)
+        assert len(res["lead1"]) == 1000
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_missing_duration_error(self):
         signals = {"lead1": np.sin(np.linspace(0, 2 * np.pi, 1000))}
         with pytest.raises(ValueError):
-            ecg_utils.resampling_500hz(signals, duration=None, median=False)
+            ecg_utils.resampling_500hz(signals, duration=None)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestLimbLeads(object):

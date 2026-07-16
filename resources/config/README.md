@@ -77,6 +77,14 @@ Some specific arguments (i.e. such as signal resampling) might however fail
 if the metadata dues not contain sufficient information such as the
 sampling frequency when asking to re-sample the signal data. 
 
+Aside from the configured names, the readers inject a few processing
+fields into `MetaData` (see `ecgprocess.constants.CoreData.ProcessingData`):
+the derived `duration (waveforms, sec)` and `duration (medianbeats, sec)`,
+and the per-source `sampling frequency (processed, waveforms)` and
+`sampling frequency (processed, medianbeats)`. The latter two are the
+authoritative rate of the stored signal arrays: they hold the resampling
+target once that source has reached it, and `None` while it has not. 
+
 The `OtherData` is currently provided as a placeholder which behaves as 
 `MetaData` but does not consider any names privileged. 
 It is essentially included here for future consideration of data which might

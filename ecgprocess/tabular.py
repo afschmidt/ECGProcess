@@ -61,6 +61,7 @@ from ecgprocess.utils.config_tools import(
 # constants
 CTypes = Core.DataTypes
 CMeta = Core.MetaData
+CProc = Core.ProcessingData
 _log = logging.getLogger(__name__)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -550,21 +551,14 @@ class ECGTable(object):
                     # Added padded columns - will stay None if not used.
                     meta_temp[TabNames.SN_W_PADDED] = sig_len_w
                     meta_temp[TabNames.SN_M_PADDED] = sig_len_m
-                    # DURATION_PADDED is waveforms-only and needs the
-                    # original sampling frequency; emit a warning when the
-                    # user opted in but SF disagrees with the assumed
-                    # 500 Hz that the rest of the pipeline targets.
-                    # duration pad is len/sampling freq
-                    sf_val = meta_temp.get(CMeta.SF)
+                    # padded samples divided by the stored array's rate:
+                    # SF_NEW_W when resampled, the original SF otherwise;
+                    # NoneType when neither is available
+                    sf_val = meta_temp.get(CProc.SF_NEW_W) \
+                        or meta_temp.get(CMeta.SF)
                     if sig_len_w is not None and sf_val:
                         meta_temp[TabNames.DURATION_PADDED] = (
                             sig_len_w / sf_val)
-                        if sf_val != 500:
-                            _log.warning(
-                                "Pad/truncate target assumes 500 Hz but "
-                                "%s=%s for file %s.",
-                                CMeta.SF, sf_val, p,
-                            )
                     else:
                         meta_temp[TabNames.DURATION_PADDED] = None
                     # available.

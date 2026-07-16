@@ -1,12 +1,18 @@
 import pytest
+import numpy as np
 import ecgprocess.process_xml as pro_xml
 import ecgprocess.utils.config_tools as config_utils
 from tempfile import NamedTemporaryFile
+from ecgprocess.constants import CoreData as Core
 from ecgprocess.errors import InputValidationError, MissingTagError
 from ecgprocess.example_data.examples import (
     config_file,
     list_xml_paths,
 )
+
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+# core names
+CProc = Core.ProcessingData
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 # example
@@ -169,3 +175,65 @@ class TestECGXMLReader(object):
             assert lead in extract.WaveForms, f"derived lead {lead!r} missing"
             assert extract.WaveForms[lead] is not None
 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestResampleMetadata(object):
+    """
+    Testing the per-source resampling bookkeeping: the derived
+    durations, the per-source processed sampling frequencies, and the
+    independent gate which lets one source resample when the other
+    cannot.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_per_source_durations_and_rates(self):
+        # the example is stored at 500 Hz: no resampling is needed, but
+        # both sources are known to be at the target
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=example_config)
+            parsed_confg = config_utils.ConfigParser(tmp_file.name)()
+        parsed_confg.map(mapper=config_utils.DataMap())
+        reader = pro_xml.ECGXMLReader(resample_500=True)
+        parsed_xml = reader(path=list_xml_paths()['example_1'],
+                            verbose=False)
+        extract = parsed_xml.extract(config=parsed_confg, skip_empty=True)
+        meta = extract.MetaData
+        # 5000 samples / 500 Hz and 600 samples / 500 Hz
+        assert meta[CProc.Duration_W] == 10.0
+        assert meta[CProc.Duration_M] == 1.2
+        assert meta[CProc.SF_NEW_W] == 500
+        assert meta[CProc.SF_NEW_M] == 500
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_signal_duration(self):
+        assert pro_xml._signal_duration(600, 500) == 1.2
+        assert pro_xml._signal_duration(5000, 500) == 10.0
+        # an absent sampling number or frequency is not an error: the
+        # duration is simply unknown
+        assert pro_xml._signal_duration(None, 500) is None
+        assert pro_xml._signal_duration(600, None) is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_resample_source_gates_on_own_duration(self):
+        # 1.2 s at 250 Hz resamples to the 500 Hz target
+        signals = {'I': np.sin(np.linspace(0, 2 * np.pi, 300))}
+        out, sf_new = pro_xml._resample_source(
+            signals, 1.2, 'median beat', skip_empty=True)
+        assert len(out['I']) == 600
+        assert sf_new == 500
+        # without its own duration the source is left untouched and
+        # reports no processed rate, rather than blocking the other
+        # source or being silently rescaled
+        out, sf_new = pro_xml._resample_source(
+            signals, None, 'median beat', skip_empty=True)
+        assert len(out['I']) == 300
+        assert sf_new is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_resample_source_without_data(self):
+        # an absent source is not resampled; skip_empty governs whether
+        # that is an error
+        signals = {'I': None}
+        out, sf_new = pro_xml._resample_source(
+            signals, 1.2, 'median beat', skip_empty=True)
+        assert out == signals
+        assert sf_new == 500
+        with pytest.raises(AttributeError):
+            pro_xml._resample_source(
+                signals, 1.2, 'median beat', skip_empty=False)

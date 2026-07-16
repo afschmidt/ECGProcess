@@ -23,7 +23,7 @@ _STANDARD_LEADS: tuple[str, ...] = (
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def resampling_500hz(signals:dict[str, np.array],
                      duration: int | float | None=None,
-                     median:bool=False) -> dict[str, np.array]:
+                     ) -> dict[str, np.array]:
     """
     Re-sample an ECG signal to 500 hz.
     
@@ -33,26 +33,23 @@ def resampling_500hz(signals:dict[str, np.array],
         A dictionary with the lead names as string keys and the signals
         as a 1D np.array.
     duration : `int` or `float`
-        The represents the duration of the ECG in seconds, which is calculated
-        based on the fraction of number of samples by the sampling frequency
-        in seconds.  For raw wavefomrs duration determines the number of
-        samples needed to get a 500hz sample: duration times 500.
-    median : `bool`, default `False`
-        Set to true to resample a median beat ECG to 500hz. The duration of a
-        median beat signal is 1.2 seconds, hence the number of samples is fixed
-        at: 1.2 times 500 = 600.
+        The duration of the signal in seconds, calculated as the fraction
+        of the number of samples by the sampling frequency. The number of
+        samples needed for a 500 hz signal is: duration times 500. Applies
+        to waveforms and median beats alike; a median beat is typically
+        1.2 seconds (1.2 times 500 = 600 samples) but this is not assumed.
     
+    Raises
+    ------
+    ValueError
+        If `duration` is `NoneType`.
     """
     is_type(signals, dict)
     is_type(duration, (type(None), int, float))
-    is_type(median, bool)
     # #### get number of samples
-    num_samples = 600
-    if median == False:
-        if duration is None:
-            raise ValueError('`duration` should not be `NoneType` when `median` '
-                             'is `False`.')
-        num_samples = int(duration * 500)
+    if duration is None:
+        raise ValueError('`duration` should not be `NoneType`.')
+    num_samples = int(duration * 500)
     # #### resample
     new_dict = {}
     for l, sig in signals.items():
