@@ -20,13 +20,30 @@ To process ECG data ECGprocess leverages three key components
   the ECG signal and calculating the peripheral leads if 
   these were omitted for the source file. 
 
-* By encoding the API in the reader class the `ECGTable` class 
-  can process any type of ECG data (as long as there is a 
-  reader class for) and load multiple files into pandas table, 
-  or write these to disk (as tsv tables, npz array, or binary 
-  tfrecords). 
+* By encoding the API in the reader class the `ECGTable` class
+  can process any type of ECG data (as long as there is a
+  reader class for) and load multiple files into a pandas table,
+  or write these to disk through a pluggable writer registry. The
+  target format is chosen with the ``writer`` argument of
+  ``ECGTable.write_ecg``:
 
-  The ECGTable class is specifically designed to 
+  - ``'table'`` — tab-delimited ``.tsv`` tables (the default);
+  - ``'npz'`` — a single bundled NumPy ``.npz`` archive;
+  - ``'npy'`` — one ``.npy`` file per data source;
+  - ``'tensorflow'`` — binary ``tfrecord`` files (requires the
+    optional TensorFlow dependency, ``pip install
+    ecgprocess[tensorflow]``);
+  - ``'figure'`` — a rendered ECG image per record (PNG, PDF, SVG);
+  - ``'pixel'`` — stacked pixel tensors for imaging-based machine
+    learning.
+
+  The ``writer`` argument also accepts a user-supplied writer (any
+  ``ecgprocess.writer.BaseWriter`` subclass or callable), so new
+  output formats can be added without changing library code. The
+  older ``file_type`` argument is deprecated and will be removed in
+  version 2.0.0.
+
+  The ECGTable class is specifically designed to
   jointly process metadata, as well as waveform and medianbeat
   signals allowing for on the fly QC/filtering as well as downstream
   multimodal analyses. To perform on the fly QC/filtering the ECGTable

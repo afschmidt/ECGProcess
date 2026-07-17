@@ -589,15 +589,15 @@ class TestPixelWriter(object):
         ctx = _make_context(tmp_path, e_median=False)
         PixelWriter(kwargs_call={'style': _SMALL_STYLE}).write(
             meta, wave, [], ctx)
-        assert set(os.listdir(tmp_path)) == {
-            'figures.npy', 'metadata.npy', 'header_metadata.txt'}
+        assert set(os.listdir(tmp_path)) == {'figures.npy', 'metadata.tsv'}
         stack = np.load(tmp_path / 'figures.npy')
         # one NHWC slice per record, RGBA by default, float32 by default
         assert stack.shape == (2, self._H, self._W, 4)
         assert stack.dtype == np.float32
-        # rows align with the tensor slices
-        meta_arr = np.load(tmp_path / 'metadata.npy')
-        assert meta_arr.shape[0] == 2
+        # rows align with the tensor slices, UIDs as index
+        meta_tab = pd.read_csv(tmp_path / 'metadata.tsv', sep='\t',
+                               index_col=0)
+        assert list(meta_tab.index) == ['a', 'b']
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_channel_variants(self, tmp_path):
         meta, wave = _make_figure_records(_LEADS_12)
@@ -658,9 +658,11 @@ class TestPixelWriter(object):
                     kwargs_call={'style': _SMALL_STYLE}).write(
             meta, wave, [], ctx)
         stack = np.load(tmp_path / 'figures.npy')
-        meta_arr = np.load(tmp_path / 'metadata.npy')
+        meta_tab = pd.read_csv(tmp_path / 'metadata.tsv', sep='\t',
+                               index_col=0)
         assert stack.shape[0] == 1
-        assert meta_arr.shape[0] == 1
+        # only the surviving record 'b' remains, keeping the alignment
+        assert list(meta_tab.index) == ['b']
         uid, cause = ctx.failed_records[0]
         assert uid == 'a'
         assert 'Annotation failed' in cause

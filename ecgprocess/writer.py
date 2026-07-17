@@ -1,11 +1,12 @@
 """
-Pluggable output writers for ECG data.
+Output writers for ECG data.
 
 This module introduces ECG writing callables which can be used with the
-`tabular` module to bulk wrote metadata and/or signal data.
+`tabular` module to bulk write metadata and/or signal data.
 
 Writers subclass register themselves in the module-level `WRITERS` registry via
-the `register_writer` decorator, allowing for user supplied callables.
+the `register_writer` decorator, allowing for user supplied callables which
+are fully interoperable with `ECGTable` from `tabular`.
 """
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -47,10 +48,12 @@ from ecgprocess.utils.ecg_tools import (
 # constants
 CTypes = Core.DataTypes
 _log = logging.getLogger(__name__)
+
 # the writer registry, populated by the register_writer decorator. All
 # writer classes are defined at module top level so their decorators run
 # before the registry is read.
 WRITERS: dict[str, type["BaseWriter"]] = {}
+
 # type variable preserving the concrete class type through the
 # register_writer decorator (a bare type[BaseWriter] return would erase
 # the decorated writer's constructor signature for static analysis)
@@ -133,18 +136,18 @@ class BaseWriter(abc.ABC):
                    ) -> tuple[str, str, str, str, str]:
         """
         Return the standard per-chunk data-file names for this writer.
-
+        
         The base names come from the `FileNames` constants and the
         extension from `file_ext`, so registered and user-supplied
         writers alike get standard names without `ECGTable` knowing
         their format.
-
+        
         Parameters
         ----------
         chunk_num : `int` or `NoneType`, default `NoneType`
             Appends the chunk number with a '_' separator before the
             file extension.
-
+         
         Returns
         -------
         tuple of strings
@@ -159,6 +162,7 @@ class BaseWriter(abc.ABC):
             FileNames.METADATA + sep + chunk + ext,
             FileNames.WAVEFORMS + sep + chunk + ext,
             FileNames.MEDIANBEATS + sep + chunk + ext,
+            # filename when combining everyting into one
             FileNames.ECG_DATA + sep + chunk + ext,
             FileNames.FIGURES + sep + chunk + ext,
         )
@@ -640,6 +644,7 @@ class NpyWriter(NumpyWriter):
     # /////////////////////////////////////////////////////////////////////////
     def _save(self, res_dict: dict[str, "np.ndarray"],
               ctx: WriteContext,
+              file_names: dict[str, str] | None = None,
               ) -> None:
         """
         Write each assembled array to its own `.npy` file.
@@ -650,17 +655,22 @@ class NpyWriter(NumpyWriter):
             The assembled arrays keyed by data type.
         ctx : `WriteContext`
             The context carrying the target path and filename helper.
+        file_names : `dict` [`str`, `str`] or `NoneType`, default \
+`NoneType`
+            Maps each `res_dict` key to its target filename. Callers
+            delegating non-standard sources (e.g. `PixelWriter`) supply
+            their own mapping; `NoneType` selects the standard
+            per-source names.
         """
         # #### set the per-source filenames
-        META_FILE, WAVE_FILE, MEDIAN_FILE, _, FIG_FILE = \
-            self.file_names(chunk_num=ctx.chunk_num)
-        file_names = {
-            CTypes.MetaData: META_FILE,
-            CTypes.WaveForms: WAVE_FILE,
-            CTypes.MedianBeats: MEDIAN_FILE,
-            # the pixel writer delegates its stacked figure tensor here
-            FileNames.FIGURES: FIG_FILE,
-        }
+        if file_names is None:
+            META_FILE, WAVE_FILE, MEDIAN_FILE, _, _ = \
+                self.file_names(chunk_num=ctx.chunk_num)
+            file_names = {
+                CTypes.MetaData: META_FILE,
+                CTypes.WaveForms: WAVE_FILE,
+                CTypes.MedianBeats: MEDIAN_FILE,
+            }
         # #### write each enabled source to its own file
         for data_type, array in res_dict.items():
             # signals are cast to the configured dtype; metadata keeps its
@@ -1039,10 +1049,11 @@ class PixelWriter(FigureWriter):
     `FigureWriter`, rasterised via `ECGDrawing.to_numpy`, and collected
     into a `(n_records, height, width, channels)` NHWC tensor written as
     `figures.npy` (with the `_N` chunk suffix when writing chunks).
-    Persistence is delegated to an internal `NpyWriter`, so the dtype
-    cast and the metadata handling (`metadata.npy` plus the
-    `header_metadata.txt` sidecar, row `i` aligned with tensor slice
-    `i`) match the `'npy'` writer.
+    Tensor persistence is delegated to an internal `NpyWriter`, so the
+    dtype cast and the `allow_pickle` guard match the `'npy'` writer.
+    When metadata is extracted it is written as a tab-separated
+    `metadata.tsv` record-keeping table with the record UIDs as index,
+    row `i` aligned with tensor slice `i`.
     
     Parameters
     ----------
@@ -1079,8 +1090,6 @@ default `NoneType`
     crop : `bool`, default `False`
         Whether whitespace is trimmed before rasterising, forwarded to
         `ECGDrawing.to_numpy`.
-    numeric_meta : `bool`, default `True`
-        Whether non-numeric metadata columns are dropped before writing.
     dtype : `np.dtype`, `type`, or `str`, default `np.float32`
         The dtype the pixel tensor is cast to before writing; metadata
         keeps its own dtype. `np.uint8` preserves the native 0-255
@@ -1104,6 +1113,8 @@ default `NoneType`
     """
     # /////////////////////////////////////////////////////////////////////////
     FILE_EXT = '.npy'
+    # the metadata table extension; FILE_EXT covers the pixel tensor
+    META_EXT = '.tsv'
     # the supported channel formats mapped to their depths
     CHANNEL_FORMATS = {
         WriteNames.RGBA: 4,
@@ -1121,7 +1132,6 @@ default `NoneType`
                  annotate: list[dict[str, Any]] | None = None,
                  channels: str = WriteNames.RGBA,
                  crop: bool = False,
-                 numeric_meta: bool = True,
                  dtype: "np.dtype | type | str" = np.float32,
                  ) -> None:
         """Initialise the pixel writer."""
@@ -1138,13 +1148,14 @@ default `NoneType`
                 'channels', sorted(self.CHANNEL_FORMATS)))
         self.channels = channels
         self.crop = crop
-        # persistence is delegated to the npy writer: dtype cast,
-        # metadata handling, and the allow_pickle guard live there
-        self._npy = NpyWriter(numeric_meta=numeric_meta, dtype=dtype)
+        # tensor persistence is delegated to the npy writer: dtype cast
+        # and the allow_pickle guard live there
+        self._npy = NpyWriter(dtype=dtype)
         self.dtype = self._npy.dtype
         # the per-write rasterisation buffers filled by `_persist_record`
         self._frames: list["np.ndarray"] = []
         self._kept_meta: list[dict[str, Any]] = []
+        self._kept_keys: list[Any] = []
     # /////////////////////////////////////////////////////////////////////////
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
@@ -1157,8 +1168,9 @@ default `NoneType`
         Runs the `FigureWriter` render loop (validation, layout,
         annotation, and the `ctx.skip_data` policy included), buffering
         each rasterised record instead of saving image files, then
-        stacks the buffer and delegates persistence to the internal
-        `NpyWriter`.
+        stacks the buffer, delegates tensor persistence to the internal
+        `NpyWriter`, and writes the metadata `.tsv` when metadata is
+        extracted.
         
         Parameters
         ----------
@@ -1180,6 +1192,7 @@ default `NoneType`
         # #### render into the buffers, then stack and persist
         self._frames = []
         self._kept_meta = []
+        self._kept_keys = []
         try:
             super().write(meta_list, wave_list, median_list, ctx)
             self._save_stack(ctx)
@@ -1188,6 +1201,7 @@ default `NoneType`
             # last chunk's frames linger on the instance
             self._frames = []
             self._kept_meta = []
+            self._kept_keys = []
     # /////////////////////////////////////////////////////////////////////////
     def _persist_record(self, drawing: ECGDrawing, uid: Any,
                         meta: dict[str, Any], ctx: WriteContext,
@@ -1211,12 +1225,13 @@ default `NoneType`
             The context carrying export flags, target path, and helpers.
         """
         # invoked per record by the inherited FigureWriter.write loop;
-        # a record skipped there never reaches this point, so frame and
-        # metadata are appended (or omitted) together, keeping row i of
-        # the metadata aligned with tensor slice i
+        # a record skipped there never reaches this point, so frame,
+        # metadata, and UID are appended (or omitted) together, keeping
+        # row i of the metadata aligned with tensor slice i
         rgba = drawing.to_numpy(crop=self.crop, close=True)
         self._frames.append(self._convert_channels(rgba))
         self._kept_meta.append(meta)
+        self._kept_keys.append(uid)
     # /////////////////////////////////////////////////////////////////////////
     def _convert_channels(self, rgba: "np.ndarray") -> "np.ndarray":
         """
@@ -1242,7 +1257,12 @@ default `NoneType`
     # /////////////////////////////////////////////////////////////////////////
     def _save_stack(self, ctx: WriteContext) -> None:
         """
-        Stack the buffered frames and delegate to the npy writer.
+        Stack the buffered frames and persist tensor and metadata.
+        
+        The tensor is written through the internal `NpyWriter`; the
+        metadata is written as a tab-separated `metadata.tsv` with the
+        kept record UIDs as index, row `i` aligned with tensor slice
+        `i`.
         
         Parameters
         ----------
@@ -1264,16 +1284,20 @@ default `NoneType`
         if len(shapes) > 1:
             raise InputValidationError(
                 Error_MSG.PIXEL_SHAPE_MISMATCH.format(sorted(shapes)))
-        res_dict = {FileNames.FIGURES: np.stack(self._frames)}
-        # #### align the optional metadata rows with the tensor slices
-        header = None
+        # #### delegate tensor persistence (dtype cast, pickle guard)
+        _, _, _, _, FIG_FILE = self.file_names(chunk_num=ctx.chunk_num)
+        self._npy._save(
+            {FileNames.FIGURES: np.stack(self._frames)}, ctx,
+            file_names={FileNames.FIGURES: FIG_FILE},
+        )
+        # #### write the record-keeping metadata table, row i aligned
+        # with tensor slice i and the kept UIDs as index
         if ctx.e_meta:
-            res_dict[CTypes.MetaData], header = _meta_to_array(
-                self._kept_meta, self._npy.numeric_meta)
-        # #### delegate persistence (dtype cast, allow_pickle guard)
-        self._npy._save(res_dict, ctx)
-        if header is not None:
-            _write_metadata_header(ctx.target, header)
+            sep = '' if ctx.chunk_num is None else '_'
+            chunk = '' if ctx.chunk_num is None else str(ctx.chunk_num)
+            META_FILE = FileNames.METADATA + sep + chunk + self.META_EXT
+            pd.DataFrame(self._kept_meta, index=self._kept_keys).to_csv(
+                os.path.join(ctx.target, META_FILE), sep='\t')
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # helpers

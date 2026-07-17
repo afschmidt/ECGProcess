@@ -27,6 +27,17 @@ tabular
    :special-members: __call__,__init__
    :undoc-members: False
 
+Writers
+-------
+
+writer
+~~~~~~
+.. automodule:: ecgprocess.writer
+   :members:
+   :special-members: __call__,__init__
+   :show-inheritance:
+   :undoc-members: False
+
 Plotting
 --------
 

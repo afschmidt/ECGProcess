@@ -25,9 +25,18 @@ files that define which signals and metadata fields to retrieve, without
 requiring changes to library code. The processing pipeline can be readily 
 augmented with user supplied engineering functions, to for example allow
 for signal resampling or derivation of augmented leads.  Processed data
-can be exported as pandas DataFrames, NumPy arrays, or TensorFlow 
-``tf.data.Dataset`` objects, supporting both in-memory and chunked on-disk 
-workflows.
+can be exported through a registry of pluggable writers, both in-memory
+and in chunked on-disk workflows:
+
+* pandas ``DataFrame`` objects for in-memory analysis;
+* tab-delimited tables (``.tsv``);
+* bundled (``.npz``) or per-array (``.npy``) NumPy files;
+* rendered figure images (PNG, PDF, SVG);
+* stacked pixel tensors for imaging-based machine learning;
+* TensorFlow ``tf.data.Dataset`` objects (``tfrecord``), an optional
+  extra installed with ``pip install ecgprocess[tensorflow]``.
+
+Users can also register their own writers to add new output formats.
 
 Additionally, the module provides a flexible plotting API built on top of
 matplotlib. This can be used for research illustrations as well as to 
@@ -66,6 +75,7 @@ Documentation
    examples/recipe/process_xml.nblink
    examples/recipe/process_dicom.nblink
    examples/recipe/tabular.nblink
+   examples/recipe/writer.nblink
    examples/recipe/plot_ecgs.nblink
    examples/recipe/utils/engineering_tools.nblink
 

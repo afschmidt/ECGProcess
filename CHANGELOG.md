@@ -11,6 +11,26 @@
   (processed, medianbeats)` metadata columns, each recording the rate
   of its own stored signal source
 * `_signal_duration` and `_resample_source` helpers in `process_xml`
+* `ecgprocess.writer` module housing all output writers, with a
+  `WRITERS` registry, the `register_writer` decorator, `resolve_writer`
+  dispatch, the `BaseWriter` abstract base, and the `WriteContext`
+  container
+* `writer` parameter on `ECGTable.write_ecg`, accepting a registry-key
+  string, a `BaseWriter` subclass or instance, or a bare callable, so
+  users can plug in their own output formats
+* `NpyWriter` writing one `.npy` file per data source (registry key
+  `npy`)
+* `FigureWriter` rendering one ECG image per record via `ECGDrawing`
+  (registry key `figure`)
+* `PixelWriter` stacking rendered figures into an NHWC pixel tensor per
+  chunk (registry key `pixel`)
+* `ECGDrawing.annotate` for templated, metadata-driven figure
+  annotation
+* `signal_dicts_to_long_table` public helper in `ecgprocess.writer`
+* `FileNames` constants class in `constants.py` standardising every
+  written filename
+* `tensorflow` and `all` pip extras for the optional TensorFlow
+  dependency
 
 #### Changed
 
@@ -23,6 +43,17 @@
 * `Warn_MSG.RESAMPLE_NO_DURATION` names the source it skipped
 * `DURATION_PADDED` is derived from the processed waveform sampling
   frequency
+* Output-writing logic is extracted from `ecgprocess.tabular` into the
+  new `ecgprocess.writer` module; `ECGTable.write_ecg` now dispatches
+  through the writer registry
+* TensorFlow is now an optional dependency, imported lazily only by
+  `TFRecordWriter`; the base install no longer requires it
+
+#### Deprecated
+
+* The `file_type` argument of `ECGTable.write_ecg`; use `writer`
+  instead. It will be removed in version 2.0.0, and its legacy
+  `'numpy'` value maps to the `'npz'` writer
 
 #### Removed
 
@@ -30,6 +61,11 @@
   supplied for every source, making the branch redundant
 * The `duration (sec)` and `sampling frequency (processed)` metadata
   columns, replaced by the per-source columns above
+* The `ECGTable._write_numpy`, `_write_tfr`, `_write_header`,
+  `_write_file_names`, and `_get_long_table` private methods, migrated
+  into `ecgprocess.writer`
+* `TabNames.WRITE_TYPE`, superseded by the writer registry and the
+  `FileNames` constants
 
 ### 1.1.0 - 2026-05-02
 
