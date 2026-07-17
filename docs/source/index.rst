@@ -67,6 +67,7 @@ Documentation
 
    processing_signal_data
    configuration_files
+   custom_writers
 
 .. toctree::
    :maxdepth: 1
@@ -76,6 +77,7 @@ Documentation
    examples/recipe/process_dicom.nblink
    examples/recipe/tabular.nblink
    examples/recipe/writer.nblink
+   examples/recipe/validate_writer.nblink
    examples/recipe/plot_ecgs.nblink
    examples/recipe/utils/engineering_tools.nblink
 

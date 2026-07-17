@@ -10,7 +10,7 @@ from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
 )
-from ecgprocess.errors import InputValidationError
+from ecgprocess.errors import Error_MSG, InputValidationError
 from ecgprocess.plot_ecgs import ECGDrawing, ECGStyle
 from ecgprocess.writer import (
     BaseWriter,
@@ -26,6 +26,7 @@ from ecgprocess.writer import (
     register_writer,
     resolve_writer,
     signal_dicts_to_long_table,
+    validate_writer,
 )
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -142,6 +143,86 @@ class TestResolveWriter(object):
     def test_resolve_rejects_bad_type(self):
         with pytest.raises(TypeError):
             resolve_writer(42)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestValidateWriter(object):
+    """
+    Testing the validate_writer pre-flight compliance check: pass cases
+    (class and instance parity, flexible signatures, inherited write),
+    the input gate, the class/instance instantiation asymmetry, and the
+    collected single-raise multi-violation report.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_compliant_writers_pass(self):
+        class _Good(BaseWriter):
+            FILE_EXT = '.json'
+            def write(self, meta_list, wave_list, median_list, ctx):
+                return None
+        class _Variadic(BaseWriter):
+            def write(self, *args, **kwargs):
+                return None
+        # the numpy-family base implements write; a subclass only
+        # supplying _save satisfies the contract via inheritance
+        class _MiniNpy(NumpyWriter):
+            FILE_EXT = '.npy'
+            def _save(self, res_dict, ctx):
+                return None
+        # class and instance forms both pass silently
+        assert validate_writer(_Good) is None
+        assert validate_writer(_Good()) is None
+        assert validate_writer(_Variadic) is None
+        assert validate_writer(_MiniNpy) is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_rejects_non_writers(self):
+        # objects, registry strings, and bare callables are not the
+        # documented subclass/instance forms
+        def _bare(meta_list, wave_list, median_list, ctx):
+            return None
+        for bad in (42, 'npy', _bare):
+            with pytest.raises(InputValidationError) as err:
+                validate_writer(bad)
+            assert Error_MSG.WRITER_NOT_WRITER.format(bad) in str(err.value)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_write_contract_violations(self):
+        # an abstract write and an unbindable write are both caught
+        class _NoArgs(BaseWriter):
+            def write(self):
+                return None
+        with pytest.raises(InputValidationError) as err:
+            validate_writer(BaseWriter)
+        assert Error_MSG.WRITER_ABSTRACT.format('write') in str(err.value)
+        with pytest.raises(InputValidationError) as err:
+            validate_writer(_NoArgs)
+        assert Error_MSG.WRITER_SIGNATURE.split('{')[0] in str(err.value)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_required_init_args(self):
+        class _NeedsArg(BaseWriter):
+            def __init__(self, path):
+                self.path = path
+            def write(self, meta_list, wave_list, median_list, ctx):
+                return None
+        # the class route requires bare instantiation and fails
+        with pytest.raises(InputValidationError) as err:
+            validate_writer(_NeedsArg)
+        assert Error_MSG.WRITER_INIT.split('{')[0] in str(err.value)
+        # a pre-built instance skips the instantiation check and passes
+        assert validate_writer(_NeedsArg('out.txt')) is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_multi_violation_single_raise(self):
+        # one raise lists every violation: bad signature, missing dot
+        # on FILE_EXT, and a wrong-length file_names tuple
+        class _Broken(BaseWriter):
+            FILE_EXT = 'json'
+            def file_names(self, chunk_num=None):
+                return ('a', 'b', 'c')
+            def write(self):
+                return None
+        with pytest.raises(InputValidationError) as err:
+            validate_writer(_Broken)
+        message = str(err.value)
+        assert Error_MSG.WRITER_SIGNATURE.split('{')[0] in message
+        assert Error_MSG.WRITER_FILE_EXT_DOT.format('json') in message
+        assert Error_MSG.WRITER_NAMES_LEN.format(3) in message
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestTableWriter(object):

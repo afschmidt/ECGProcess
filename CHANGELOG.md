@@ -31,6 +31,13 @@
   written filename
 * `tensorflow` and `all` pip extras for the optional TensorFlow
   dependency
+* `validate_writer` in `ecgprocess.writer`, a data-free pre-flight
+  check for user-supplied writer classes, collecting all contract
+  violations into a single `InputValidationError`
+* `docs/source/custom_writers.rst` guide documenting the custom-writer
+  contract with a worked `JsonWriter` example
+* `resources/examples/validate_writer.ipynb` example notebook
+  demonstrating `validate_writer`
 
 #### Changed
 

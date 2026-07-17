@@ -6,7 +6,9 @@ This module introduces ECG writing callables which can be used with the
 
 Writers subclass register themselves in the module-level `WRITERS` registry via
 the `register_writer` decorator, allowing for user supplied callables which
-are fully interoperable with `ECGTable` from `tabular`.
+are fully interoperable with `ECGTable` from `tabular`. User-supplied
+writer classes can be checked against the `BaseWriter` contract before a
+batch run with the `validate_writer` pre-flight function.
 """
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -14,6 +16,7 @@ are fully interoperable with `ECGTable` from `tabular`.
 from __future__ import annotations
 import os
 import abc
+import inspect
 import logging
 from dataclasses import dataclass, field
 from types import ModuleType, SimpleNamespace
@@ -293,6 +296,135 @@ def resolve_writer(writer: Any) -> BaseWriter:
     raise TypeError(
         '`writer` must be a `BaseWriter` subclass, instance, or callable, '
         f'not `{type(writer).__name__}`.')
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def validate_writer(writer: "type[BaseWriter] | BaseWriter") -> None:
+    """
+    Check a user-supplied writer against the `BaseWriter` contract.
+    
+    A light-touch, data-free pre-flight check for custom writers: it
+    inspects the supplied class or instance once, before any batch run,
+    and never writes files or touches ECG data. All detected violations
+    are collected and reported in a single exception; a compliant
+    writer passes silently.
+    
+    Parameters
+    ----------
+    writer : `type` [`BaseWriter`] or `BaseWriter`
+        The writer class or instance to check. These are the two
+        supported forms for the `ECGTable.write_ecg` `writer`
+        parameter; anything else is itself reported as a violation.
+    
+    Returns
+    -------
+    `NoneType`
+        The function returns `NoneType` when the writer is compliant.
+    
+    Raises
+    ------
+    InputValidationError
+        If the writer violates the contract; the message lists every
+        detected violation.
+    
+    Notes
+    -----
+    The following requirements are checked:
+    
+    1. the input is a `BaseWriter` subclass or instance;
+    2. no abstract methods remain unimplemented;
+    3. `write` accepts the four data arguments
+       (`meta_list`, `wave_list`, `median_list`, `ctx`); variadic and
+       extra defaulted parameters are accepted;
+    4. a supplied class can be instantiated without arguments, as done
+       by `resolve_writer` for the class route (skipped for instance
+       input);
+    5. `FILE_EXT` is a `str` and, when non-empty, starts with a dot;
+    6. `file_ext()` returns a `str` and `file_names()` returns the
+       5-tuple of `str` filenames.
+    """
+    # #### resolve the class/instance forms (the documented routes)
+    if isinstance(writer, type) and issubclass(writer, BaseWriter):
+        cls = writer
+        instance = None
+    elif isinstance(writer, BaseWriter):
+        cls = type(writer)
+        instance = writer
+    else:
+        raise InputValidationError(Error_MSG.WRITER_INVALID.format(
+            1, '- ' + Error_MSG.WRITER_NOT_WRITER.format(writer)))
+    violations: list[str] = []
+    # #### unimplemented abstract methods (class input only: a live
+    # instance could not have been constructed with any remaining)
+    abstract = getattr(cls, '__abstractmethods__', frozenset())
+    if abstract:
+        violations.append(
+            Error_MSG.WRITER_ABSTRACT.format(', '.join(sorted(abstract))))
+    # #### the write signature must bind the four data arguments
+    # the placeholders stand in for (meta_list, wave_list, median_list,
+    # ctx); `bind` accepts variadic and extra defaulted parameters
+    placeholders = ([], [], [], None)
+    try:
+        if instance is not None:
+            inspect.signature(instance.write).bind(*placeholders)
+        else:
+            # the unbound function keeps `self`; NoneType stands in
+            inspect.signature(cls.write).bind(None, *placeholders)
+    except (TypeError, ValueError) as err:
+        violations.append(Error_MSG.WRITER_SIGNATURE.format(err))
+    # #### the class route requires bare instantiation (resolve_writer
+    # calls `cls()`); skipped for abstract classes and instance input
+    if instance is None and not abstract:
+        try:
+            instance = cls()
+        # NOTE broad on purpose: probing an untrusted user constructor
+        except Exception as err:
+            violations.append(Error_MSG.WRITER_INIT.format(err))
+    # #### FILE_EXT backs the standard filename derivation
+    file_ext_attr = getattr(
+        instance if instance is not None else cls, 'FILE_EXT', '')
+    if not isinstance(file_ext_attr, str):
+        violations.append(Error_MSG.WRITER_FILE_EXT_TYPE.format(
+            type(file_ext_attr).__name__))
+    elif file_ext_attr and not file_ext_attr.startswith('.'):
+        violations.append(
+            Error_MSG.WRITER_FILE_EXT_DOT.format(file_ext_attr))
+    # #### probe the filename machinery on the instance; the calls are
+    # guarded broadly so one failure does not hide the other checks
+    if instance is not None:
+        try:
+            ext = instance.file_ext()
+            if not isinstance(ext, str):
+                violations.append(Error_MSG.WRITER_EXT_RETURN.format(
+                    type(ext).__name__))
+        except Exception as err:
+            violations.append(
+                Error_MSG.WRITER_CALL_RAISED.format('file_ext', err))
+        # a non-str FILE_EXT already malforms the derived names; skip
+        # the derived call instead of double-reporting
+        if isinstance(file_ext_attr, str):
+            try:
+                names = instance.file_names()
+                if not isinstance(names, tuple):
+                    violations.append(
+                        Error_MSG.WRITER_NAMES_RETURN.format(
+                            type(names).__name__))
+                elif len(names) != 5:
+                    violations.append(
+                        Error_MSG.WRITER_NAMES_LEN.format(len(names)))
+                else:
+                    for pos, name in enumerate(names):
+                        if not isinstance(name, str):
+                            violations.append(
+                                Error_MSG.WRITER_NAMES_STR.format(
+                                    pos, type(name).__name__))
+            except Exception as err:
+                violations.append(Error_MSG.WRITER_CALL_RAISED.format(
+                    'file_names', err))
+    # #### raise once, listing every violation
+    if violations:
+        raise InputValidationError(Error_MSG.WRITER_INVALID.format(
+            len(violations),
+            '\n'.join('- ' + violation for violation in violations)))
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class _CallableWriter(BaseWriter):

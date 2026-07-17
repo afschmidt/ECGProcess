@@ -39,9 +39,10 @@ To process ECG data ECGprocess leverages three key components
 
   The ``writer`` argument also accepts a user-supplied writer (any
   ``ecgprocess.writer.BaseWriter`` subclass or callable), so new
-  output formats can be added without changing library code. The
-  older ``file_type`` argument is deprecated and will be removed in
-  version 2.0.0.
+  output formats can be added without changing library code; see
+  :doc:`custom_writers` for the full contract, a worked example, and
+  the ``validate_writer`` pre-flight check. The older ``file_type``
+  argument is deprecated and will be removed in version 2.0.0.
 
   The ECGTable class is specifically designed to
   jointly process metadata, as well as waveform and medianbeat

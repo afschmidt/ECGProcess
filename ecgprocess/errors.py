@@ -351,6 +351,25 @@ class Error_MSG(object):  # pragma: no cover
         'records with one fixed figure size '
         '(`ECGStyle(figsize=..., dpi=...)`).'
     )
+    WRITER_INVALID=(
+        'the supplied writer failed validation with {} violation(s):\n{}'
+    )
+    WRITER_NOT_WRITER='`{}` is not a `BaseWriter` subclass or instance.'
+    WRITER_ABSTRACT='abstract methods are not implemented: {}.'
+    WRITER_SIGNATURE=(
+        '`write` cannot accept the four data arguments (meta_list, '
+        'wave_list, median_list, ctx): {}.'
+    )
+    WRITER_INIT='the class cannot be instantiated without arguments: {}.'
+    WRITER_FILE_EXT_TYPE='`FILE_EXT` must be a `str`, not `{}`.'
+    WRITER_FILE_EXT_DOT=(
+        'a non-empty `FILE_EXT` must start with a dot; got `{}`.'
+    )
+    WRITER_CALL_RAISED='`{}()` raised during validation: {}.'
+    WRITER_EXT_RETURN='`file_ext()` must return a `str`, not `{}`.'
+    WRITER_NAMES_RETURN='`file_names()` must return a `tuple`, not `{}`.'
+    WRITER_NAMES_LEN='`file_names()` must return 5 filenames, got {}.'
+    WRITER_NAMES_STR='`file_names()` element {} must be a `str`, not `{}`.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class Warn_MSG(object):  # pragma: no cover
