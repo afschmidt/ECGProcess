@@ -16,7 +16,7 @@ echo -e "${YELLOW}Running spell checker...${NC}"
 # [^.]+ one or more non-dot chracter. Hence this matches ^[^.]+$ 
 # files starting without a dot and ending without a file extention.
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | \
-    grep -E '\.(py|rst|md|txt|ipynb|sh|bash|yml|yaml|json|toml|ini|cfg|cnf)$|^[^.]+$')
+    grep -E '\.(py|rst|md|txt|sh|bash|yml|yaml|json|toml|ini|cfg|cnf)$|^[^.]+$')
 
 if [ -z "$STAGED_FILES" ]; then
     echo -e "${GREEN}No text files to check.${NC}"
