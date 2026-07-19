@@ -165,7 +165,7 @@ class BaseWriter(abc.ABC):
             FileNames.METADATA + sep + chunk + ext,
             FileNames.WAVEFORMS + sep + chunk + ext,
             FileNames.MEDIANBEATS + sep + chunk + ext,
-            # filename when combining everyting into one
+            # filename when combining everything into one
             FileNames.ECG_DATA + sep + chunk + ext,
             FileNames.FIGURES + sep + chunk + ext,
         )
@@ -948,7 +948,7 @@ default `NoneType`
         png, jpg, tiff; vector: pdf, svg, eps); an unsupported format
         raises `ValueError` from `savefig` itself.
     tile_x : `bool`, default `True`
-        Whether `ECGDrawing.tile_x_axis` is applied after rendering, so
+        WhetherE `ECGDrawing.tile_x_axis` is applied after rendering, so
         each grid column shows a sequential time slice (the clinical
         print convention) while multi-column panels keep their full
         span. The default suits continuous waveforms in the default
@@ -974,13 +974,17 @@ default `NoneType`
     
     Notes
     -----
-    Rendering uses the active matplotlib backend; for large headless
-    batch jobs select a non-interactive backend first, e.g.
-    ``matplotlib.use('Agg')``.
+    Rendering uses the default matplotlib backend, which for personal machines
+    will likely be interactive (and slow therefore); for large headless
+    batch jobs select a non-interactive backend, e.g. ``matplotlib.use('Agg')``.
     
     A mapper panel keyed ``'<lead> <suffix>'`` (e.g. ``'II strip'``)
     whose key is not itself a lead re-plots that lead, so custom
     layouts can include rhythm strips for any lead.
+    
+    Anticipating this writer will mostly be used to mimic paper ECGs the
+    default of ECGDrawing is slightly altered by removing the GridSpec panel
+    specific splines.
     """
     # /////////////////////////////////////////////////////////////////////////
     # the default layout: the standard clinical print (3x4 grid plus a
@@ -1119,6 +1123,10 @@ default `NoneType`
             )
             fig = drawing.figure
             try:
+                # remove spines to better mimic an ECG image
+                for ax in drawing.axes.values():
+                    for spine in ax.spines.values():
+                        spine.set_visible(False)
                 if self.tile_x:
                     drawing.tile_x_axis()
                 # #### metadata-driven annotation; a missing key is a

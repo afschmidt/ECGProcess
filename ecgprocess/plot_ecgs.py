@@ -989,31 +989,28 @@ optional
     ) -> Self:
         """
         Add free-form templated text annotations to the rendered figure.
-
-        Each annotation is a spec dict pairing a template string with a
-        figure-fraction position; any layout (line breaks, spacing, unit
-        text) lives in the string itself. ``'{key}'`` placeholders are
-        resolved against the MetaData captured from the reader during
-        the `__call__` render; plain strings without placeholders are
-        drawn literally and need no metadata.
-
+        
+        Each annotation is a dict pairing a template string with a
+        figure-fraction position. ``'{key}'`` placeholders are resolved against
+        the MetaData captured from the reader; plain strings without
+        placeholders are drawn literally and need no metadata.
+        
         Parameters
         ----------
         annotations : `list` [`dict` [`str`, `any`]]
-            One spec dict per annotation. Required keys: ``'text'``
+            One dict per annotation. Required keys: ``'text'``
             (`str`, the template) and ``'xy'`` (a 2-item tuple of
             `float`, the position in 0-1 figure-fraction coordinates).
             All remaining keys are forwarded to
             `matplotlib.figure.Figure.text`, merged with the defaults
             ``fontsize=7``, ``ha='left'``, ``va='bottom'``
             (caller-supplied values win).
-
+        
         Returns
         -------
         self : ECGDrawing
-            The instance, allowing chaining after `__call__` and
-            `tile_x_axis`.
-
+            The instance, allowing chaining.
+        
         Raises
         ------
         NotCalledError
@@ -1021,7 +1018,7 @@ optional
         InputValidationError
             If a spec dict is malformed, or a referenced metadata key
             is missing or None.
-
+        
         Notes
         -----
         Templates support ``\\n`` line breaks, format specs such as
