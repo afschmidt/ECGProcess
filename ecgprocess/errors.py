@@ -331,6 +331,42 @@ class Error_MSG(object):  # pragma: no cover
         "and MedianBeats are extracted. Disable one extraction flag "
         "(extract_wave/extract_median) or run write_ecg once per source."
     )
+    # NOTE FIGURE_SOURCE_NOT_EXTRACTED/FIGURE_DUAL_SOURCE and their WFDB_*
+    # counterparts below are near-duplicates that hardcode the writer
+    # class name in the message text. A third single-source writer would
+    # duplicate them again. Candidate for generalising into one
+    # source-guard message pair parameterised by writer name (e.g.
+    # `SOURCE_NOT_EXTRACTED`/`DUAL_SOURCE` taking `{writer}` as well as
+    # `{source}`), revisited during the fn-9...3 cross-writer guard audit
+    # rather than as a standalone rename now.
+    MISSING_WFDB=(
+        "wfdb is required for the `wfdb` writer. Install it with "
+        "`pip install ecgprocess[wfdb]` or `conda install wfdb`."
+    )
+    WFDB_SOURCE_NOT_EXTRACTED=(
+        "WFDBWriter source={!r} requires the corresponding source to be "
+        "extracted; enable extract_wave/extract_median accordingly."
+    )
+    WFDB_DUAL_SOURCE=(
+        "WFDBWriter writes a single signal source per record, but both "
+        "WaveForms and MedianBeats are extracted. Disable one extraction "
+        "flag (extract_wave/extract_median) or run write_ecg once per "
+        "source."
+    )
+    WFDB_MISSING_SF=(
+        "WFDBWriter requires the processed sampling frequency metadata "
+        "`{}`; run the reader with resampling enabled "
+        "(`resample_500=True`) so this field is populated, or use a "
+        "different writer."
+    )
+    WFDB_MISSING_LEAD=(
+        "WFDBWriter requires every lead in record {!r} to be present "
+        "(no None values); missing lead(s): {}."
+    )
+    WFDB_UNEQUAL_LENGTH=(
+        "WFDBWriter requires every lead in record {!r} to share one "
+        "sample length; got lengths {}."
+    )
     ANNOTATE_SPEC=(
         "each annotation spec requires 'text' (`str`) and 'xy' (a 2-item "
         "tuple of numbers); got {!r}."

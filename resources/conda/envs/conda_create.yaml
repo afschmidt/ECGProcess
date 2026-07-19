@@ -15,6 +15,9 @@ dependencies:
   # tensorflow is an optional runtime dependency (tfrecord writer only);
   # it is installed here so the dev environment can run the full test suite
   - tensorflow>=2.16
+  # wfdb is an optional runtime dependency (wfdb writer only); it is
+  # installed here so the dev environment can run the full test suite
+  - wfdb>=4.3.1,<5
   - pytest>=6
   - pytest-mock>=3.0
   - pytest-dependency>=0.5

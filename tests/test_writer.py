@@ -22,6 +22,7 @@ from ecgprocess.writer import (
     TFRecordWriter,
     FigureWriter,
     PixelWriter,
+    WFDBWriter,
     WRITERS,
     register_writer,
     resolve_writer,
@@ -33,6 +34,7 @@ from ecgprocess.writer import (
 # core names
 CTypes = Core.DataTypes
 CMeta = Core.MetaData
+CProc = Core.ProcessingData
 
 # the 12 standard leads in clinical column order
 _LEADS_12 = [
@@ -822,5 +824,177 @@ class TestLazyTensorflow(object):
         ctx = _make_context(tmp_path, e_meta=False, e_median=False)
         with pytest.raises(ImportError, match=r'ecgprocess\[tensorflow\]'):
             TFRecordWriter().write([], wave, [], ctx)
+        # the import is checked before any file is written
+        assert os.listdir(tmp_path) == []
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _make_wfdb_records(leads, n=2, length=50, sf_key=CProc.SF_NEW_W,
+                       fs=500.0):
+    """Signal dicts for `leads` plus metadata carrying the processed fs."""
+    rng = np.random.default_rng(11)
+    sig_list = [
+        {lead: rng.standard_normal(length) for lead in leads}
+        for _ in range(n)
+    ]
+    meta_list = [{sf_key: fs} for _ in range(n)]
+    return meta_list, sig_list
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _make_wfdb_context(target, key_list, e_meta=True, e_wave=True,
+                       e_median=False):
+    """Build a WriteContext for the given (arbitrary-length) key_list."""
+    return WriteContext(
+        e_meta=e_meta, e_wave=e_wave, e_median=e_median,
+        key_list=key_list, target=str(target), chunk_num=None,
+    )
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@pytest.mark.wfdb
+class TestWFDBWriter(object):
+    """
+    Testing the WFDB per-record writer's core surface: registration,
+    round-trip fidelity through `wfdb.rdrecord` (including the
+    `units_field` override), source selection, UID sanitisation, and
+    the consolidated source/precondition guards. Skipped when wfdb is
+    not installed (see conftest.py).
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_registered_and_validates(self):
+        assert WRITERS[TabNames.WRITE_WFDB] is WFDBWriter
+        assert issubclass(WFDBWriter, BaseWriter)
+        validate_writer(WFDBWriter)
+        validate_writer(WFDBWriter())
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_round_trip(self, tmp_path):
+        # the core proof point: header (fs, sig_name, units incl. the
+        # units_field override), physical-value fidelity, and header
+        # comments (UID + meta_fields)
+        import wfdb
+        leads = ['I', 'II', 'V1']
+        meta, wave = _make_wfdb_records(leads, fs=500.0)
+        meta[0]['note'] = 'first'
+        meta[0]['unit_meta'] = 'uV'
+        meta[1]['note'] = 'second'
+        ctx = _make_wfdb_context(tmp_path, ['a', 'b'])
+        WFDBWriter(meta_fields=['note'], units_field='unit_meta').write(
+            meta, wave, [], ctx)
+        assert set(os.listdir(tmp_path)) == {
+            'a.hea', 'a.dat', 'b.hea', 'b.dat'}
+        record = wfdb.rdrecord(str(tmp_path / 'a'))
+        assert record.fs == 500.0
+        assert record.sig_name == leads
+        # record 'a' carries unit_meta -> overrides the 'mV' default
+        assert record.units == ['uV'] * len(leads)
+        # int16 quantisation tolerance: gain/baseline are auto-computed
+        # by wfdb from p_signal, so the round trip is not exact
+        np.testing.assert_allclose(
+            record.p_signal,
+            np.column_stack([wave[0][lead] for lead in leads]),
+            atol=1e-2,
+        )
+        assert record.comments[0] == 'UID: a'
+        assert 'note: first' in record.comments
+        # record 'b' has no unit_meta -> falls back to the 'mV' default
+        record_b = wfdb.rdrecord(str(tmp_path / 'b'))
+        assert record_b.units == ['mV'] * len(leads)
+        assert record_b.comments[0] == 'UID: b'
+        assert 'note: second' in record_b.comments
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_median_source(self, tmp_path):
+        import wfdb
+        leads = ['I', 'II']
+        meta, median = _make_wfdb_records(
+            leads, sf_key=CProc.SF_NEW_M, fs=100.0)
+        ctx = _make_wfdb_context(
+            tmp_path, ['a', 'b'], e_wave=False, e_median=True)
+        WFDBWriter(source='median').write(meta, [], median, ctx)
+        record = wfdb.rdrecord(str(tmp_path / 'a'))
+        assert record.fs == 100.0
+        assert record.sig_name == leads
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_uid_sanitisation(self, tmp_path):
+        import wfdb
+        meta, wave = _make_wfdb_records(['I'], n=1, fs=500.0)
+        ctx = _make_wfdb_context(tmp_path, ['weird id/1!'])
+        WFDBWriter().write(meta, wave, [], ctx)
+        assert set(os.listdir(tmp_path)) == {
+            'weird_id_1_.hea', 'weird_id_1_.dat'}
+        record = wfdb.rdrecord(str(tmp_path / 'weird_id_1_'))
+        assert record.comments[0] == 'UID: weird id/1!'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_error_guards(self, tmp_path):
+        # consolidates the source-selection and rectangular-precondition
+        # guards: each raises InputValidationError and writes nothing.
+        # task fn-9...1's tests are synthetic and pre-clean, so the
+        # precondition violations below are residual/hard errors
+        # (ECGTable's fn-9...2 upstream cleaning is out of scope here).
+        meta, wave = _make_wfdb_records(['I'])
+        _, median = _make_wfdb_records(['I'], sf_key=CProc.SF_NEW_M)
+        # both sources extracted
+        ctx = _make_wfdb_context(
+            tmp_path, ['a', 'b'], e_wave=True, e_median=True)
+        with pytest.raises(InputValidationError):
+            WFDBWriter().write(meta, wave, median, ctx)
+        # the selected source was not extracted
+        ctx = _make_wfdb_context(
+            tmp_path, ['a', 'b'], e_wave=False, e_median=False)
+        with pytest.raises(InputValidationError):
+            WFDBWriter().write(meta, [], [], ctx)
+        # a missing (None) lead
+        meta1, wave1 = _make_wfdb_records(['I', 'II'], n=1, fs=500.0)
+        wave1[0]['II'] = None
+        ctx = _make_wfdb_context(tmp_path, ['a'])
+        with pytest.raises(InputValidationError, match='missing'):
+            WFDBWriter().write(meta1, wave1, [], ctx)
+        # unequal lead lengths within a record
+        meta2, wave2 = _make_wfdb_records(['I', 'II'], n=1, fs=500.0)
+        wave2[0]['II'] = wave2[0]['II'][:-5]
+        with pytest.raises(InputValidationError, match='length'):
+            WFDBWriter().write(meta2, wave2, [], ctx)
+        # the processed sampling frequency is required, no fallback
+        meta3, wave3 = _make_wfdb_records(['I'], n=1, fs=500.0)
+        del meta3[0][CProc.SF_NEW_W]
+        with pytest.raises(
+                InputValidationError, match='sampling frequency'):
+            WFDBWriter().write(meta3, wave3, [], ctx)
+        # fail-fast throughout: nothing is written by any of the above
+        assert os.listdir(tmp_path) == []
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestLazyWFDB(object):
+    """
+    Testing that wfdb is an optional, lazily imported dependency:
+    importing the package must not import wfdb, and using the wfdb
+    writer without wfdb installed must raise an actionable ImportError
+    naming the install route.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_package_import_does_not_import_wfdb(self):
+        # a fresh interpreter is needed: the current test process may
+        # already have wfdb in sys.modules from other tests
+        code = (
+            'import sys; '
+            'import ecgprocess; '
+            'import ecgprocess.writer; '
+            'import ecgprocess.tabular; '
+            "assert 'wfdb' not in sys.modules, "
+            "'wfdb imported at package import time'"
+        )
+        result = subprocess.run(
+            [sys.executable, '-c', code],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_missing_wfdb_raises_actionable_error(
+            self, tmp_path, monkeypatch):
+        # None in sys.modules makes `import wfdb` raise ImportError,
+        # emulating an absent installation regardless of prior imports
+        monkeypatch.setitem(sys.modules, 'wfdb', None)
+        wave = [{'I': np.arange(5.0)}]
+        meta = [{CProc.SF_NEW_W: 500.0}]
+        ctx = _make_wfdb_context(tmp_path, ['a'])
+        with pytest.raises(ImportError, match=r'ecgprocess\[wfdb\]'):
+            WFDBWriter().write(meta, wave, [], ctx)
         # the import is checked before any file is written
         assert os.listdir(tmp_path) == []

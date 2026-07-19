@@ -38,13 +38,15 @@ pip install -r requirements.txt
 # Install the package being built/tested
 pip install .
 
-# Phase 1: run the tests WITHOUT tensorflow installed (the docker image
-# deliberately does not bake it in). tensorflow-marked tests skip and the
-# lazy-import guarantees are exercised in a genuinely tensorflow-free
-# environment.
+# Phase 1: run the tests WITHOUT any optional dependencies installed
+# (the docker image deliberately does not bake them in). tensorflow-
+# and wfdb-marked tests skip and the lazy-import guarantees are
+# exercised in a genuinely dependency-free environment.
 pytest tests
 
-# Phase 2: install the optional tensorflow dependency and re-run the full
-# suite, now including the tfrecord writer tests.
-pip install -r requirements-tensorflow.txt
+# Phase 2: install every optional extra together and re-run the full
+# suite once, now including the tfrecord and wfdb writer tests. Adding
+# a future optional writer (e.g. HDF5) only requires extending the
+# `all` extra in pyproject.toml - no new CI phase.
+pip install .[all]
 pytest tests

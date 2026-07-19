@@ -33,7 +33,8 @@ dependencies = { file = ["requirements.txt"] }
 [tool.setuptools.dynamic.optional-dependencies]
 dev = { file = ["requirements-dev.txt"] }
 tensorflow = { file = ["requirements-tensorflow.txt"] }
-all = { file = ["requirements-tensorflow.txt"] }
+wfdb = { file = ["requirements-wfdb.txt"] }
+all = { file = ["requirements-tensorflow.txt", "requirements-wfdb.txt"] }
 
 [tool.setuptools.packages.find]
 include = ["ecgprocess*"]
@@ -52,6 +53,7 @@ include-package-data = true
 testpaths = ["tests"]
 markers = [
     "tensorflow: test requires the optional tensorflow dependency",
+    "wfdb: test requires the optional wfdb dependency",
 ]
 
 [tool.ruff]

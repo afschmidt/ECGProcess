@@ -437,6 +437,31 @@ class TestTable(object):
         # moment .
         assert set(content) == set(expected_content)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.wfdb
+    def test_write_ecg_wfdb(self, tmp_path):
+        # change current directory
+        os.chdir(tmp_path)
+        # run; a WFDB record is single-source, so median extraction is
+        # disabled (mirrors test_write_ecg_figure). resample_500 defaults
+        # to True on ECGDICOMReader, populating the processed-rate
+        # metadata WFDBWriter requires.
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False)
+        res = ecgtable(verbose=False).write_ecg(
+            parsed_config=parser_dicom, writer='wfdb')
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        content = os.listdir(target)
+        hea_files = sorted(c for c in content if c.endswith('.hea'))
+        assert len(hea_files) == 2
+        assert all(c.replace('.hea', '.dat') in content for c in hea_files)
+        # round-trip the first record
+        import wfdb
+        record = wfdb.rdrecord(os.path.join(target, hea_files[0][:-4]))
+        assert record.fs == 500
+        assert record.units == ['mV'] * len(record.sig_name)
+        assert record.comments[0].startswith('UID: ')
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_write_ecg_tar(self, tmp_path):
         expected_content = ['waveforms.tsv.gz', 'medianbeats.tsv.gz',
                               'metadata.tsv.gz', 'FailedFiles.txt']

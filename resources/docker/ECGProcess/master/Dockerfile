@@ -22,9 +22,9 @@ COPY requirements.txt ./
 COPY requirements-dev.txt ./
 
 # Install build dependencies and Python packages
-# NOTE tensorflow is deliberately NOT baked into the image: CI first runs
-# the test suite without it (tensorflow-marked tests skip) and then
-# installs requirements-tensorflow.txt for a second, full run
+# NOTE tensorflow and wfdb are deliberately NOT baked into the image: CI first runs
+# the test suite without it (wfdb/tensorflow-marked tests skip) and then
+# installs all optional dependencies for a second, full run
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $BUILD_DEPS && \
     pip install --upgrade pip setuptools wheel && \

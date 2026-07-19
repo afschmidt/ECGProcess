@@ -143,6 +143,7 @@ class TabularNames(object):
     WRITE_NPY      = 'npy'
     WRITE_FIGURE   = 'figure'
     WRITE_PIXEL    = 'pixel'
+    WRITE_WFDB     = 'wfdb'
     WRITE_ECG_PATH = 'target_path'
     ID_START       = '_id_start_number'
     KEY            = 'key'
