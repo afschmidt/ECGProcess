@@ -712,8 +712,9 @@ class NpzWriter(NumpyWriter):
     """
     Writes ECG data to a single uncompressed `.npz` archive.
     
-    All enabled sources are bundled into one `ecg_data.npz` file; the
-    metadata column names are written to a `header_metadata.txt` sidecar.
+    All enabled sources are bundled into one `ecg_data.npz` file, which can
+    accomodate information from multiple records; the metadata column names are
+    written to a `header_metadata.txt` sidecar.
     
     Parameters
     ----------
