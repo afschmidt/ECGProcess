@@ -714,7 +714,7 @@ class NpzWriter(NumpyWriter):
     Writes ECG data to a single uncompressed `.npz` archive.
     
     All enabled sources are bundled into one `ecg_data.npz` file, which can
-    accomodate information from multiple records; the metadata column names are
+    accommodate information from multiple records; the metadata column names are
     written to a `header_metadata.txt` sidecar.
     
     Parameters
@@ -1073,7 +1073,8 @@ default `NoneType`
         # both sources would silently drop one and collide on the
         # per-UID filenames
         if ctx.e_wave and ctx.e_median:
-            raise InputValidationError(Error_MSG.FIGURE_DUAL_SOURCE)
+            raise InputValidationError(
+                Error_MSG.DUAL_SOURCE.format(type(self).__name__))
         # #### annotation templates resolve from per-record metadata;
         # without metadata extraction every placeholder would fail, so
         # this is a configuration error and always raises upfront
@@ -1093,7 +1094,8 @@ default `NoneType`
             record_list, extracted = median_list, ctx.e_median
         if not extracted:
             raise InputValidationError(
-                Error_MSG.FIGURE_SOURCE_NOT_EXTRACTED.format(self.source))
+                Error_MSG.SOURCE_NOT_EXTRACTED.format(
+                    type(self).__name__, self.source))
         # #### align the optional metadata with the records
         meta_iter = meta_list if ctx.e_meta else [{}] * len(record_list)
         # #### resolve the layout: user-supplied or the clinical default
@@ -1603,7 +1605,8 @@ class WFDBWriter(BaseWriter):
         wfdb = self._import_wfdb()
         # #### the writer writes exactly one signal source per record
         if ctx.e_wave and ctx.e_median:
-            raise InputValidationError(Error_MSG.WFDB_DUAL_SOURCE)
+            raise InputValidationError(
+                Error_MSG.DUAL_SOURCE.format(type(self).__name__))
         if self.source not in self.SOURCE_MAP:
             raise InputValidationError(Error_MSG.CHOICE_PARM.format(
                 'source', sorted(self.SOURCE_MAP)))
@@ -1614,7 +1617,8 @@ class WFDBWriter(BaseWriter):
             record_list, extracted = median_list, ctx.e_median
         if not extracted:
             raise InputValidationError(
-                Error_MSG.WFDB_SOURCE_NOT_EXTRACTED.format(self.source))
+                Error_MSG.SOURCE_NOT_EXTRACTED.format(
+                    type(self).__name__, self.source))
         sf_key = self._SF_KEY_MAP[self.source]
         # #### align the optional metadata with the records
         meta_iter = meta_list if ctx.e_meta else [{}] * len(record_list)
