@@ -456,7 +456,29 @@ def parsed_config():
         parser_xml2 = config_utils.ConfigParser(tmp_file.name)()
     # adding the mapper
     parser_xml2.map(mapper=config_utils.DataMap())
-    
+
+    # #### XML config file 3 (no leads declared, for testing empty extraction)
+    config_xml3 = {
+        "WaveForms": [],
+        "MedianBeats": [],
+        "MetaData": [
+            "number of leads\tRestingECGMeasurements.MedianSamples.NumberOfLeads",
+            "resolution unit (waveforms)\tStripData.Resolution.@units",
+            "resolution (waveforms)\tStripData.Resolution.#text",
+            "resolution unit (medianbeats)\tRestingECGMeasurements.MedianSamples.Resolution.@units",
+            "resolution (medianbeats)\tRestingECGMeasurements.MedianSamples.Resolution.#text",
+            "sampling frequency (original)\tRestingECGMeasurements.MedianSamples.SampleRate.#text",
+            "sampling frequency unit\tRestingECGMeasurements.MedianSamples.SampleRate.@units",
+            "sampling number (waveforms)\tStripData.ChannelSampleCountTotal",
+            "sampling number (medianbeats)\tRestingECGMeasurements.MedianSamples.ChannelSampleCountTotal",
+        ]
+    }
+    with NamedTemporaryFile("w") as tmp_file:
+        _ = config_file(path=tmp_file.name, text=config_xml3)
+        parser_xml3 = config_utils.ConfigParser(tmp_file.name)()
+    # adding the mapper
+    parser_xml3.map(mapper=config_utils.DataMap())
+
     # #### DICOM config file
     leads = [attr for attr in dir(CLeads) if not attr.startswith("__")]
     config_dicom = {
@@ -497,5 +519,6 @@ def parsed_config():
     return {'parsed_dicom1': parser_dicom,
             'parsed_xml1' : parser_xml,
             'parsed_xml2' : parser_xml2,
+            'parsed_xml3' : parser_xml3,
             }
 

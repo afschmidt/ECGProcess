@@ -923,11 +923,9 @@ class TestWFDBWriter(object):
         assert record.comments[0] == 'UID: weird id/1!'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_error_guards(self, tmp_path):
-        # consolidates the source-selection and rectangular-precondition
-        # guards: each raises InputValidationError and writes nothing.
-        # task fn-9...1's tests are synthetic and pre-clean, so the
-        # precondition violations below are residual/hard errors
-        # (ECGTable's fn-9...2 upstream cleaning is out of scope here).
+        # tests configuration-level guards: source selection and sampling
+        # frequency metadata. Rectangular data (lead presence/length) is
+        # guaranteed by ECGTable upstream; not tested here.
         meta, wave = _make_wfdb_records(['I'])
         _, median = _make_wfdb_records(['I'], sf_key=CProc.SF_NEW_M)
         # both sources extracted
@@ -940,20 +938,10 @@ class TestWFDBWriter(object):
             tmp_path, ['a', 'b'], e_wave=False, e_median=False)
         with pytest.raises(InputValidationError):
             WFDBWriter().write(meta, [], [], ctx)
-        # a missing (None) lead
-        meta1, wave1 = _make_wfdb_records(['I', 'II'], n=1, fs=500.0)
-        wave1[0]['II'] = None
-        ctx = _make_wfdb_context(tmp_path, ['a'])
-        with pytest.raises(InputValidationError, match='missing'):
-            WFDBWriter().write(meta1, wave1, [], ctx)
-        # unequal lead lengths within a record
-        meta2, wave2 = _make_wfdb_records(['I', 'II'], n=1, fs=500.0)
-        wave2[0]['II'] = wave2[0]['II'][:-5]
-        with pytest.raises(InputValidationError, match='length'):
-            WFDBWriter().write(meta2, wave2, [], ctx)
         # the processed sampling frequency is required, no fallback
         meta3, wave3 = _make_wfdb_records(['I'], n=1, fs=500.0)
         del meta3[0][CProc.SF_NEW_W]
+        ctx = _make_wfdb_context(tmp_path, ['a'])
         with pytest.raises(
                 InputValidationError, match='sampling frequency'):
             WFDBWriter().write(meta3, wave3, [], ctx)

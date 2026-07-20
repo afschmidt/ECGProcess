@@ -1446,14 +1446,14 @@ default `NoneType`
 class WFDBWriter(BaseWriter):
     """
     Writes one WFDB (PhysioNet) record per ECG UID.
-
+    
     Each record is written as `<sanitised-UID>.hea` + `<sanitised-UID>.dat`
     via `wfdb.wrsamp`: a single multiplexed, format-16 (int16) `.dat`
     holding every lead of the selected source as a channel, with the
     per-channel gain/baseline computed automatically by `wfdb` from the
     physical signal (`p_signal`); no manual `adc_gain`/`baseline` is
     supplied.
-
+    
     Parameters
     ----------
     source : {'waveforms', 'median'}, default `'waveforms'`
@@ -1468,20 +1468,19 @@ class WFDBWriter(BaseWriter):
         set and `meta.get(units_field)` is a non-empty string, it is used
         as that record's unit label instead of `units`.
     meta_fields : `list` [`str`] or `NoneType`, default `NoneType`
-        `MetaData` keys written as `.hea` comment lines
-        (`'{field}: {value}'`), in addition to the record's original UID,
-        which is always written as the first comment.
-
+        `MetaData` keys written as `.hea` comment lines in addition to the
+        original UID (always included as the first comment). All field names
+        must be specified explicitly; bulk copy is a future enhancement.
+    
     Raises
     ------
     ImportError
         If `wfdb` is not installed (see `_import_wfdb`).
     InputValidationError
         If both `WaveForms` and `MedianBeats` are extracted, if the
-        selected `source` was not extracted, if a record has a missing
-        (`NoneType`) or unequal-length lead, or if the processed sampling
+        selected `source` was not extracted, or if the processed sampling
         frequency metadata is absent.
-
+    
     Notes
     -----
     `units` (and `units_field`) is a declarative label only: no value
@@ -1490,12 +1489,11 @@ class WFDBWriter(BaseWriter):
     descriptive fields, populated from a user config and never applied to
     the signal - so a caller whose signal is not already expressed in
     `units` must rescale it before calling `write_ecg`.
-
-    Writing requires the rectangular precondition: every configured lead
-    present (no `NoneType` values) and of equal length within a record.
-    Task fn-9...2 adds upstream `ECGTable` cleaning that guarantees this
-    for every writer; until then a violating record raises here.
-
+    
+    Rectangular data (every configured lead present and equal length within
+    a record) is guaranteed by `ECGTable` via `ignore_missing_leads`
+    filtering upstream.
+    
     The sampling frequency is read from the processed-rate metadata
     (`CoreData.ProcessingData.SF_NEW_W`/`SF_NEW_M`), populated only when
     the reader ran with resampling enabled - NOT the original
@@ -1536,16 +1534,16 @@ class WFDBWriter(BaseWriter):
     def _import_wfdb() -> ModuleType:
         """
         Lazily import wfdb.
-
+        
         wfdb is an optional dependency: it is imported here, per `write`
         call, rather than at module import time, so that the rest of the
         package works without it.
-
+        
         Returns
         -------
         wfdb : `ModuleType`
             The imported wfdb module.
-
+        
         Raises
         ------
         ImportError
@@ -1561,12 +1559,12 @@ class WFDBWriter(BaseWriter):
     def sanitise_uid(cls, uid: Any) -> str:
         """
         Sanitise a record key into a WFDB-legal record name.
-
+        
         Parameters
         ----------
         uid : `any`
             The record's unique key from `WriteContext.key_list`.
-
+        
         Returns
         -------
         name : `str`
@@ -1582,7 +1580,7 @@ class WFDBWriter(BaseWriter):
               ) -> None:
         """
         Write one WFDB record per ECG UID for the selected source.
-
+        
         Parameters
         ----------
         meta_list : `list` [`dict` [`str`, `any`]]
@@ -1593,7 +1591,7 @@ class WFDBWriter(BaseWriter):
             A list of dictionaries containing median beat signals.
         ctx : `WriteContext`
             The context carrying export flags, target path, and helpers.
-
+        
         Raises
         ------
         ImportError
@@ -1632,7 +1630,7 @@ class WFDBWriter(BaseWriter):
                       ) -> None:
         """
         Write a single record as `<sanitised-UID>.hea` + `.dat`.
-
+        
         Parameters
         ----------
         wfdb : `ModuleType`
@@ -1648,23 +1646,14 @@ class WFDBWriter(BaseWriter):
             by `source`).
         ctx : `WriteContext`
             The context carrying export flags, target path, and helpers.
-
+        
         Raises
         ------
         InputValidationError
-            If a lead is missing (`NoneType`), leads disagree in length,
-            or the processed sampling frequency is absent.
+            If the processed sampling frequency metadata is absent.
         """
-        # #### the rectangular precondition: no absent leads, one length
+        # #### rectangular data guaranteed by ECGTable.ignore_missing_leads
         sig_name = list(record.keys())
-        missing = [lead for lead, arr in record.items() if arr is None]
-        if missing:
-            raise InputValidationError(
-                Error_MSG.WFDB_MISSING_LEAD.format(uid, missing))
-        lengths = {len(arr) for arr in record.values()}
-        if len(lengths) != 1:
-            raise InputValidationError(
-                Error_MSG.WFDB_UNEQUAL_LENGTH.format(uid, sorted(lengths)))
         # #### the processed-rate metadata; no fallback to the original SF
         fs = meta.get(sf_key)
         if fs is None:

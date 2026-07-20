@@ -4,6 +4,49 @@ includes 2D figures - which are strictly speaking tables of pixels.
 
 The module leverages the existing process class instances and based on their
 class attributes extracts the requested data.
+
+## FailedFiles.txt: Failure Causes and Controlling Parameters
+
+Records that fail at any stage are logged to `FailedFiles.txt` with the cause
+that triggered failure. The cause string indicates which ECGTable parameter
+controls whether the record is skipped or raises an error.
+
+### Failure Cause Reference
+
+#### `File permission`
+- **Controlling Parameter**: `ignore_permission` (default: True)
+- **Trigger**: Read or write permission denied on the input file
+- **Behavior**: When False, raises; when True, skips record and logs cause
+
+#### `No data`
+- **Controlling Parameters**: `confirm_wave`, `confirm_median`, `ignore_data`
+- **Trigger**: All requested signal values are None (confirm_wave/median) OR
+  extracted data missing attributes (ignore_data catches AttributeError)
+- **Behavior**: When False, raises; when True, skips record and logs cause
+- **Note**: This cause is used for multiple failure modes. Run with verbose=True
+  to distinguish between missing signal data vs. missing attributes.
+
+#### `Invalid data`
+- **Controlling Parameter**: `ignore_invalid` (default: False)
+- **Trigger**: Input file fails validation (XML schema error, file structure error)
+- **Behavior**: When False, raises; when True, skips record and logs cause
+
+#### `Missing lead(s): [...] [ignore_missing_leads]`
+- **Controlling Parameter**: `ignore_missing_leads` (default: False)
+- **Trigger**: Record has some (but not all) configured leads present after extraction
+- **Behavior**: When False, raises; when True, skips record and logs cause
+- **Note**: Distinct from "No data" (all-None case). Logs parameter name in cause string.
+
+#### `Annotation failed (ignore_data): {...}`
+- **Controlling Parameter**: `ignore_data` (default: False)
+- **Trigger**: Annotation template references missing or None metadata key
+  (write-stage failure in FigureWriter/PixelWriter)
+- **Behavior**: When False, raises; when True, skips record and logs cause
+- **Note**: Parameter name appears in cause string for clarity.
+
+### Default Behavior
+All control parameters default to False (strict mode: raise on any error).
+Set any to True to skip failing records and continue batch processing.
 """
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

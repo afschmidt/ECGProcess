@@ -157,7 +157,8 @@ class TabularNames(object):
     DURATION_PADDED = 'duration padded (sec)'
     # FailedFiles.txt cause label for the strictly-partial missing-lead
     # skip; kept distinct from the all-None `"No data"` cause.
-    MISSING_LEAD_CAUSE = 'Missing lead(s): {}'
+    # Controlled by: ignore_missing_leads
+    MISSING_LEAD_CAUSE = 'Missing lead(s): {} [ignore_missing_leads]'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class FileNames(object):
@@ -191,8 +192,8 @@ class WriteNames(object):
                   'use `{}` instead.')
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # the FailedFiles.txt cause for a write-stage annotation failure:
-    # {error}
-    ANNOT_CAUSE = 'Annotation failed: {}'
+    # Controlled by: ignore_data
+    ANNOT_CAUSE = 'Annotation failed (ignore_data): {}'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # the pixel writer channel formats
     RGBA = 'rgba'

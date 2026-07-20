@@ -391,7 +391,7 @@ class Error_MSG(object):  # pragma: no cover
         'PixelWriter stacking requires every rendered figure in a chunk '
         'to share the same (height, width); got shapes {}. Render all '
         'records with one fixed figure size '
-        '(`ECGStyle(figsize=..., dpi=...)`).'
+        '(`ECGStyle(figsize=..., dpi=...)`). '
     )
     WRITER_INVALID=(
         'the supplied writer failed validation with {} violation(s):\n{}'
