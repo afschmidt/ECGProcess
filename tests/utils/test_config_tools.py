@@ -114,6 +114,23 @@ class TestBaseExtraction(object):
         assert getattr(mapped, ConfigNames.WaveForms) !=\
             getattr(mapped, ConfigNames.MedianBeats)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_get_section_declared_only(self):
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name)
+            parser = config_utils.ConfigParser(tmp_file.name)()
+        parser.map(mapper=config_utils.DataMap())
+        # default keeps the full padded lead template (unchanged behaviour)
+        assert len(parser.get_section('WaveForms')) == 12
+        # declared_only returns exactly the declared leads (I, aVF), with
+        # no None-mapped padding entries.
+        declared = parser.get_section('WaveForms', declared_only=True)
+        assert set(declared.keys()) == {'I', 'aVF'}
+        assert all(value is not None for value in declared.values())
+        # the same for a single-lead median section
+        assert set(
+            parser.get_section('MedianBeats', declared_only=True).keys()
+        ) == {'II'}
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_wrong_config_parers(self):
         wrong_config = {
             "WaveForms": [

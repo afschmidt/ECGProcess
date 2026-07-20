@@ -122,6 +122,7 @@ class TabularNames(object):
     SKIP_PERM      = 'ignore_permission'
     SKIP_DATA      = 'ignore_data'
     SKIP_INVALID   = 'ignore_invalid'
+    SKIP_MISSING   = 'ignore_missing_leads'
     CONFIRM_META   = 'confirm_meta'
     CONFIRM_WAVE   = 'confirm_wave'
     CONFIRM_MEDIAN = 'confirm_median'
@@ -154,6 +155,9 @@ class TabularNames(object):
     SN_W_PADDED    = 'sampling number padded (waveforms)'
     SN_M_PADDED    = 'sampling number padded (medianbeats)'
     DURATION_PADDED = 'duration padded (sec)'
+    # FailedFiles.txt cause label for the strictly-partial missing-lead
+    # skip; kept distinct from the all-None `"No data"` cause.
+    MISSING_LEAD_CAUSE = 'Missing lead(s): {}'
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class FileNames(object):

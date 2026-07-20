@@ -24,6 +24,7 @@ from ecgprocess.errors import (
     XMLValidationError,
     NotCalledError,
     InputValidationError,
+    MissingTagError,
     is_type,
     Error_MSG,
     STDOUT_MSG,
@@ -299,7 +300,8 @@ class ECGTable(object):
         return signals
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __call__(self, ignore_permission:bool = True, ignore_data:bool = False,
-                 ignore_invalid:bool = False, confirm_meta:bool=False,
+                 ignore_invalid:bool = False, ignore_missing_leads:bool = False,
+                 confirm_meta:bool=False,
                  confirm_wave:bool=False, confirm_median=False,
                  verbose:bool=False,
                  ) -> Self:
@@ -323,7 +325,11 @@ class ECGTable(object):
             be skipped. Note, to limit I/O calls schema validation will not be
             conducted during __call__ and instead will be applied when
             processing data using any method with utilises `_loop_table`.
-        confirm_meta, confirm_wave, confirm_meta : `bool`, default False
+        ignore_missing_leads : `bool`, default False
+            Will raise an error when any configured lead is missing
+            (incomplete or entirely absent). Set to True to skip these files
+            with an entry in FailedFiles.txt.
+        confirm_meta, confirm_wave, confirm_median : `bool`, default False
             Whether to skip extraction the entire file when the indicated
             attribute is empty.
         verbose : `bool`, default `False`
@@ -345,12 +351,14 @@ class ECGTable(object):
         is_type(ignore_data, bool)
         is_type(ignore_permission, bool)
         is_type(ignore_invalid, bool)
+        is_type(ignore_missing_leads, bool)
         is_type(verbose, bool)
         # #### assign to self
         self.verbose = verbose
         setattr(self, TabNames.SKIP_PERM, ignore_permission)
         setattr(self, TabNames.SKIP_DATA, ignore_data)
         setattr(self, TabNames.SKIP_INVALID, ignore_invalid)
+        setattr(self, TabNames.SKIP_MISSING, ignore_missing_leads)
         setattr(self, TabNames.CONFIRM_META, confirm_meta)
         setattr(self, TabNames.CONFIRM_WAVE, confirm_wave)
         setattr(self, TabNames.CONFIRM_MEDIAN, confirm_median)
@@ -396,6 +404,67 @@ class ECGTable(object):
             )
         # #### Return
         return self
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def _check_missing_leads(self, signals:dict[str, Any],
+                             configured_leads:list[str], path:str,
+                             uid:str,
+                             ) -> bool:
+        """
+        Detect missing (incomplete or absent) configured leads for one record.
+        
+        Raises `MissingTagError` if `ignore_missing_leads=False`, or
+        records the record in the skip list if `ignore_missing_leads=True`.
+        `confirm_wave`/`confirm_median` remain independent validators for
+        extraction completeness.
+        
+        Parameters
+        ----------
+        signals : `dict` [`str`, `Any`]
+            Signal dict for one source; values are arrays or `None`.
+        configured_leads : `list` [`str`]
+            Leads the config declares for this source.
+        path : `str`
+            File path, recorded when skipping.
+        uid : `str`
+            Record identifier, named in error/skip message.
+        
+        Returns
+        -------
+        skip : `bool`
+            `True` if any configured lead is missing and `ignore_missing_leads`
+            is set; `False` if record is complete.
+        
+        Raises
+        ------
+        MissingTagError
+            When any configured lead is missing and `ignore_missing_leads=False`.
+        """
+        # total requested leads
+        total = len(configured_leads)
+        if total == 0:
+            return False
+        # the leads actually present
+        present = sum(signals.get(lead) is not None
+                      for lead in configured_leads)
+        # Complete record: all configured leads present
+        if present == total:
+            return False
+        missing = [lead for lead in configured_leads
+                   if signals.get(lead) is None]
+        missing_str = ', '.join(str(lead) for lead in missing)
+        # Raise an error if we do not skip
+        if not getattr(self, TabNames.SKIP_MISSING):
+            raise MissingTagError(
+                missing_str,
+                message=Error_MSG.MISSING_LEADS.format(uid, missing_str),
+            )
+        # skip-and-record via the existing write-stage failure list
+        if not hasattr(self, TabNames.FAILED_REC_L):
+            setattr(self, TabNames.FAILED_REC_L, [])
+        getattr(self, TabNames.FAILED_REC_L).append(
+            (path, TabNames.MISSING_LEAD_CAUSE.format(missing_str))
+        )
+        return True
     # /////////////////////////////////////////////////////////////////////////
     def _loop_table(self, path_list:list[str],
                     parsed_config:ConfigParser,
@@ -465,6 +534,13 @@ class ECGTable(object):
         # instead using the supplied path_list.
         if not hasattr(self, TabNames.CPATH_L):
             raise NotCalledError()
+        # The requested leads
+        wave_leads = list(
+            parsed_config.get_section(
+                CTypes.WaveForms, declared_only=True).keys())
+        median_leads = list(
+            parsed_config.get_section(
+                CTypes.MedianBeats, declared_only=True).keys())
         # #### extract data
         meta_list, wave_list, median_list = [[] for _ in range(3)]
         # the lists will be appended after each iteration
@@ -615,6 +691,11 @@ class ECGTable(object):
                         if all(v is None for v in wave_temp.values()):
                             getattr(self,TabNames.NO_DATA_L).append(p)
                             continue
+                    # Partial missing-lead check, independent of
+                    # confirm_wave; raises or skips per ignore_missing_leads.
+                    if self._check_missing_leads(
+                            wave_temp, wave_leads, p, key):
+                        continue
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         getattr(self,TabNames.NO_DATA_L).append(p)
@@ -643,6 +724,11 @@ class ECGTable(object):
                         if all(v is None for v in median_temp.values()):
                             getattr(self,TabNames.NO_DATA_L).append(p)
                             continue
+                    # Partial missing-lead check, independent of
+                    # confirm_median; raises or skips per ignore_missing_leads.
+                    if self._check_missing_leads(
+                            median_temp, median_leads, p, key):
+                        continue
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
                         getattr(self,TabNames.NO_DATA_L).append(p)

@@ -61,6 +61,7 @@ xml_schema_error_path = list_xml_paths()['example_1_schema_error']
 parser_dicom = parsed_config()['parsed_dicom1']
 parser_xml = parsed_config()['parsed_xml1']
 parser_xml2 = parsed_config()['parsed_xml2']
+parser_xml3 = parsed_config()['parsed_xml3']
 
 # #### remove waveform and use this in a fixture
 def remove_waveform(in_path, out_path):
@@ -80,6 +81,43 @@ def dicom_no_waveform(tmp_path):
     out_path = tmp_path / "second_no_waveform.dcm"
     remove_waveform(second_path, out_path)
     return [first_path, str(out_path)]
+
+# #### engineer functions producing deterministic lead sets, independent of
+# the example file contents, used to exercise the missing-lead check.
+_TEN = np.ones(10, dtype=float)
+
+def _eng_partial(signals, **kwargs):
+    """Strictly-partial: lead I present, II and III missing."""
+    return {CLeads.I: _TEN.copy(), CLeads.II: None, CLeads.III: None}
+
+def _eng_all_none(signals, **kwargs):
+    """All configured leads absent: the all-None case, not partial."""
+    return {CLeads.I: None, CLeads.II: None}
+
+def _eng_null_derived(signals, **kwargs):
+    """
+    Null a single derived limb lead (aVR) on the real, post-derivation
+    signal dict, leaving every other extracted/derived lead present.
+    """
+    out = dict(signals)
+    out[CLeads.aVR] = None
+    return out
+
+class _EngPartialFirst(object):
+    """
+    Stateful engineer that makes only the first record it sees
+    strictly-partial (aVR nulled) and passes later records through
+    unchanged, so a batch has both a skipped and a surviving record.
+    """
+    def __init__(self):
+        self.calls = 0
+    def __call__(self, signals, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            out = dict(signals)
+            out[CLeads.aVR] = None
+            return out
+        return signals
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest
@@ -175,12 +213,12 @@ class TestTable(object):
         assert getattr(res, TabNames.KEY_L) == ['1']
         # kwargs to reader call, setting skip_root to false results
         # in no data being extracted because the config files does not match
-        # anymore. Adjusting the reader to deal with this lack of key data.
+        # anymore. Use a config with no leads declared (0/0 = complete).
         ecgreader = ECGXMLReader(resample_500=False)
         ecgtable = ECGTable(ecgreader, path_list=[xml_file_path], )
         res = ecgtable()
         meta, wave, median = res._loop_table(
-            getattr(res, TabNames.CPATH_L), parsed_config=parser_xml,
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_xml3,
             unique=False, kwargs_reader_call={'skip_root':False},
         )
         # assert (m is None for m in meta[0].values())
@@ -620,3 +658,127 @@ class TestWriteEcgAnnotateFailures(object):
         assert len(rows) == 2
         assert all('Annotation failed' in r for r in rows)
         assert all('absent key' in r for r in rows)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestMissingLeads(object):
+    """
+    Testing ECGTable.ignore_missing_leads: a record whose configured lead
+    set is only partially extracted (some leads present, some None) is
+    raised on by default and skipped-and-recorded when the flag is set,
+    while the all-None "No data" path is left unchanged.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_partial_raises_by_default(self):
+        # lead I present, II and III missing -> strictly partial -> raise
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=[dicom_file_path],
+                            extract_median=False, engineer_wave=_eng_partial)
+        res = ecgtable()
+        with pytest.raises(MissingTagError) as excinfo:
+            res._loop_table(getattr(res, TabNames.CPATH_L),
+                            parsed_config=parser_dicom)
+        # message names the record UID and the specific missing leads
+        uid = getattr(res, TabNames.KEY_L)[0]
+        msg = str(excinfo.value)
+        assert uid in msg
+        assert CLeads.II in msg
+        assert CLeads.III in msg
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_partial_skips_and_records_when_ignored(self):
+        # two records, both strictly partial -> both skipped and recorded
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False, engineer_wave=_eng_partial)
+        res = ecgtable(ignore_missing_leads=True)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom)
+        # no record survives extraction
+        assert meta == wave == median == []
+        # both are recorded via the write-stage failure list with a cause
+        # distinct from the all-None "No data" label
+        failed = getattr(res, TabNames.FAILED_REC_L)
+        assert len(failed) == 2
+        for path, cause in failed:
+            assert path in dicom_path_list
+            assert cause != 'No data'
+            assert cause
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_derived_lead_none_flagged(self):
+        # post-derivation: null a derived limb lead (aVR) on the real,
+        # post-get_limb_leads dict; a None derived lead counts as missing.
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=[dicom_file_path],
+                            extract_median=False,
+                            engineer_wave=_eng_null_derived)
+        res = ecgtable()
+        with pytest.raises(MissingTagError) as excinfo:
+            res._loop_table(getattr(res, TabNames.CPATH_L),
+                            parsed_config=parser_dicom)
+        assert CLeads.aVR in str(excinfo.value)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_all_none_uses_no_data_path_not_missing_leads(self):
+        # all configured leads None: not partial. Default flag must NOT
+        # raise; with confirm_wave it follows the unchanged "No data" path.
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=[dicom_file_path],
+                            extract_median=False, engineer_wave=_eng_all_none)
+        res = ecgtable(confirm_wave=True)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom)
+        # skipped through the all-None "No data" path
+        assert wave == []
+        assert len(getattr(res, TabNames.NO_DATA_L)) == 1
+        # not recorded as a missing-lead failure
+        assert not hasattr(res, TabNames.FAILED_REC_L)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_all_none_skips_when_ignored(self):
+        # all-None with ignore_missing_leads=True: skipped and recorded
+        # with a cause distinct from "No data" (which is confirm_wave/median)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=[dicom_file_path],
+                            extract_median=False, engineer_wave=_eng_all_none)
+        res = ecgtable(ignore_missing_leads=True)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom)
+        # record is skipped (not extracted)
+        assert wave == []
+        # recorded in the missing-leads failure list, not the "No data" list
+        failed = getattr(res, TabNames.FAILED_REC_L)
+        assert len(failed) == 1
+        path, cause = failed[0]
+        assert path == dicom_file_path
+        assert cause != 'No data'
+        assert 'Missing lead' in cause
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_median_source_partial_raises(self):
+        # the check applies to the medianbeats source too, and fires
+        # regardless of which writer is later selected
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=[dicom_file_path],
+                            extract_wave=False, engineer_median=_eng_partial)
+        res = ecgtable()
+        with pytest.raises(MissingTagError):
+            res._loop_table(getattr(res, TabNames.CPATH_L),
+                            parsed_config=parser_dicom)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_partial_no_longer_crashes_array_writer(self, tmp_path):
+        # the latent bug: a partially-missing record reaching the array
+        # family (npz) crashed in signal_dicts_to_numpy_array with a
+        # TypeError. With ignore_missing_leads it is skipped before it
+        # gets there; the surviving record is written cleanly.
+        os.chdir(tmp_path)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False, signal_length_w=5000,
+                            engineer_wave=_EngPartialFirst())
+        res = ecgtable(ignore_missing_leads=True).write_ecg(
+            parsed_config=parser_dicom, writer='npz')
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        with np.load(os.path.join(target, 'ecg_data.npz')) as data:
+            wave = data[CTypes.WaveForms]
+        # first record skipped, second written: no TypeError raised
+        assert wave.shape[0] == 1
+        with open(os.path.join(target, 'FailedFiles.txt')) as fh:
+            rows = [r for r in fh.read().splitlines() if r]
+        assert len(rows) == 1
+        assert rows[0].split('\t')[-1] != 'No data'

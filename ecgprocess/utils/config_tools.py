@@ -500,15 +500,20 @@ class ConfigParser(object):
     def get_section(self,
                     section_name:Literal['MetaData', 'WaveForms', 'MedianBeats',
                                          'OtherData'],
+                    declared_only:bool=False,
                     ) -> dict[str, str]:
         """
         Retrieve the parsed data for a specific section of the configuration
         file.
-        
+
         Parameters
         ----------
         section_name : {'MetaData', 'WaveForms', 'MedianBeats', 'OtherData'}
             Name of the section to retrieve.
+        declared_only : `bool`, default `False`
+            Whether to return the default 12 lead template with a `None`
+            mapping for every lead the config does not declare, or instead
+            only return the config declared mappings.
         
         Returns
         -------
@@ -525,6 +530,7 @@ class ConfigParser(object):
             If the requested section has no data.
         """
         is_type(section_name, str)
+        is_type(declared_only, bool)
         SECTION_NAME = [ConfigNames.OtherData, ConfigNames.WaveForms,
             ConfigNames.MedianBeats, ConfigNames.MetaData]
         # confirm the choice is correct
@@ -538,6 +544,11 @@ class ConfigParser(object):
         res = getattr(getattr(self, ConfigNames.MAPPER), section_name)
         if res is None:
             raise KeyError(f"key {section_name} is not available.")
+        # Return declared config keys/leads only.
+        # NOTE remember to add a pytest for this
+        if declared_only:
+            res = {key: value for key, value in res.items()
+                   if value is not None}
         return res
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):

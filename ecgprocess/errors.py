@@ -314,6 +314,12 @@ class Error_MSG(object):  # pragma: no cover
     MISSING_DICOM='`{}` not found in DICOM file.'
     MISSING_XML='`{}` not found in XML file.'
     MISSING_KEY='key `{}` not found in object `{}`.'
+    MISSING_LEADS=(
+        "record {!r} has a partially-extracted lead set: at least one "
+        "configured lead is present but the following configured lead(s) "
+        "were not extracted (None): {}. Set `ignore_missing_leads=True` "
+        "on the ECGTable call to skip such records instead of raising."
+    )
     MISSING_ATTR='attribute `{}` not found in object `{}`.'
     CHOICE_PARM='`{}` is constrained to `{}`.'
     MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
@@ -440,7 +446,7 @@ class MissingTagError(Exception):  # pragma: no cover
     '''
     Raises an error identifying the missing DICOM tag.
     '''
-    def __init__(self, tag_name):
+    def __init__(self, tag_name, message: str | None = None):
         """
         Initialise MissingTagError.
         
@@ -448,9 +454,16 @@ class MissingTagError(Exception):  # pragma: no cover
         ----------
         tag_name : `str`
             Name of the DICOM tag that could not be found.
+        message : `str` or `None`, optional
+            A fully-formed error message. When supplied it is used
+            verbatim instead of the default ``"Tag '<tag_name>' is
+            missing."`` template, allowing callers to name a record and its
+            missing leads.
         """
         self.tag_name = tag_name
-        super().__init__(f"Tag '{tag_name}' is missing.")
+        super().__init__(
+            message if message is not None else f"Tag '{tag_name}' is missing."
+        )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class NotCalledError(Exception):  # pragma: no cover
