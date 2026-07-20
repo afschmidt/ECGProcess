@@ -4,63 +4,51 @@
 
 #### Added
 
-* `duration (waveforms, sec)` and `duration (medianbeats, sec)`
-  metadata columns, derived per source as sampling number divided by
-  the original sampling frequency
-* `sampling frequency (processed, waveforms)` and `sampling frequency
-  (processed, medianbeats)` metadata columns, each recording the rate
-  of its own stored signal source
-* `_signal_duration` and `_resample_source` helpers in `process_xml`
-* `ecgprocess.writer` module housing all output writers, with a
-  `WRITERS` registry, the `register_writer` decorator, `resolve_writer`
-  dispatch, the `BaseWriter` abstract base, and the `WriteContext`
-  container
-* `writer` parameter on `ECGTable.write_ecg`, accepting a registry-key
-  string, a `BaseWriter` subclass or instance, or a bare callable, so
-  users can plug in their own output formats
-* `NpyWriter` writing one `.npy` file per data source (registry key
-  `npy`)
-* `FigureWriter` rendering one ECG image per record via `ECGDrawing`
-  (registry key `figure`)
-* `PixelWriter` stacking rendered figures into an NHWC pixel tensor per
-  chunk (registry key `pixel`)
-* `ECGDrawing.annotate` for templated, metadata-driven figure
-  annotation
-* `signal_dicts_to_long_table` public helper in `ecgprocess.writer`
-* `FileNames` constants class in `constants.py` standardising every
-  written filename
-* `tensorflow` and `all` pip extras for the optional TensorFlow
-  dependency
-* `validate_writer` in `ecgprocess.writer`, a data-free pre-flight
-  check for user-supplied writer classes, collecting all contract
-  violations into a single `InputValidationError`
-* `docs/source/custom_writers.rst` guide documenting the custom-writer
-  contract with a worked `JsonWriter` example
-* `resources/examples/validate_writer.ipynb` example notebook
-  demonstrating `validate_writer`
+* Metadata columns: duration and processed sampling frequency for each
+  signal source (waveforms, median beats), replacing the single fixed
+  values
+* Helper functions `_signal_duration` and `_resample_source` in
+  `process_xml`
+* Writer module (`ecgprocess.writer`): `WRITERS` registry, dispatch
+  mechanism, abstract base class, and context container for pluggable
+  output formats
+* `writer` parameter on `ECGTable.write_ecg` accepting registry keys,
+  writer instances, or bare callables
+* Writer implementations: `NpyWriter` (one file per source), `FigureWriter`
+  (ECG images), `PixelWriter` (stacked rasters)
+* `ECGDrawing.annotate` for metadata-driven templated annotations
+* Public helper `signal_dicts_to_long_table` for tabular conversion
+* Filename constants (`FileNames`) standardising output names across
+  writers
+* Optional dependency pattern for TensorFlow and wfdb: lazy imports,
+  pip/conda/CI wiring, pytest markers for test skipping
+* `validate_writer` pre-flight check for user-supplied writer classes
+* Documentation: custom-writer contract guide and validation example
+  notebook
+* `WFDBWriter` for PhysioNet WFDB records, with configurable source and
+  metadata output
+* `meta_fields='all'` option to copy all metadata keys to WFDB comments
+* `ignore_missing_leads` parameter on `ECGTable` to skip partially-
+  extracted records instead of raising
+* Error messages for missing optional dependencies and validation
+  failures
 
 #### Changed
 
-* Median beats are resampled to a length derived from their own
-  duration rather than a fixed 600 samples; a source median which is
-  not 1.2 s is no longer silently rescaled to 1.2 s
-* Waveform and median beat resampling are gated independently, so a
-  file carrying median beats but no `sampling number (waveforms)` now
-  resamples its median beats instead of silently skipping them
-* `Warn_MSG.RESAMPLE_NO_DURATION` names the source it skipped
-* `DURATION_PADDED` is derived from the processed waveform sampling
-  frequency
-* Output-writing logic is extracted from `ecgprocess.tabular` into the
-  new `ecgprocess.writer` module; `ECGTable.write_ecg` now dispatches
-  through the writer registry
-* TensorFlow is now an optional dependency, imported lazily only by
-  `TFRecordWriter`; the base install no longer requires it
+* Median beat resampling is now duration-derived (not a fixed 600
+  samples); resampling is independently gated for waveforms and median
+  beats
+* Padded-duration metadata is derived from processed (not original)
+  sampling frequency
+* Output-writing logic moved to `ecgprocess.writer` module; `ECGTable.
+  write_ecg` dispatches through writer registry instead of hard-coded
+  logic
+* TensorFlow moved to optional dependency (lazy import in `TFRecordWriter`)
 
 #### Deprecated
 
-* The `file_type` argument of `ECGTable.write_ecg`; use `writer`
-  instead. It will be removed in version 2.0.0, and its legacy
-  `'numpy'` value maps to the `'npz'` writer
+* The `file_type` argument of `ECGTable.write_ecg` (use `writer`
+  instead; removed in v2.0.0, legacy `'numpy'` → `'npz'`)
 
 #### Removed
 

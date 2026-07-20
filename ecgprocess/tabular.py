@@ -738,6 +738,7 @@ class ECGTable(object):
                     # confirm_wave; raises or skips per ignore_missing_leads.
                     if self._check_missing_leads(
                             wave_temp, wave_leads, p, key):
+                        getattr(self, TabNames.KEY_L).pop()
                         continue
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):
@@ -771,6 +772,7 @@ class ECGTable(object):
                     # confirm_median; raises or skips per ignore_missing_leads.
                     if self._check_missing_leads(
                             median_temp, median_leads, p, key):
+                        getattr(self, TabNames.KEY_L).pop()
                         continue
                 except AttributeError as AE:
                     if getattr(self, TabNames.SKIP_DATA):

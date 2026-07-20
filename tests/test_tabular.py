@@ -782,3 +782,36 @@ class TestMissingLeads(object):
             rows = [r for r in fh.read().splitlines() if r]
         assert len(rows) == 1
         assert rows[0].split('\t')[-1] != 'No data'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.wfdb
+    def test_write_ecg_wfdb_ignore_missing_leads(self, tmp_path):
+        """
+        WFDB writer + ignore_missing_leads: a partially-missing record is
+        skipped and recorded in FailedFiles.txt; the surviving record is
+        written cleanly with .hea + .dat files.
+        """
+        import wfdb
+        os.chdir(tmp_path)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False, signal_length_w=5000,
+                            engineer_wave=_EngPartialFirst())
+        res = ecgtable(ignore_missing_leads=True).write_ecg(
+            parsed_config=parser_dicom, writer='wfdb')
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        # first record skipped, second written: exactly one .hea file
+        hea_files = [f for f in os.listdir(target) if f.endswith('.hea')]
+        assert len(hea_files) == 1
+        # matching .dat file exists
+        dat_file = hea_files[0].replace('.hea', '.dat')
+        assert os.path.isfile(os.path.join(target, dat_file))
+        # FailedFiles.txt records the skipped record
+        with open(os.path.join(target, 'FailedFiles.txt')) as fh:
+            rows = [r for r in fh.read().splitlines() if r]
+        assert len(rows) == 1
+        # failure cause is not "No data" (must be missing-lead message)
+        assert rows[0].split('\t')[-1] != 'No data'
+        # round-trip: wfdb.rdrecord succeeds
+        record = wfdb.rdrecord(os.path.join(target, hea_files[0][:-4]))
+        assert record.fs == 500.0  # processed frequency
+        assert len(record.sig_name) == 12  # all leads (rectangular data)

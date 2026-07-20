@@ -34,7 +34,9 @@ and in chunked on-disk workflows:
 * rendered figure images (PNG, PDF, SVG);
 * stacked pixel tensors for imaging-based machine learning;
 * TensorFlow ``tf.data.Dataset`` objects (``tfrecord``), an optional
-  extra installed with ``pip install ecgprocess[tensorflow]``.
+  extra installed with ``pip install ecgprocess[tensorflow]``;
+* WFDB (PhysioNet) records, an optional extra installed with ``pip
+  install ecgprocess[wfdb]``.
 
 Users can also register their own writers to add new output formats.
 

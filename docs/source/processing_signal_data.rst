@@ -33,6 +33,8 @@ To process ECG data ECGprocess leverages three key components
   - ``'tensorflow'`` — binary ``tfrecord`` files (requires the
     optional TensorFlow dependency, ``pip install
     ecgprocess[tensorflow]``);
+  - ``'wfdb'`` — one WFDB (PhysioNet) record per ECG UID (requires
+    the optional wfdb dependency, ``pip install ecgprocess[wfdb]``);
   - ``'figure'`` — a rendered ECG image per record (PNG, PDF, SVG);
   - ``'pixel'`` — stacked pixel tensors for imaging-based machine
     learning.
