@@ -1469,10 +1469,13 @@ class WFDBWriter(BaseWriter):
         A `MetaData` key optionally overriding `units` per record: when
         set and `meta.get(units_field)` is a non-empty string, it is used
         as that record's unit label instead of `units`.
-    meta_fields : `list` [`str`] or `NoneType`, default `NoneType`
+    meta_fields : `list` [`str`], `str` ('all'), or `NoneType`, default `NoneType`
         `MetaData` keys written as `.hea` comment lines in addition to the
-        original UID (always included as the first comment). All field names
-        must be specified explicitly; bulk copy is a future enhancement.
+        original UID (always included as the first comment). Pass `'all'` to
+        write every key in the record's `meta` dict; alternatively, specify
+        field names explicitly as a list. The `'all'` sentinel is resolved at
+        write time against the actual metadata keys, so different records may
+        produce different comment sets.
     
     Raises
     ------
@@ -1520,17 +1523,20 @@ class WFDBWriter(BaseWriter):
     # /////////////////////////////////////////////////////////////////////////
     def __init__(self, source: str = 'waveforms', units: str = 'mV',
                  units_field: str | None = None,
-                 meta_fields: list[str] | None = None,
+                 meta_fields: list[str] | str | None = None,
                  ) -> None:
         """Initialise the WFDB writer."""
         is_type(source, str)
         is_type(units, str)
         is_type(units_field, (str, type(None)))
-        is_type(meta_fields, (list, type(None)))
+        is_type(meta_fields, (list, str, type(None)))
+        if isinstance(meta_fields, str) and meta_fields != 'all':
+            raise InputValidationError(
+                f"meta_fields string must be 'all', got {meta_fields!r}.")
         self.source = source
         self.units = units
         self.units_field = units_field
-        self.meta_fields = meta_fields or []
+        self.meta_fields = meta_fields if meta_fields is not None else []
     # /////////////////////////////////////////////////////////////////////////
     @staticmethod
     def _import_wfdb() -> ModuleType:
@@ -1557,23 +1563,23 @@ class WFDBWriter(BaseWriter):
             raise ImportError(Error_MSG.MISSING_WFDB) from exc
         return wfdb
     # /////////////////////////////////////////////////////////////////////////
-    @classmethod
-    def sanitise_uid(cls, uid: Any) -> str:
-        """
-        Sanitise a record key into a WFDB-legal record name.
+    # @classmethod
+    # def sanitise_uid(cls, uid: Any) -> str:
+    #     """
+    #     Sanitise a record key into a WFDB-legal record name.
         
-        Parameters
-        ----------
-        uid : `any`
-            The record's unique key from `WriteContext.key_list`.
+    #     Parameters
+    #     ----------
+    #     uid : `any`
+    #         The record's unique key from `WriteContext.key_list`.
         
-        Returns
-        -------
-        name : `str`
-            `uid` cast to `str` with every character outside
-            `[A-Za-z0-9_-]` replaced by `'_'`.
-        """
-        return cls._INVALID_CHARS.sub('_', str(uid))
+    #     Returns
+    #     -------
+    #     name : `str`
+    #         `uid` cast to `str` with every character outside
+    #         `[A-Za-z0-9_-]` replaced by `'_'`.
+    #     """
+    #     return cls._INVALID_CHARS.sub('_', str(uid))
     # /////////////////////////////////////////////////////////////////////////
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
@@ -1627,6 +1633,31 @@ class WFDBWriter(BaseWriter):
                 ctx.key_list, record_list, meta_iter, strict=True):
             self._write_record(wfdb, uid, record, meta, sf_key, ctx)
     # /////////////////////////////////////////////////////////////////////////
+    @staticmethod
+    def _sanitise_comment_value(value: Any, field: str) -> str:
+        """
+        Sanitise a metadata value for use in a .hea comment line.
+        
+        WFDB comment lines are newline-delimited; embedded newlines
+        would break the format. This method replaces all newline
+        sequences (\r\n, \r, \n) with single spaces.
+        
+        Parameters
+        ----------
+        value : `any`
+            The metadata value.
+        field : `str`
+            The metadata field name (for the comment line).
+        
+        Returns
+        -------
+        comment : `str`
+            A single-line comment string safe for .hea files.
+        """
+        str_value = str(value)
+        sanitised = re.sub(r'[\r\n]+', ' ', str_value)
+        return f'{field}: {sanitised}'
+    # /////////////////////////////////////////////////////////////////////////
     def _write_record(self, wfdb: ModuleType, uid: Any,
                       record: dict[str, "np.ndarray"],
                       meta: dict[str, Any], sf_key: str,
@@ -1673,13 +1704,20 @@ class WFDBWriter(BaseWriter):
         # #### assemble the multiplexed physical signal (n_samples, n_sig)
         p_signal = np.column_stack(
             [np.asarray(record[lead], dtype=float) for lead in sig_name])
+        # #### resolve meta_fields 'all' sentinel at write time
+        if isinstance(self.meta_fields, str) and self.meta_fields == 'all':
+            fields_to_write = list(meta.keys())
+        else:
+            fields_to_write = self.meta_fields
         # #### header comments: the original UID, then the requested fields
+        # (sanitise comment values to prevent newlines from breaking .hea format)
         comments = [f'UID: {uid}'] + [
-            f'{field}: {meta.get(field)}' for field in self.meta_fields]
+            self._sanitise_comment_value(meta.get(field), field)
+            for field in fields_to_write]
         # #### write the record; write_dir must already exist (ECGTable
         # creates ctx.target before any writer is invoked)
         wfdb.wrsamp(
-            self.sanitise_uid(uid),
+            self._INVALID_CHARS.sub('_', str(uid)),
             fs=fs,
             units=[units] * len(sig_name),
             sig_name=sig_name,

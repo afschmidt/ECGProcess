@@ -947,6 +947,80 @@ class TestWFDBWriter(object):
             WFDBWriter().write(meta3, wave3, [], ctx)
         # fail-fast throughout: nothing is written by any of the above
         assert os.listdir(tmp_path) == []
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_meta_fields_all_sentinel(self, tmp_path):
+        """Verify meta_fields='all' copies every key in the record's metadata."""
+        import wfdb
+        leads = ['I', 'II']
+        meta, wave = _make_wfdb_records(leads, fs=500.0)
+        # Add various metadata fields to the records
+        meta[0]['note'] = 'important notes'
+        meta[0]['acquisition_date'] = '2026-07-20'
+        meta[0]['custom_field'] = 'custom_value'
+        meta[0]['unit_meta'] = 'uV'
+        ctx = _make_wfdb_context(tmp_path, ['a', 'b'])
+
+        # Write with meta_fields='all'
+        WFDBWriter(meta_fields='all').write(meta, wave, [], ctx)
+
+        # Read back the first record
+        record = wfdb.rdrecord(str(tmp_path / 'a'))
+
+        # Verify all metadata keys appear in comments
+        comments_str = ' '.join(record.comments)
+        assert 'note: important notes' in comments_str
+        assert 'acquisition_date: 2026-07-20' in comments_str
+        assert 'custom_field: custom_value' in comments_str
+        assert 'unit_meta: uV' in comments_str
+        assert 'UID: a' in record.comments[0]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_meta_fields_all_with_newlines(self, tmp_path):
+        """Verify metadata values with newlines are sanitised to single lines."""
+        import wfdb
+        leads = ['I']
+        meta, wave = _make_wfdb_records(leads, n=1, fs=500.0)
+        # Add metadata with various newline patterns
+        meta[0]['multiline_note'] = 'line 1\nline 2\nline 3'
+        meta[0]['carriage_return'] = 'before\rafter'
+        meta[0]['windows_newline'] = 'before\r\nafter'
+        ctx = _make_wfdb_context(tmp_path, ['a'])
+
+        WFDBWriter(meta_fields='all').write(meta, wave, [], ctx)
+
+        record = wfdb.rdrecord(str(tmp_path / 'a'))
+
+        # All comments should be single-line strings (no actual newlines in them)
+        for comment in record.comments:
+            assert '\n' not in comment
+            assert '\r' not in comment
+
+        # The values should be present but with newlines replaced by spaces
+        comments_str = ' '.join(record.comments)
+        assert 'multiline_note: line 1 line 2 line 3' in comments_str
+        assert 'carriage_return: before after' in comments_str
+        assert 'windows_newline: before after' in comments_str
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_meta_fields_explicit_list_unchanged(self, tmp_path):
+        """Verify explicit list meta_fields=[...] behavior is unchanged."""
+        import wfdb
+        leads = ['I']
+        meta, wave = _make_wfdb_records(leads, n=1, fs=500.0)
+        meta[0]['field_a'] = 'value_a'
+        meta[0]['field_b'] = 'value_b'
+        meta[0]['field_c'] = 'value_c'
+        ctx = _make_wfdb_context(tmp_path, ['a'])
+
+        # Write with explicit list (should only include field_a and field_b)
+        WFDBWriter(meta_fields=['field_a', 'field_b']).write(meta, wave, [], ctx)
+
+        record = wfdb.rdrecord(str(tmp_path / 'a'))
+        comments_str = ' '.join(record.comments)
+
+        # Only explicitly requested fields should appear
+        assert 'field_a: value_a' in comments_str
+        assert 'field_b: value_b' in comments_str
+        assert 'field_c' not in comments_str  # Not requested
+        assert 'UID: a' in record.comments[0]
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestLazyWFDB(object):
