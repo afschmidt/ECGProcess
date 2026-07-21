@@ -155,13 +155,16 @@ class DataMap(object):
     Attributes
     ----------
     WaveForms : `dict` [`str`, `str`]
-        A config dict mapping the twelve ECG leads.
+        A config dict mapping ECG leads.
     MedianBeats : `dict` [`str`, `str`]
-        A config dict mapping the twelve ECG leads.
+        A config dict mapping ECG leads.
     MetaData : `dict` [`str`, `str`]
         A dictionary containing metadata attributes and their values.
     OtherData : `dict` [`str`, `str`], default `NoneType`
         An optional dictionary for additional data mappings.
+    extra_leads : `tuple` [`str`], default `()`
+        Additional lead names to accept in WaveForms/MedianBeats
+        sections beyond the standard 12.
     
     Methods
     -------
@@ -179,13 +182,17 @@ class DataMap(object):
     >>> data_map = DataMap()
     >>> data_map.get_attributes()
     ['WaveForms', 'MedianBeats', 'MetaData']
+    >>> data_map_with_extra = DataMap(extra_leads=('V7', 'V3R'))
+    >>> 'V7' in data_map_with_extra.WaveForms
+    True
     
     Notes
     -----
     The class is intended to work in conjunction with a config file processed
     using `ConfigParser.map(DataMap)`. DataMap ensures any privileged
     attributes omitted from the config are added and set to None, and prevents
-    the config file to be altered after processing.
+    the config file to be altered after processing. Extra lead names can be
+    specified to extend the standard 12-lead set.
     """
     # setting attributes
     WaveForms: dict = field(default_factory=lambda: PrivilegedData(
@@ -194,6 +201,7 @@ class DataMap(object):
         _data=DataMap.get_leads()).to_dict())
     MetaData: dict = field(default_factory=lambda: PrivilegedData().to_dict())
     OtherData: dict | None = None
+    extra_leads: tuple[str, ...] = field(default_factory=tuple)
     _VALIDATE_ATTR = (
         ConfigNames.WaveForms, ConfigNames.MedianBeats,
         ConfigNames.MetaData, ConfigNames.OtherData
@@ -211,6 +219,23 @@ class DataMap(object):
         is_type(self.MedianBeats, dict, 'MedianBeats')
         is_type(self.MetaData, dict, 'MetaData')
         is_type(self.OtherData, (type(None), dict), 'OtherData')
+        is_type(self.extra_leads, (tuple, list), 'extra_leads')
+        # #### validate extra_leads content
+        standard_leads = set(self.get_leads().keys())
+        extra_set = set()
+        for lead in self.extra_leads:
+            is_type(lead, str, 'extra_leads element')
+            if lead in standard_leads:
+                raise InputValidationError(
+                    Error_MSG.EXTRA_LEAD_RESERVED.format(lead))
+            if lead in extra_set:
+                raise InputValidationError(
+                    Error_MSG.EXTRA_LEAD_DUPLICATE.format(lead))
+            extra_set.add(lead)
+        # #### merge extra leads into WaveForms and MedianBeats
+        for lead in self.extra_leads:
+            self.WaveForms[lead] = None
+            self.MedianBeats[lead] = None
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @property
     def VALIDATE_ATTR(self) -> tuple:
@@ -235,9 +260,10 @@ class DataMap(object):
         """
         is_type(all_, bool)
         if all_ == True:
-            res = list(self.__dict__.keys())
+            res = list(self._VALIDATE_ATTR)
         else:
-            res = [at for at, val in self.__dict__.items() if val is not None]
+            res = [at for at in self._VALIDATE_ATTR
+                   if getattr(self, at) is not None]
         return res
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def keys(self, attr_name: str | None = None,) -> list[str]:
@@ -429,16 +455,18 @@ class ConfigParser(object):
             An instance of the `DataMap` class, which is expected to have
             attributes corresponding to the parsed data sections (e.g., headers
             or types). These attributes will be updated with the data parsed by
-            this class.
+            this class. Can optionally include `extra_leads` to extend the
+            standard 12-lead set.
         
         Notes
         -----
         The method does not return anything and simply creates the `mapper`
         attribute.
         """
-        WRONG = ('Attribute `{}` is outside the allowed for key set for `{}`.'
+        WRONG = ('Attribute `{}` is outside the allowed key set for `{}`.'
                  'Please update your configuration file to only list allowed '
-                 'attribute names. For example, consult the mapper object.')
+                 'attribute names, or specify additional lead names in '
+                 'mapper.extra_leads. For example, consult the mapper object.')
         # ### make sure the instance was called
         if len(getattr(self, ConfigNames.data)) == 0:
             raise NotCalledError
@@ -453,11 +481,13 @@ class ConfigParser(object):
                 f"corresponding attributes for all required data types."
             )
         # ### class instances
-        # setting up the signal data
-        lead_keys = mapper.get_leads()
-        wave_data = PrivilegedData(_data=lead_keys.copy())
-        median_data = PrivilegedData(_data=lead_keys.copy())
-        lead_keys = lead_keys.keys()
+        # setting up the signal data with extra_leads
+        standard_leads = mapper.get_leads()
+        extra_leads_dict = {l: None for l in mapper.extra_leads}
+        combined_leads = {**standard_leads, **extra_leads_dict}
+        wave_data = PrivilegedData(_data=combined_leads.copy())
+        median_data = PrivilegedData(_data=combined_leads.copy())
+        lead_keys = combined_leads.keys()
         # setting up the meta/other data
         meta_data_req = PrivilegedData()
         req_keys = meta_data_req.keys()
@@ -505,7 +535,7 @@ class ConfigParser(object):
         """
         Retrieve the parsed data for a specific section of the configuration
         file.
-
+        
         Parameters
         ----------
         section_name : {'MetaData', 'WaveForms', 'MedianBeats', 'OtherData'}

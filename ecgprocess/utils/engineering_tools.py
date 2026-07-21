@@ -187,8 +187,8 @@ def signal_standardise_res(
     target_resolution:float = 5., **kwargs,
 ) -> dict[str, np.ndarray]:
     """
-    Standardise the resolution signal by adjusting the amplitude scale by the
-    ratio of the source and target solution.
+    Standardise the resolution (i.e. sensitivity) signal by adjusting the
+    amplitude scale by the ratio of the source and target solution.
     
     Parameters
     ----------
@@ -201,9 +201,9 @@ def signal_standardise_res(
         The target resolution.
     **kwargs
         Additional keyword arguments, which must include a dictionary under
-        the key `TabNames.META_DICT`. This dictionary should contain:
-        - wave_channel_sens : float
-            The wave channel sensitivity/resolution for channel i.
+        the key ``'meta_dict'``. This dictionary should contain keys
+        matching the `resolution_name` parameter including the internally added
+        suffix, e.g., wave_channel_sen_0.
     
     Returns
     -------
@@ -218,9 +218,24 @@ def signal_standardise_res(
     
     Notes
     -----
-    The function will apply a scaling factor of
-    source_resolution/target_resolution to ensure the returned signal has the
-    desired target uV.
+    The function applies a scaling factor of
+    target_resolution / resolution_current to ensure the returned signal
+    has the desired target sensitivity.
+    
+    Resolution/sensitivity describes how many microvolts of real ECG signal
+    each raw sample value represents (e.g. a sensitivity of 5.0 means 1 raw unit
+    equals 5 μV).
+     
+    
+    Examples
+    --------
+    Rescale signal amplitude from 10 μV/sample to 5 μV/sample:
+    
+    >>> signals = {'I': np.array([100, 200, 300])}
+    >>> meta_dict = {'meta_dict': {'wave_channel_sens_0': 10.0}}
+    >>> rescaled = signal_standardise_res(signals, target_resolution=5.0, **meta_dict)
+    >>> rescaled['I']  # Scaled by factor 5/10 = 0.5
+    array([ 50., 100., 150.])
     """
     # constants - these values should be in meta_dict
     sens = resolution_name
