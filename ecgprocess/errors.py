@@ -320,6 +320,14 @@ class Error_MSG(object):  # pragma: no cover
         "were not extracted (None): {}. Set `ignore_missing_leads=True` "
         "on the ECGTable call to skip such records instead of raising."
     )
+    EXTRA_LEAD_RESERVED=(
+        "`{}` is a reserved lead name (part of the standard 12-lead set); "
+        "choose a different name for extra_leads."
+    )
+    EXTRA_LEAD_DUPLICATE=(
+        "lead name `{}` appears more than once in extra_leads; "
+        "all lead names must be unique."
+    )
     MISSING_ATTR='attribute `{}` not found in object `{}`.'
     CHOICE_PARM='`{}` is constrained to `{}`.'
     MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
