@@ -213,6 +213,48 @@ class TestBaseExtraction(object):
         assert len(parser2.get_section('WaveForms')) == 12
         assert parser3 == parser2
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_datamap_extra_leads(self):
+        """DataMap with extra_leads adds them to WaveForms and MedianBeats."""
+        mapper = config_utils.DataMap(extra_leads=('V7', 'V3R'))
+        assert 'V7' in mapper.WaveForms
+        assert 'V3R' in mapper.MedianBeats
+        assert mapper.WaveForms['V7'] is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_datamap_extra_leads_collision_reserved(self):
+        """DataMap raises when extra_leads collides with standard lead names."""
+        with pytest.raises(InputValidationError):
+            config_utils.DataMap(extra_leads=('I',))
+        with pytest.raises(InputValidationError):
+            config_utils.DataMap(extra_leads=('V7', 'V6'))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_datamap_extra_leads_collision_duplicate(self):
+        """DataMap raises on duplicate names within extra_leads."""
+        with pytest.raises(InputValidationError):
+            config_utils.DataMap(extra_leads=('V7', 'V7'))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_config_parser_extra_leads(self):
+        """ConfigParser accepts extra leads via DataMap(extra_leads=...)."""
+        extra_config = {
+            "WaveForms": [
+                "I\tLead_I_name",
+                "V7\tLead_V7_name",
+            ],
+            "MetaData": [
+                "sampling frequency (original)\tSamplingFrequency",
+                "sampling number (waveforms)\tNumberOfWaveformSamples",
+            ]
+        }
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=extra_config)
+            parser = config_utils.ConfigParser(tmp_file.name)()
+        # Rejects without extra_leads
+        with pytest.raises(KeyError):
+            parser.map(mapper=config_utils.DataMap())
+        # Accepts with extra_leads declared
+        parser.map(mapper=config_utils.DataMap(extra_leads=('V7',)))
+        wave_section = parser.get_section('WaveForms')
+        assert wave_section['V7'] == 'Lead_V7_name'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_parse_missing_file_raises(self):
         """ConfigParser.parse() must raise FileNotFoundError for absent config."""
         missing = "/tmp/ecgprocess_nonexistent_config_abc123.cfg"

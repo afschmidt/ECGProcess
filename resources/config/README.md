@@ -60,10 +60,44 @@ Here the RHS will depend on the specific file that is being processed.
 The LHS names are privileged, meaning that the processing methods will ignore
 any other words or characters that do not exactly match the provided example. 
 
-_Note_: you can completely omit these headers, or only specify a subset of 
-lead names.
-The processing methods will simply assign `None` values to missing
-lead names. 
+### Custom and extra lead names
+
+By default, WaveForms and MedianBeats sections accept only the standard 12
+lead names: `I`, `II`, `III`, `aVR`, `aVL`, `aVF`, `V1–V6`.
+
+**Fewer leads** — declare a subset of these 12 names; the remainder will be
+`None`. For example, configure only `I`, `II`, and `V1–V6` if your data has
+only 8 recorded leads, and the derived limb leads (`III`, `aVR`, `aVL`,
+`aVF`) can be computed by post-processing when needed.
+
+**Additional/non-standard leads** — if your data includes extra leads beyond
+the standard 12 (e.g., `V7`, `V8`, `V9` for orthogonal vectors, or `V3R`,
+`V4R` for right-sided precordials), pass `extra_leads` to the `DataMap`
+instance before mapping the config file:
+
+```python
+from ecgprocess.utils.config_tools import ConfigParser, DataMap
+
+# Parse the config file with extra_leads declared
+parser = ConfigParser(path='my_config.cnf')()
+mapper = DataMap(extra_leads=('V7', 'V8', 'V3R'))
+parser.map(mapper=mapper)
+```
+
+The config file's LHS names may now reference the extra leads:
+
+```bash
+[WaveForms]
+I                       StripData.WaveformData_0.#text
+...
+V6                      StripData.WaveformData_11.#text
+V7                      StripData.WaveformData_12.#text
+V8                      StripData.WaveformData_13.#text
+V3R                     StripData.WaveformData_14.#text
+```
+
+Validation will reject duplicate names within `extra_leads` and names that
+collide with the standard 12 lead set.
 
 ### MetaData and OtherData
 
