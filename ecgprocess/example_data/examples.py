@@ -480,13 +480,13 @@ def parsed_config():
     parser_xml3.map(mapper=config_utils.DataMap())
 
     # #### DICOM config file
-    leads = [attr for attr in dir(CLeads) if not attr.startswith("__")]
+    leads = CLeads.values()
     config_dicom = {
         "WaveForms": [
-            f"{getattr(CLeads, lead)}\tWaveformData.ECG_Leads_{idx}"
+            f"{lead}\tWaveformData.ECG_Leads_{idx}"
             for idx, lead in enumerate(leads)],
         "MedianBeats": [
-            f"{getattr(CLeads, lead)}\tWaveformData.Median_Beats_{idx}"
+            f"{lead}\tWaveformData.Median_Beats_{idx}"
             for idx, lead in enumerate(leads)],
         "MetaData": [
             "unique identifier\tSOP Instance UID",

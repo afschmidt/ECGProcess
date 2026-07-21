@@ -21,7 +21,7 @@ class CoreData:
     # /////////////////////////////////////////////////////////////////////////
     class Leads:
         '''
-        The internally used lead names.
+        The internally used lead names (standard 12-lead ECG).
         '''
         I   = 'I'
         II  = 'II'
@@ -35,6 +35,14 @@ class CoreData:
         V4  = 'V4'
         V5  = 'V5'
         V6  = 'V6'
+        # #### Capture all lead values (excludes private attributes and methods)
+        _ALL = tuple(v for k, v in vars().items()
+                     if not k.startswith('_') and not callable(v))
+        
+        @classmethod
+        def values(cls):
+            '''Return all lead names in standard order.'''
+            return cls._ALL
     # /////////////////////////////////////////////////////////////////////////
     class MetaData:
         '''
@@ -51,6 +59,14 @@ class CoreData:
         SF_U    = 'sampling frequency unit'
         SN_W    = 'sampling number (waveforms)'
         SN_M    = 'sampling number (medianbeats)'
+        # #### Capture all metadata field values (excludes private attributes and methods)
+        _ALL = tuple(v for k, v in vars().items()
+                     if not k.startswith('_') and not callable(v))
+        
+        @classmethod
+        def values(cls):
+            '''Return all metadata field names in standard order.'''
+            return cls._ALL
     # /////////////////////////////////////////////////////////////////////////
     class ProcessingData:
         '''
@@ -67,6 +83,67 @@ class CoreData:
         SF_NEW_M  = 'sampling frequency (processed, medianbeats)'
         RESAMPLE  = 'resample_500'
         AUG_LEADS = 'augment_leads'
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class PrivilegedNames(object):
+    '''
+    Registry of names that users cannot freely override in config files
+    or when extending the system (e.g., extra_leads).
+    
+    Names are derived from CoreData so this registry stays in sync
+    automatically.
+    
+    Examples
+    --------
+    >>> PrivilegedNames.is_reserved('I')
+    True
+    >>> PrivilegedNames.is_reserved('V7')
+    False
+    >>> len(PrivilegedNames.LEADS)
+    12
+    >>> len(PrivilegedNames.METADATA)
+    10
+    '''
+    # #### Standard 12 ECG lead names
+    LEADS = CoreData.Leads.values()
+    # #### Privileged metadata field names (10)
+    METADATA = CoreData.MetaData.values()
+    # #### All reserved names (union for quick lookup)
+    ALL = frozenset(LEADS + METADATA)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @classmethod
+    def is_reserved(cls, name: str) -> bool:
+        '''
+        Check if a name is reserved/privileged.
+        
+        Parameters
+        ----------
+        name : `str`
+            Name to check.
+        
+        Returns
+        -------
+        `bool`
+            `True` if the name is reserved, `False` otherwise.
+        '''
+        return name in cls.ALL
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __str__(self) -> str:
+        '''User-friendly string representation of reserved names.'''
+        lines = ['Privileged & Reserved Names', '=' * 27, '']
+        lines.append('Standard ECG Leads (12):')
+        lines.append('  ' + ', '.join(self.LEADS))
+        lines.append('')
+        lines.append('Privileged Metadata Fields (10):')
+        for i, field in enumerate(self.METADATA, 1):
+            lines.append(f'  {i:2d}. {field}')
+        return '\n'.join(lines)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __repr__(self) -> str:
+        '''Developer-friendly representation.'''
+        return (f"PrivilegedNames(leads={len(self.LEADS)}, "
+                f"metadata={len(self.METADATA)}, "
+                f"total={len(self.ALL)})")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class UtilsReaderNames(object):

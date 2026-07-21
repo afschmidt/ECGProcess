@@ -69,6 +69,7 @@ Documentation
 
    processing_signal_data
    configuration_files
+   privileged_names
    custom_writers
 
 .. toctree::

@@ -210,8 +210,7 @@ class DataMap(object):
     @staticmethod
     def get_leads():
         """Initialising the leads names to None"""
-        lead_attr = [attr for attr in dir(CLeads) if not attr.startswith('__')]
-        return {getattr(CLeads, l): None for l in lead_attr}
+        return {lead: None for lead in CLeads.values()}
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __post_init__(self):
         """Validating inputs."""

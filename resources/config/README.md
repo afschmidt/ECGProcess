@@ -99,6 +99,20 @@ V3R                     StripData.WaveformData_14.#text
 Validation will reject duplicate names within `extra_leads` and names that
 collide with the standard 12 lead set.
 
+### Reserved and Privileged Names
+
+The following names are reserved and cannot be used in `extra_leads` or as
+custom field names:
+
+**Standard ECG leads (12):** I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6
+
+**Privileged metadata fields (10):** unique identifier, number of leads,
+resolution unit (waveforms), resolution unit (medianbeats),
+resolution (waveforms), resolution (medianbeats), sampling frequency (original),
+sampling frequency unit, sampling number (waveforms), sampling number (medianbeats)
+
+For the programmatic API, see `ecgprocess.PrivilegedNames`. 
+
 ### MetaData and OtherData
 
 Metadata data can essentially contain any other type of data aside from the 
