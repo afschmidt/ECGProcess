@@ -4,6 +4,11 @@
 
 #### Added
 
+* `extra_leads` parameter on `DataMap`, allowing WaveForms and MedianBeats
+  config sections to declare custom lead names beyond the standard 12
+* `PrivilegedNames` registry in `ecgprocess.constants` (public API via
+  `from ecgprocess import PrivilegedNames`), documenting all reserved lead and
+  metadata field names
 * Metadata columns: duration and processed sampling frequency for each
   signal source (waveforms, median beats), replacing the single fixed
   values
@@ -22,7 +27,8 @@
   writers
 * Optional dependency pattern for TensorFlow and wfdb: lazy imports,
   pip/conda/CI wiring, pytest markers for test skipping
-* `validate_writer` pre-flight check for user-supplied writer classes
+* `WriterValidator` class (replacing `validate_writer` function) with
+  `describe()` classmethod for reference checklist of BaseWriter contract
 * Documentation: custom-writer contract guide and validation example
   notebook
 * `WFDBWriter` for PhysioNet WFDB records, with configurable source and
@@ -35,6 +41,11 @@
 
 #### Changed
 
+* `validate_writer` function renamed to `WriterValidator` class (constructor
+  validates, no longer returns None on success)
+* `WriteContext` docstring now explicitly states required vs optional fields
+  using numpydoc markers, and documents the shared-mutable-state behavior of
+  `failed_records` (append, never reassign)
 * Median beat resampling is now duration-derived (not a fixed 600
   samples); resampling is independently gated for waveforms and median
   beats

@@ -815,3 +815,25 @@ class TestMissingLeads(object):
         record = wfdb.rdrecord(os.path.join(target, hea_files[0][:-4]))
         assert record.fs == 500.0  # processed frequency
         assert len(record.sig_name) == 12  # all leads (rectangular data)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+class TestBuildWriteContext(object):
+    """Tests for ECGTable._build_write_context method."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_build_write_context_missing_key_list_raises_input_validation_error(self):
+        """
+        _build_write_context raises InputValidationError when key_list (KEY_L) is not set.
+        
+        This enforces the internal guarantee that KEY_L must be populated by
+        _loop_table before _build_write_context is called.
+        """
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=[dicom_file_path])
+        # Call ECGTable.__call__ to initialize attributes
+        ecgtable()
+        # Manually remove KEY_L to simulate the error condition
+        if hasattr(ecgtable, TabNames.KEY_L):
+            delattr(ecgtable, TabNames.KEY_L)
+        # _build_write_context should raise InputValidationError when KEY_L is missing
+        with pytest.raises(InputValidationError, match="key_list.*must be set"):
+            ecgtable._build_write_context(target='.', chunk_num=None)

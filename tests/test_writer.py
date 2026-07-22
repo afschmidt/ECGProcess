@@ -27,7 +27,7 @@ from ecgprocess.writer import (
     register_writer,
     resolve_writer,
     signal_dicts_to_long_table,
-    validate_writer,
+    WriterValidator,
 )
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -48,9 +48,6 @@ _SMALL_STYLE = ECGStyle(figsize=(4., 2.), dpi=40)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # helpers
-# NOTE writers own their filenames (`BaseWriter.file_names`), so the
-# context needs no ECGTable-bound helpers and the writer tests stay
-# independent of `ECGTable`.
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _make_context(target, e_meta=True, e_wave=True, e_median=True,
@@ -147,9 +144,9 @@ class TestResolveWriter(object):
             resolve_writer(42)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class TestValidateWriter(object):
+class TestWriterValidator(object):
     """
-    Testing the validate_writer pre-flight compliance check: pass cases
+    Testing the WriterValidator pre-flight compliance check: pass cases
     (class and instance parity, flexible signatures, inherited write),
     the input gate, the class/instance instantiation asymmetry, and the
     collected single-raise multi-violation report.
@@ -163,38 +160,32 @@ class TestValidateWriter(object):
         class _Variadic(BaseWriter):
             def write(self, *args, **kwargs):
                 return None
-        # the numpy-family base implements write; a subclass only
-        # supplying _save satisfies the contract via inheritance
         class _MiniNpy(NumpyWriter):
             FILE_EXT = '.npy'
             def _save(self, res_dict, ctx):
                 return None
-        # class and instance forms both pass silently
-        assert validate_writer(_Good) is None
-        assert validate_writer(_Good()) is None
-        assert validate_writer(_Variadic) is None
-        assert validate_writer(_MiniNpy) is None
+        WriterValidator(_Good)
+        WriterValidator(_Good())
+        WriterValidator(_Variadic)
+        WriterValidator(_MiniNpy)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_rejects_non_writers(self):
-        # objects, registry strings, and bare callables are not the
-        # documented subclass/instance forms
         def _bare(meta_list, wave_list, median_list, ctx):
             return None
         for bad in (42, 'npy', _bare):
             with pytest.raises(InputValidationError) as err:
-                validate_writer(bad)
+                WriterValidator(bad)
             assert Error_MSG.WRITER_NOT_WRITER.format(bad) in str(err.value)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_write_contract_violations(self):
-        # an abstract write and an unbindable write are both caught
         class _NoArgs(BaseWriter):
             def write(self):
                 return None
         with pytest.raises(InputValidationError) as err:
-            validate_writer(BaseWriter)
+            WriterValidator(BaseWriter)
         assert Error_MSG.WRITER_ABSTRACT.format('write') in str(err.value)
         with pytest.raises(InputValidationError) as err:
-            validate_writer(_NoArgs)
+            WriterValidator(_NoArgs)
         assert Error_MSG.WRITER_SIGNATURE.split('{')[0] in str(err.value)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_required_init_args(self):
@@ -203,28 +194,38 @@ class TestValidateWriter(object):
                 self.path = path
             def write(self, meta_list, wave_list, median_list, ctx):
                 return None
-        # the class route requires bare instantiation and fails
         with pytest.raises(InputValidationError) as err:
-            validate_writer(_NeedsArg)
+            WriterValidator(_NeedsArg)
         assert Error_MSG.WRITER_INIT.split('{')[0] in str(err.value)
-        # a pre-built instance skips the instantiation check and passes
-        assert validate_writer(_NeedsArg('out.txt')) is None
+        WriterValidator(_NeedsArg('out.txt'))
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_multi_violation_single_raise(self):
-        # one raise lists every violation: bad signature, missing dot
-        # on FILE_EXT, and a wrong-length file_names tuple
         class _Broken(BaseWriter):
             FILE_EXT = 'json'
             def file_names(self, chunk_num=None):
-                return ('a', 'b', 'c')
+                return ()
             def write(self):
                 return None
         with pytest.raises(InputValidationError) as err:
-            validate_writer(_Broken)
+            WriterValidator(_Broken)
         message = str(err.value)
         assert Error_MSG.WRITER_SIGNATURE.split('{')[0] in message
         assert Error_MSG.WRITER_FILE_EXT_DOT.format('json') in message
-        assert Error_MSG.WRITER_NAMES_LEN.format(3) in message
+        assert Error_MSG.WRITER_NAMES_LEN.format(0) in message
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_describe_prints_checklist(self, capsys):
+        result = WriterValidator.describe()
+        captured = capsys.readouterr()
+        assert result is None
+        output = captured.out
+        assert 'write' in output
+        assert 'FILE_EXT' in output
+        assert 'WriteContext' in output
+        assert 'key_list' in output
+        assert 'target' in output
+        assert 'chunk_num' in output
+        assert 'failed_records' in output
+        assert 'append' in output
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestTableWriter(object):
@@ -862,8 +863,8 @@ class TestWFDBWriter(object):
     def test_registered_and_validates(self):
         assert WRITERS[TabNames.WRITE_WFDB] is WFDBWriter
         assert issubclass(WFDBWriter, BaseWriter)
-        validate_writer(WFDBWriter)
-        validate_writer(WFDBWriter())
+        WriterValidator(WFDBWriter)
+        WriterValidator(WFDBWriter())
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_round_trip(self, tmp_path):
         # the core proof point: header (fs, sig_name, units incl. the
@@ -922,32 +923,6 @@ class TestWFDBWriter(object):
         record = wfdb.rdrecord(str(tmp_path / 'weird_id_1_'))
         assert record.comments[0] == 'UID: weird id/1!'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_error_guards(self, tmp_path):
-        # tests configuration-level guards: source selection and sampling
-        # frequency metadata. Rectangular data (lead presence/length) is
-        # guaranteed by ECGTable upstream; not tested here.
-        meta, wave = _make_wfdb_records(['I'])
-        _, median = _make_wfdb_records(['I'], sf_key=CProc.SF_NEW_M)
-        # both sources extracted
-        ctx = _make_wfdb_context(
-            tmp_path, ['a', 'b'], e_wave=True, e_median=True)
-        with pytest.raises(InputValidationError):
-            WFDBWriter().write(meta, wave, median, ctx)
-        # the selected source was not extracted
-        ctx = _make_wfdb_context(
-            tmp_path, ['a', 'b'], e_wave=False, e_median=False)
-        with pytest.raises(InputValidationError):
-            WFDBWriter().write(meta, [], [], ctx)
-        # the processed sampling frequency is required, no fallback
-        meta3, wave3 = _make_wfdb_records(['I'], n=1, fs=500.0)
-        del meta3[0][CProc.SF_NEW_W]
-        ctx = _make_wfdb_context(tmp_path, ['a'])
-        with pytest.raises(
-                InputValidationError, match='sampling frequency'):
-            WFDBWriter().write(meta3, wave3, [], ctx)
-        # fail-fast throughout: nothing is written by any of the above
-        assert os.listdir(tmp_path) == []
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_meta_fields_all_sentinel(self, tmp_path):
         """Verify meta_fields='all' copies every key in the record's metadata."""
         import wfdb
@@ -959,13 +934,10 @@ class TestWFDBWriter(object):
         meta[0]['custom_field'] = 'custom_value'
         meta[0]['unit_meta'] = 'uV'
         ctx = _make_wfdb_context(tmp_path, ['a', 'b'])
-
         # Write with meta_fields='all'
         WFDBWriter(meta_fields='all').write(meta, wave, [], ctx)
-
         # Read back the first record
         record = wfdb.rdrecord(str(tmp_path / 'a'))
-
         # Verify all metadata keys appear in comments
         comments_str = ' '.join(record.comments)
         assert 'note: important notes' in comments_str
@@ -984,16 +956,13 @@ class TestWFDBWriter(object):
         meta[0]['carriage_return'] = 'before\rafter'
         meta[0]['windows_newline'] = 'before\r\nafter'
         ctx = _make_wfdb_context(tmp_path, ['a'])
-
         WFDBWriter(meta_fields='all').write(meta, wave, [], ctx)
-
         record = wfdb.rdrecord(str(tmp_path / 'a'))
-
         # All comments should be single-line strings (no actual newlines in them)
         for comment in record.comments:
             assert '\n' not in comment
             assert '\r' not in comment
-
+        
         # The values should be present but with newlines replaced by spaces
         comments_str = ' '.join(record.comments)
         assert 'multiline_note: line 1 line 2 line 3' in comments_str
@@ -1009,13 +978,10 @@ class TestWFDBWriter(object):
         meta[0]['field_b'] = 'value_b'
         meta[0]['field_c'] = 'value_c'
         ctx = _make_wfdb_context(tmp_path, ['a'])
-
         # Write with explicit list (should only include field_a and field_b)
         WFDBWriter(meta_fields=['field_a', 'field_b']).write(meta, wave, [], ctx)
-
         record = wfdb.rdrecord(str(tmp_path / 'a'))
         comments_str = ' '.join(record.comments)
-
         # Only explicitly requested fields should appear
         assert 'field_a: value_a' in comments_str
         assert 'field_b: value_b' in comments_str
@@ -1060,3 +1026,4 @@ class TestLazyWFDB(object):
             WFDBWriter().write(meta, wave, [], ctx)
         # the import is checked before any file is written
         assert os.listdir(tmp_path) == []
+

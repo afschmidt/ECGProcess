@@ -17,14 +17,14 @@ Programmatic Access
 Import the registry and check if a name is reserved:
 
     from ecgprocess import PrivilegedNames
-
+    
     # Check if a name is reserved
     if PrivilegedNames.is_reserved('V7'):
         print("V7 is not reserved; can use in extra_leads")
-
+    
     if PrivilegedNames.is_reserved('I'):
         print("I is reserved (standard lead)")
-
+    
     # View all reserved names
     print(PrivilegedNames.LEADS)       # 12 standard leads
     print(PrivilegedNames.METADATA)    # 10 privileged metadata fields
@@ -62,7 +62,7 @@ To use custom lead names beyond the standard 12, declare them via
 `DataMap` before parsing the config file:
 
     from ecgprocess.utils.config_tools import ConfigParser, DataMap
-
+    
     # Custom lead names must not collide with reserved names
     mapper = DataMap(extra_leads=('V7', 'V8', 'V3R'))
     parser = ConfigParser(path='config.cnf')()

@@ -400,7 +400,7 @@ class Error_MSG(object):  # pragma: no cover
     WRITER_CALL_RAISED='`{}()` raised during validation: {}.'
     WRITER_EXT_RETURN='`file_ext()` must return a `str`, not `{}`.'
     WRITER_NAMES_RETURN='`file_names()` must return a `tuple`, not `{}`.'
-    WRITER_NAMES_LEN='`file_names()` must return 5 filenames, got {}.'
+    WRITER_NAMES_LEN='`file_names()` must return at least 1 filename, got {}.'
     WRITER_NAMES_STR='`file_names()` element {} must be a `str`, not `{}`.'
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

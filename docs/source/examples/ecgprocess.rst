@@ -9,9 +9,9 @@ the basic features of ECGProcess
 
    recipe/process_xml.nblink
    recipe/process_dicom.nblink
+   recipe/plot_ecgs.nblink
    recipe/tabular.nblink
    recipe/writer.nblink
    recipe/validate_writer.nblink
-   recipe/plot_ecgs.nblink
    recipe/utils/engineering_tools.nblink
 

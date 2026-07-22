@@ -28,6 +28,7 @@ extensions = [
     "nbsphinx",
     "nbsphinx_link",
     "sphinx.ext.autodoc",
+    "sphinx.ext.doctest",
     "sphinx.ext.napoleon",
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',

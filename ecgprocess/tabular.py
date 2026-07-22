@@ -1170,19 +1170,29 @@ class ECGTable(object):
         -------
         context : `WriteContext`
             The populated context passed to `BaseWriter.write`.
+        
+        Raises
+        ------
+        InputValidationError
+            If the key_list (KEY_L) attribute has not been set by _loop_table.
         """
-        # NOTE KEY_L is only set by _loop_table when metadata is extracted;
-        # default to None so context construction never raises.
-        # the write-stage failure list persists across chunks: created
-        # lazily (like KEY_L), shared with every chunk's context, merged
-        # into FailedFiles.txt and cleaned up by `write_ecg`.
+        # #### enforce key_list guarantee
+        if not hasattr(self, TabNames.KEY_L):
+            raise InputValidationError(
+                f"key_list ({TabNames.KEY_L}) must be set by _loop_table "
+                "before _build_write_context is called."
+            )
+        # #### initialize failed_records list if not present
+        # the write-stage failure list persists across chunks shared with
+        # every chunk's context, merged into FailedFiles.txt and cleaned up by
+        # `write_ecg`.
         if not hasattr(self, TabNames.FAILED_REC_L):
             setattr(self, TabNames.FAILED_REC_L, [])
         return WriteContext(
             e_meta=getattr(self, TabNames.E_META),
             e_wave=getattr(self, TabNames.E_WAVE),
             e_median=getattr(self, TabNames.E_MEDIAN),
-            key_list=getattr(self, TabNames.KEY_L, None),
+            key_list=getattr(self, TabNames.KEY_L),
             target=target,
             chunk_num=chunk_num,
             skip_data=getattr(self, TabNames.SKIP_DATA, False),

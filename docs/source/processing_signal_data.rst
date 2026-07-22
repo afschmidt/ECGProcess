@@ -37,8 +37,9 @@ To process ECG data ECGprocess leverages three key components
 
   The ``writer`` argument also accepts any ``BaseWriter`` subclass or
   callable, allowing new formats without changing library code; see
-  :doc:`custom_writers`. The ``validate_writer`` callable in ``writer.py``
-  can be used to validate any custom build writer class.  
+  :doc:`custom_writers`. The ``WriterValidator`` class in ``writer.py``
+  can be used to validate any custom built writer class.
+
   _Note_: the ``file_type`` argument is deprecated and will be removed in version
   2.0.0.
 

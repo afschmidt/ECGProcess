@@ -142,3 +142,7 @@ Please have a look at the examples in
 [resources](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/examples)
 for some possible recipes. 
 
+### Writing a custom writer
+
+The output format of `ECGTable.write_ecg()` can be customized by subclassing `BaseWriter` and implementing the `write()` method. Before deploying a custom writer, validate it against the contract using `WriterValidator`. See the [Custom writers](https://SchmidtAF.gitlab.io/ECGProcess/custom_writers.html) documentation for the full contract and design patterns.
+
