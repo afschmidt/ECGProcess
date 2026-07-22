@@ -115,7 +115,7 @@ class WriteContext(object):
     
     Error handling is controlled by skip_data and failed_records.
     `failed_records` is a single list shared across every chunk of a run and
-    returned to ECGTable to be optionally writen as FailedFiles.txt.
+    returned to ECGTable to be optionally written as FailedFiles.txt.
     Writers must call `ctx.failed_records.append(...)` to add failures,
     reassigning `ctx.failed_records = [...]` silently breaks the link back
     to `ECGTable` and loses failure records for that chunk.
@@ -415,7 +415,6 @@ class WriterValidator:
             "WriteContext fields (passed to write()):\n"
             "  All fields are populated internally by ECGTable. \n"
             "\n"
-            "  Required (no default):\n"
             "    e_meta (bool) – include metadata in output\n"
             "    e_wave (bool) – include waveform signals in output\n"
             "    e_median (bool) – include median beat signals in output\n"
@@ -424,7 +423,6 @@ class WriterValidator:
             "    target (str) – output directory path; write files here\n"
             "    chunk_num (int or None) – current chunk number (or None for\n"
             "      single-chunk runs); passed to file_names() for naming\n"
-            "  Optional (have defaults):\n"
             "    skip_data (bool, default False) – if True, skip records\n"
             "      that fail during write; if False, raise on failure\n"
             "    failed_records (list, default []) – shared mutable list of\n"
