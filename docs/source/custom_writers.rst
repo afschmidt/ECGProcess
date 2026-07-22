@@ -15,10 +15,11 @@ Requirements checklist
 
 To create a working writer, your ``BaseWriter`` subclass must implement the
 ``write`` method and may override three filename-related attributes/methods.
-The ``WriteContext`` (i.e. ``ctx``) provide runtime information and is 
-internally passed to ``write`` by ``ECGTable``, and hence you do not 
-need to touch this yourself. It is simply available to source 
-information to the ``Writer`` callable. 
+The ``WriteContext`` (i.e. ``ctx``, see `The WriteContext`_ below for
+the full field list) provides runtime information and is internally
+passed to ``write`` by ``ECGTable``, and hence you do not need to
+touch this yourself. It is simply available to source information to
+the ``Writer`` callable.
 
 The ``write`` method needs to write one or more files to disk and can 
 use the ``file_names`` and ``file_ext`` methods along with the ``ctx.target`` 
@@ -28,8 +29,8 @@ file output and location.
 Depending on the type of writer, it can be important to include 
 options for error handling using ``ctx.skip_data`` and ``ctx.failed_records``.
 This might be especially important if you are applying additional methods
- beyond simple writing to disk. For example if you want to 
-create a figure from the signal data, or if you are performing 
+beyond simple writing to disk. For example if you want to
+create a figure from the signal data, or if you are performing
 chunk based processes which cannot be conducted using the record
 specific engineering callables. 
 

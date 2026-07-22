@@ -63,6 +63,8 @@ Using Custom Lead Names
 To use custom lead names beyond the standard 12, declare them via
 ``DataMap`` before parsing the config file:
 
+.. code-block:: python
+
     from ecgprocess.utils.config_tools import ConfigParser, DataMap
     
     # Custom lead names must not collide with reserved names

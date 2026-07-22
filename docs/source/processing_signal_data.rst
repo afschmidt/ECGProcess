@@ -20,7 +20,7 @@ To process ECG data ECGprocess leverages three key components
   these were omitted for the source file. 
 
 * ``ECGTable`` processes any type of ECG data (with a corresponding
-  reader class) and can chunk multiple files into a pandas table or writes
+  reader class) and can chunk multiple files into a pandas table or write
   them to disk through a pluggable writer registry. The output format is
   chosen with the ``writer`` argument of ``ECGTable.write_ecg``:
 
@@ -32,28 +32,26 @@ To process ECG data ECGprocess leverages three key components
   - ``'figure'`` — a rendered ECG image per record (e.g. PNG, PDF, SVG);
   - ``'pixel'`` — stacked pixel tensors for imaging-based machine learning.
 
-  _Note_: tensorflow and wfdb are strictly optional package and will need 
-  to be installed separately, e.g. ``pip install ecgprocess[tensorflow]``. 
+  *Note*: tensorflow and wfdb are strictly optional package and will need
+  to be installed separately, e.g. ``pip install ecgprocess[tensorflow]``.
 
   The ``writer`` argument also accepts any ``BaseWriter`` subclass or
   callable, allowing new formats without changing library code; see
   :doc:`custom_writers`. The ``WriterValidator`` class in ``writer.py``
   can be used to validate any custom built writer class.
 
-  _Note_: the ``file_type`` argument is deprecated and will be removed in version
-  2.0.0.
+  *Note*: the ``file_type`` argument is deprecated and will be removed in
+  version 2.0.0; use ``writer`` instead.
 
   ``ECGTable`` jointly processes metadata, waveforms, and median beats,
   enabling on-the-fly QC/filtering and downstream multimodal analyses.
-  Engineering parameters accept callables applied to each record's data 
+  Engineering parameters accept callables applied to each record's data
   which can be used to augment the reader class processing step.
-  Possible engineering steps include signal calibration, filtering, or device-based
-  validation. 
-  The ``LeadMapper`` class standardises lead order for devices writing channels out of 
-  sequence which is useful for processing DICOMS or other file types without
-  self-documenting tags/attributes. 
-  Again the engineering callables can be fully user defined, but a core set is 
-  included in `ecgprocess.utils.engineering_tools`.
+  Possible engineering steps include signal calibration, filtering,
+  device-based validation, and lead reordering via ``LeadMapper`` (see
+  `Engineering callables`_ below for the full list of ready-to-use
+  callables). Engineering callables can be fully user defined, but a
+  core set is included in ``ecgprocess.utils.engineering_tools``.
 
 Regarding the configuration file, please consult the :ref:`setting up a configuration file <configuration>`
 section as well as the example Jupyter notebooks.
@@ -101,7 +99,7 @@ engineering callables run:
 * ``signal_length_m`` (``int`` or ``None``, default ``None``) — the target
   sample count for median beats.
 * ``pad_value`` (``int`` or ``float``, default ``0.0``) — the fill value
-  when right-padding; _note_: the original array dtype is preserved.
+  when right-padding. *Note*: the original array dtype is preserved.
 
 When set, each lead is right-padded with ``pad_value`` or right-truncated
 to the target length. 
@@ -111,7 +109,7 @@ the output schema stable:
 *sampling number padded (medianbeats)*, and
 *duration padded (sec)*.
 
-_Note_ these are also privileged variable names and should not be overwritten. 
+*Note*: these are also privileged variable names and should not be overwritten.
 
 Engineering callables
 ---------------------
@@ -139,5 +137,5 @@ Ready-to-use callables in ``ecgprocess.utils.engineering_tools``:
 Users can supply any callable matching the signature above in place of or
 alongside these built-ins.
 For example the augmented leads calculation and 
-resampling functions are available from ``ecgprocess.utilts.ecg_tools`` 
+resampling functions are available from ``ecgprocess.utils.ecg_tools``
 and could be stacked in a single engineering callable. 

@@ -47,6 +47,7 @@ napoleon_google_docstring = False
 napoleon_numpy_docstring = True
 napoleon_use_param = False
 napoleon_use_rtype = False
+napoleon_use_ivar = True
 napoleon_preprocess_types = True
 
 nbsphinx_execute = 'never'
@@ -63,9 +64,7 @@ pygments_style = "sphinx"
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
-html_theme_options = {
-    "display_version": True,
-}
+html_theme_options = {}
 # Intersphinx: cross-references into external package docs
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),

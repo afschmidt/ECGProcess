@@ -12,7 +12,7 @@ At a glance, ECGProcess is driven by three pieces that fit together:
 * A **reader**, which maps a raw ECG file (XML or DICOM) to waveform
   signals, median beats, and metadata. What gets extracted is
   controlled by a user-supplied configuration file (a `.cnf` text
-  file — see [Configuration files](https://SchmidtAF.gitlab.io/ECGProcess/configuration_files.html)).
+  file; see [Configuration files](https://SchmidtAF.gitlab.io/ECGProcess/configuration_files.html)).
 * `ECGTable`, which loops over a directory of ECG files, calls the
   reader for each one, and can apply optional engineering steps
   (e.g. resampling, calibration, lead correction).
@@ -100,7 +100,7 @@ This command installs the package in editable mode with the `[dev]`
 extras and configures Git commit hooks, allowing you to run `git pull`
 to update the repository or switch branches without reinstalling.
 
-Alternatively, you can install manually — this is exactly equivalent
+Alternatively, you can install manually. This is exactly equivalent
 to `make install-dev`:
 ```bash
 python -m pip install -e ".[dev]"

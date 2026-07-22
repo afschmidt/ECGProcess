@@ -3,8 +3,8 @@ Raising issues
 ==============
 
 If you find a possible bug or improvement (in code and/or documentation) please
-feel free to either fix this yourself following the *Contributing to the 
-project* guidance, or by raising an issue on GitLab. 
+feel free to either fix this yourself following the :doc:`contributing`
+guidance, or by raising an issue on GitLab.
 
 When raising an issue please make sure to include a **minimal reproducible 
 example** (MRE).
@@ -19,9 +19,10 @@ it yourself - or, if not, meaningfully decrease the time we have to spend
 creating an MRE ourselves. 
 This ensures that time can be spent on fixing the actual bug. 
 **Steps for a Good MRE**
-#. *Include Minimal Input Data*: Simplify your data to the smallest size and 
-   complexity needed. Please have a look at the examples module for relevant
-   example data. 
+
+#. *Include Minimal Input Data*: Simplify your data to the smallest size and
+   complexity needed. Please have a look at ``ecgprocess.example_data.examples``
+   for relevant example data.
 #. *Use Only Relevant Code*: Remove unrelated code or logic.
 #. *Import Necessary Modules*: Include all imports and dependencies.
 #. *State Expected vs. Actual Behavior*: Clearly describe what you expect and 

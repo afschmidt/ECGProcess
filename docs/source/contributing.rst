@@ -23,7 +23,7 @@ This allows us to retain some level of homogeneity throughout a project and will
 7. We incorporate Jupyter notebooks into the documentation, so please ensure they are fairly quick to run and do not have reams of output associated with them. Also, please make sure that all output is collapsed (removed) prior to committing the notebook to git.
 8. Please make sure that any test data you submit is small and compressed and please do not commit any individual level data that is not already in the public domain.
 
-If you want to contribute and are unsure on any of these points please `contact <amand.schmidt@ucl.ac.uk>`_ the lead developer. 
+If you want to contribute and are unsure on any of these points please `contact <mailto:amand.schmidt@ucl.ac.uk>`_ the lead developer.
 
 Many thanks in advance!
 
