@@ -12,11 +12,19 @@ should be extracted, covering signal data such as waveforms or
 median beats, as well as metadata relevant for downstream QC or as
 tabular information. 
 
-The module implements a basic application programming interface, mapping
+The module implements an application programming interface (API), mapping
 ECG data from distinct file types (e.g. XML or DICOM) to class attributes
-providing a fixed interface for downstream analysis and interrogation. 
+providing a fixed interface for downstream processing. 
+While working from robust defaults, the functionality with regards to 
+reading, processing, and writing of standardised outputs is highly 
+flexible and puts the users in full control. 
+The packages ships with boiler plate classes and validation utilities, 
+to allow the user to expand processing modules to different file types, 
+develop custom standardisation (i.e. engineering) pipelines, as well as 
+write to user-required output types. 
 
-The documentation for ECGProcess can be found [here](https://SchmidtAF.gitlab.io/ECGProcess/). 
+Please consult the [documentation](https://SchmidtAF.gitlab.io/ECGProcess/). 
+for ECGProcess.
 
 ## Installation 
 The package is available on PyPI, and conda, with the latest source code 
@@ -141,8 +149,4 @@ pytest tests
 Please have a look at the examples in 
 [resources](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/examples)
 for some possible recipes. 
-
-### Writing a custom writer
-
-The output format of `ECGTable.write_ecg()` can be customized by subclassing `BaseWriter` and implementing the `write()` method. Before deploying a custom writer, validate it against the contract using `WriterValidator`. See the [Custom writers](https://SchmidtAF.gitlab.io/ECGProcess/custom_writers.html) documentation for the full contract and design patterns.
 

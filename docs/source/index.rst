@@ -20,30 +20,28 @@ file formats, including XML and DICOM, and mapping them to
 formats suitable for downstream quality control, statistical analysis, or 
 machine learning pipelines.
 
-Data extraction is driven by user-supplied tab-delimited configuration
-files that define which signals and metadata fields to retrieve, without
-requiring changes to library code. The processing pipeline can be readily 
-augmented with user supplied engineering functions, to for example allow
-for signal resampling or derivation of augmented leads.  Processed data
-can be exported through a registry of pluggable writers, both in-memory
-and in chunked on-disk workflows:
+Data processing is driven by three ingredients:
 
-* pandas ``DataFrame`` objects for in-memory analysis;
-* tab-delimited tables (``.tsv``);
-* bundled (``.npz``) or per-array (``.npy``) NumPy files;
-* rendered figure images (PNG, PDF, SVG);
-* stacked pixel tensors for imaging-based machine learning;
-* TensorFlow ``tf.data.Dataset`` objects (``tfrecord``), an optional
-  extra installed with ``pip install ecgprocess[tensorflow]``;
-* WFDB (PhysioNet) records, an optional extra installed with ``pip
-  install ecgprocess[wfdb]``.
+* A file type sepcific ``processing`` callable combined with a 
+  a fixed, user supplied, configuration file mapping file entries 
+  to python dictionary key names. 
+* The core ``ECGTable`` instance take a ``processing`` instance and 
+  loops over all ECG files available in a directory, applying optional 
+  file specific standardisations using user supplied engineering 
+  callables. 
+* A ``writer`` callable which slots into ``ECGTable`` and tells it 
+  what type of file to write to, allowing for optional file specific
+  opperations. 
 
-Users can also register their own writers to add new output formats.
+The processing pipeline is highly flexible and users are 
+encouraged to create their own ``processing``, ``engineering``, and/or
+``writer`` applications which can be used to extent and alter ``ECGTable``
+functionally.
 
 Additionally, the module provides a flexible plotting API built on top of
 matplotlib. This can be used for research illustrations as well as to 
 mimic clinical ECG prints. These can be written to disk as illustrations 
-or as numpy arrays (e.g. relevant for imaging based machine learning). 
+or as numpy arrays using ``ECGTable``. 
 
 Installation
 ----------------------------

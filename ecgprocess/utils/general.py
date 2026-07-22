@@ -232,9 +232,8 @@ def parse_number(string:Any, sep:str=',', dec:str='.',
     Parameters
     ----------
     string : `any`
-        Strings and list with a `single` will be checked if this represent
-        numbers, other object will be
-        returned as is.
+        Strings and list with a `single` entry will be checked if this
+        represent numbers, other object will be returned as is.
     sep : `str`, default ','
         The character used to separate values in a string.
     dec : `str`, default '.'
