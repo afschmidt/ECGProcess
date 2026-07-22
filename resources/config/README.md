@@ -99,26 +99,12 @@ V3R                     StripData.WaveformData_14.#text
 Validation will reject duplicate names within `extra_leads` and names that
 collide with the standard 12 lead set.
 
-### Reserved and Privileged Names
-
-The following names are reserved and cannot be used in `extra_leads` or as
-custom field names:
-
-**Standard ECG leads (12):** I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6
-
-**Privileged metadata fields (10):** unique identifier, number of leads,
-resolution unit (waveforms), resolution unit (medianbeats),
-resolution (waveforms), resolution (medianbeats), sampling frequency (original),
-sampling frequency unit, sampling number (waveforms), sampling number (medianbeats)
-
-For the programmatic API, see `ecgprocess.PrivilegedNames`. 
-
 ### MetaData and OtherData
 
 Metadata data can essentially contain any other type of data aside from the 
 signal arrays.
 There are some privileged attribute names here as well, please consult 
-`ecgprocess.constants.CoreData.MetaData` for these.
+`ecgprocess.PrivilegedNames` for these.
 In principle omitting some, or all of the privileged attributes names, does
 not prevent the processing function from working.
 Some specific arguments (i.e. such as signal resampling) might however fail 
@@ -126,7 +112,7 @@ if the metadata dues not contain sufficient information such as the
 sampling frequency when asking to re-sample the signal data. 
 
 Aside from the configured names, the readers inject a few processing
-fields into `MetaData` (see `ecgprocess.constants.CoreData.ProcessingData`):
+fields into `MetaData` (see `ecgprocess.PrivilegedData`):
 the derived `duration (waveforms, sec)` and `duration (medianbeats, sec)`,
 and the per-source `sampling frequency (processed, waveforms)` and
 `sampling frequency (processed, medianbeats)`. The latter two are the
