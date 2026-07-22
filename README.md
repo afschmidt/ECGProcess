@@ -1,30 +1,37 @@
-![Schematic](https://ecgprocess-schmidtaf-f9abe0f74d20c469a1e6cca62c7f636ef6bf6b9ffe.gitlab.io/_static/ECGProcessSchematic.png)
+![Schematic](https://SchmidtAF.gitlab.io/ECGProcess/_static/ECGProcessSchematic.png)
 
 # An ECG processing module
 __version__: `1.1.0`
 
 
-This repository host a mixture of function dealing with processing 
-electrocardiogram (ECG) data, and preparing these data for analysis.
-The processing functions are intended for user defined parametrisation 
-(using user supplied configuration files `cnf`) about the data which 
-should be extracted, covering signal data such as waveforms or
-median beats, as well as metadata relevant for downstream QC or as
-tabular information. 
+This repository hosts a collection of functions for processing
+electrocardiogram (ECG) data and preparing it for analysis.
 
-The module implements an application programming interface (API), mapping
-ECG data from distinct file types (e.g. XML or DICOM) to class attributes
-providing a fixed interface for downstream processing. 
-While working from robust defaults, the functionality with regards to 
-reading, processing, and writing of standardised outputs is highly 
-flexible and puts the users in full control. 
-The packages ships with boiler plate classes and validation utilities, 
-to allow the user to expand processing modules to different file types, 
-develop custom standardisation (i.e. engineering) pipelines, as well as 
-write to user-required output types. 
+At a glance, ECGProcess is driven by three pieces that fit together:
 
-Please consult the [documentation](https://SchmidtAF.gitlab.io/ECGProcess/). 
-for ECGProcess.
+* A **reader**, which maps a raw ECG file (XML or DICOM) to waveform
+  signals, median beats, and metadata. What gets extracted is
+  controlled by a user-supplied configuration file (a `.cnf` text
+  file — see [Configuration files](https://SchmidtAF.gitlab.io/ECGProcess/configuration_files.html)).
+* `ECGTable`, which loops over a directory of ECG files, calls the
+  reader for each one, and can apply optional engineering steps
+  (e.g. resampling, calibration, lead correction).
+* A pluggable **writer**, which tells `ECGTable` what to write to disk
+  (tables, arrays, WFDB records, images, ...). Built-in writers cover
+  common cases, and custom writers are straightforward to add.
+
+The module implements an application programming interface (API),
+mapping ECG data from distinct file types to class attributes
+providing a fixed interface for downstream processing. While working
+from robust defaults, the functionality with regards to reading,
+processing, and writing of standardised outputs is highly flexible
+and puts the users in full control. The package ships with boilerplate
+classes and validation utilities, letting you expand processing to new
+file types, build custom standardisation (i.e. engineering) pipelines,
+and write to any output type you need.
+
+Please consult the [documentation](https://SchmidtAF.gitlab.io/ECGProcess/)
+for the full picture.
 
 ## Installation 
 The package is available on PyPI, and conda, with the latest source code 
@@ -82,20 +89,22 @@ make install
 ```
 
 #### Development
-For development work, install the package in editable mode with Git commit 
-hooks configured:
+For development work, install the package in editable mode, with its
+development dependencies (`pytest`, `codespell`, `sphinx`, ...) and Git
+commit hooks configured:
 
 ```bash
 make install-dev
 ```
-This command installs the package in editable mode and configures Git commit 
-hooks, allowing you to run `git pull` to update the repository or switch 
-branches without reinstalling.
+This command installs the package in editable mode with the `[dev]`
+extras and configures Git commit hooks, allowing you to run `git pull`
+to update the repository or switch branches without reinstalling.
 
-Alternatively, you can install manually:
+Alternatively, you can install manually — this is exactly equivalent
+to `make install-dev`:
 ```bash
-python -m pip install -e .
-python .setup_git_hooks.py
+python -m pip install -e ".[dev]"
+python .githooks/.setup_git_hooks.py
 ```
 
 #### Git Hooks Configuration
@@ -136,8 +145,8 @@ commit-format-help() {
 ```
 
 ## Next steps...
-After installation you might wish to try the `pytest` to confirm 
-everything is in working order. 
+If you installed with `make install-dev`, you might wish to run `pytest` to 
+confirm everything is in working order. 
 
 ```sh
 # From the root of the repository
@@ -146,7 +155,5 @@ pytest tests
 
 ## Usage
 
-Please have a look at the examples in 
-[resources](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/examples)
-for some possible recipes. 
-
+Please have a look at the [example](https://SchmidtAF.gitlab.io/ECGProcess/examples.html)
+ recipes. 
