@@ -13,27 +13,27 @@ the ``WriterValidator`` pre-flight check.
 Requirements checklist
 ----------------------
 
-To create a working writer, your `BaseWriter` subclass must implement the
-`write` method and may override three filename-related attributes/methods.
-The `WriteContext` (i.e. `ctx`) provide runtime information and is 
-internally passed to `write` by `ECGTable`, and hence you do not 
+To create a working writer, your ``BaseWriter`` subclass must implement the
+``write`` method and may override three filename-related attributes/methods.
+The ``WriteContext`` (i.e. ``ctx``) provide runtime information and is 
+internally passed to ``write`` by ``ECGTable``, and hence you do not 
 need to touch this yourself. It is simply available to source 
-information to the `Writer` callable. 
+information to the ``Writer`` callable. 
 
-The `write` method needs to write one or more files to disk and can 
-use the `file_names` and `file_ext` methods along with the `ctx.target` 
-and `ctx` Booleans `e_meta`, `e_wave`, `e_median` to wire the indented 
+The ``write`` method needs to write one or more files to disk and can 
+use the ``file_names`` and ``file_ext`` methods along with the ``ctx.target`` 
+and ``ctx`` Booleans ``e_meta``, ``e_wave``, ``e_median`` to wire the indented 
 file output and location. 
 
 Depending on the type of writer, it can be important to include 
-options for error handling using `ctx.skip_data` and `ctx.failed_records`.
+options for error handling using ``ctx.skip_data`` and ``ctx.failed_records``.
 This might be especially important if you are applying additional methods
  beyond simple writing to disk. For example if you want to 
 create a figure from the signal data, or if you are performing 
 chunk based processes which cannot be conducted using the record
 specific engineering callables. 
 
-The `WriterValidator` class include a `describe` method which 
+The ``WriterValidator`` class include a ``describe`` method which 
 lists the current requirements and WriteContext fields available
 for a user. 
 
@@ -89,7 +89,7 @@ See also
 - :doc:`../examples/recipe/writer` — worked example of a custom writer
 - :doc:`../examples/recipe/validate_writer` — validation in action
 
-The ``write`` method
+The write method
 --------------------
 
 A writer implements a single required method:
@@ -100,7 +100,7 @@ A writer implements a single required method:
         ...
 
 For every chunk of processed files, ``ECGTable.write_ecg`` calls
-``write`` once with four arguments:
+`write` once with four arguments:
 
 * ``meta_list`` — a list of per-record metadata dictionaries;
 * ``wave_list`` — a list of per-record waveform dictionaries, mapping
@@ -116,19 +116,17 @@ A compliant ``write``:
 
 * honours the export flags — only writes metadata when ``ctx.e_meta``
   is set, waveforms when ``ctx.e_wave``, and median beats when
-  ``ctx.e_median``;
+  `ctx.e_median`;
 * writes all files into the ``ctx.target`` directory;
 * derives its filenames through ``self.file_names`` so chunked runs
-  (``ctx.chunk_num``) receive the standard ``_N`` suffix.
+  (`ctx.chunk_num`) receive the standard ``_N`` suffix.
 
-The ``WriteContext``
+The WriteContext
 --------------------
 
 The context object carries the state a writer needs, decoupling it
 from ``ECGTable``. ECGTable builds this object and passes it to your
-``write`` method.
-
-**Required fields** (always present):
+``write`` method. Included fields:
 
 ``e_meta``, ``e_wave``, ``e_median`` : ``bool``
     Whether metadata, waveform, and median beat data should be
@@ -143,9 +141,6 @@ from ``ECGTable``. ECGTable builds this object and passes it to your
     The current chunk number when writing separate files per chunk,
     or ``None`` for a single-file run. Forward it to ``file_names``
     rather than formatting filenames manually.
-
-**Optional fields** (have defaults):
-
 ``skip_data`` : ``bool``, default ``False``
     Whether a record failing at the write stage should be skipped and
     recorded instead of raising; mirrors the ``ECGTable``
@@ -174,7 +169,7 @@ on ``BaseWriter``:
 
 A writer that names its own files (such as the per-record image
 writer) may bypass ``file_names`` entirely, or override it to return
-a custom set of filenames. `WriterValidator` checks that the method
+a custom set of filenames. ``WriterValidator`` checks that the method
 returns a tuple of at least one filename string.
 
 Failure policy
@@ -232,9 +227,9 @@ using only the standard library:
 Validating your writer
 ----------------------
 
-Use `WriterValidator` to check a `BaseWriter` subclass before running a batch —
-a quick, data-free pre-flight that never writes files. Note that `WriterValidator`
-only validates `BaseWriter` subclasses; bare function writers cannot be validated
+Use ``WriterValidator`` to check a ``BaseWriter`` subclass before running a batch —
+a quick, data-free pre-flight that never writes files. Note that ``WriterValidator``
+only validates ``BaseWriter`` subclasses; bare function writers cannot be validated
 this way (see `Limitations`_).
 
 .. code-block:: python
@@ -251,7 +246,7 @@ everything at once:
     - a non-empty `FILE_EXT` must start with a dot; got `json`.
     - `file_names()` must return 5 filenames, got 3.
 
-`WriterValidator` checks: that you've subclassed `BaseWriter`, implemented
+``WriterValidator`` checks: that you've subclassed ``BaseWriter``, implemented
 the abstract ``write`` method, that ``write`` accepts the four data arguments
 (extra defaulted parameters are OK), that a class can be instantiated with
 no arguments, and that the filename machinery works.
@@ -268,7 +263,7 @@ what your writer must do:
     WriterValidator.describe()
 
 This outputs the exact requirements for ``write``, optional overrides,
-and `WriteContext` fields — all embedded in the `Requirements checklist`_
+and ``WriteContext`` fields — all embedded in the `Requirements checklist`_
 section above.
 
 .. _Limitations:

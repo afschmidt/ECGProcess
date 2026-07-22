@@ -5,21 +5,23 @@ Overview
 --------
 
 ECGProcess reserves certain names for internal use in config files, data
-extraction, and processing. These names cannot be used in `extra_leads`
+extraction, and processing. These names cannot be used in ``extra_leads``
 declarations or as custom metadata field names.
 
-The authoritative list is in `ecgprocess.PrivilegedNames`, derived from
-`ecgprocess.constants.CoreData` and stays in sync automatically.
+The authoritative list is in ``ecgprocess.PrivilegedNames``, derived from
+``ecgprocess.constants.CoreData`` and stays in sync automatically.
 
 Programmatic Access
 --------------------
 
 Import the registry and check if a name is reserved:
 
+.. code-block:: python
+   
     from ecgprocess import PrivilegedNames
     
     # Check if a name is reserved
-    if PrivilegedNames.is_reserved('V7'):
+    if not PrivilegedNames.is_reserved('V7'):
         print("V7 is not reserved; can use in extra_leads")
     
     if PrivilegedNames.is_reserved('I'):
@@ -59,7 +61,7 @@ Using Custom Lead Names
 -----------------------
 
 To use custom lead names beyond the standard 12, declare them via
-`DataMap` before parsing the config file:
+``DataMap`` before parsing the config file:
 
     from ecgprocess.utils.config_tools import ConfigParser, DataMap
     
@@ -68,5 +70,5 @@ To use custom lead names beyond the standard 12, declare them via
     parser = ConfigParser(path='config.cnf')()
     parser.map(mapper=mapper)
 
-Custom metadata field names can be placed in the `[OtherData]` section
+Custom metadata field names can be placed in the ``[OtherData]`` section
 of the config file and do not require declarations.
