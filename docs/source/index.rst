@@ -22,16 +22,16 @@ machine learning pipelines.
 
 Data processing is driven by three ingredients:
 
-* A file type sepcific ``processing`` callable combined with a 
-  a fixed, user supplied, configuration file mapping file entries 
-  to python dictionary key names. 
-* The core ``ECGTable`` instance take a ``processing`` instance and 
-  loops over all ECG files available in a directory, applying optional 
-  file specific standardisations using user supplied engineering 
-  callables. 
-* A ``writer`` callable which slots into ``ECGTable`` and tells it 
+* A file type specific ``processing`` callable combined with a
+  a fixed, user supplied, configuration file mapping file entries
+  to python dictionary key names.
+* The core ``ECGTable`` instance take a ``processing`` instance and
+  loops over all ECG files available in a directory, applying optional
+  file specific standardisations using user supplied engineering
+  callables.
+* A ``writer`` callable which slots into ``ECGTable`` and tells it
   what type of file to write to, allowing for optional file specific
-  opperations. 
+  operations.
 
 The processing pipeline is highly flexible and users are 
 encouraged to create their own ``processing``, ``engineering``, and/or
@@ -61,12 +61,23 @@ or instead using conda:
 Documentation
 =============
 
+A typical session reads an ECG file with a file type specific reader,
+guided by a configuration file that says which parts of the file to
+extract. The reader produces waveform signals, median beats, and
+metadata, which ``ECGTable`` can batch across many files, optionally
+applying engineering steps such as resampling or lead correction,
+before handing the result to a writer of your choosing. The Quickstart
+pages below follow that same order: the configuration file format
+first (the input format every reader depends on), then how a reader
+and ``ECGTable`` process it, then the reserved/privileged names to
+avoid, and finally how to build a custom writer.
+
 .. toctree::
    :maxdepth: 1
    :caption: Quickstart
 
-   processing_signal_data
    configuration_files
+   processing_signal_data
    privileged_names
    custom_writers
 
