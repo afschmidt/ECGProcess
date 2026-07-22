@@ -18,7 +18,10 @@ MedianBeats, MetaData, OtherData .
 Below each header the attribute names (the name these data will be
 assigned to) should be placed on the left hand side (LHS), with the
 right hand side (RHS) matching the name of the source ECG file. 
-The LHS and RHS should be separated by one or multiple tabs. 
+The LHS and RHS should be separated by one or multiple actual tab
+characters (`\t`). Spaces alone are not accepted, and a config line
+without a tab raises a `ValueError`. If your editor auto-converts tabs
+to spaces, disable that for `.cnf` files. 
 
 The config file parsers will skip lines starting with a `#`, including
 any number of leading spaces or tabs. 
@@ -60,6 +63,7 @@ Here the RHS will depend on the specific file that is being processed.
 The LHS names are privileged, meaning that the processing methods will ignore
 any other words or characters that do not exactly match the provided example. 
 
+
 ### Custom and extra lead names
 
 By default, WaveForms and MedianBeats sections accept only the standard 12
@@ -72,8 +76,9 @@ only 8 recorded leads, and the derived limb leads (`III`, `aVR`, `aVL`,
 
 **Additional/non-standard leads** — if your data includes extra leads beyond
 the standard 12 (e.g., `V7`, `V8`, `V9` for orthogonal vectors, or `V3R`,
-`V4R` for right-sided precordials), pass `extra_leads` to the `DataMap`
-instance before mapping the config file:
+`V4R` for right-sided precordials), this is declared in the calling
+Python script rather than in the config file itself: pass `extra_leads`
+to the `DataMap` instance before mapping the config file:
 
 ```python
 from ecgprocess.utils.config_tools import ConfigParser, DataMap
@@ -101,10 +106,22 @@ collide with the standard 12 lead set.
 
 ### MetaData and OtherData
 
+
+`MetaData` and `OtherData` follow the same LHS/RHS structure as for `WaveForms`
+and `MedianBeats`, and can be added to the same config file:
+
+```bash
+[MetaData]
+unique identifier			PatientID
+sampling frequency (original)		SampleBase
+[OtherData]
+device serial number			DeviceInfo.SerialNumber
+```
+
 Metadata data can essentially contain any other type of data aside from the 
 signal arrays.
 There are some privileged attribute names here as well, please consult 
-`ecgprocess.PrivilegedNames` for these.
+:doc:`privileged_names` (`ecgprocess.PrivilegedNames`) for these.
 In principle omitting some, or all of the privileged attributes names, does
 not prevent the processing function from working.
 Some specific arguments (i.e. such as signal resampling) might however fail 
@@ -119,11 +136,11 @@ and the per-source `sampling frequency (processed, waveforms)` and
 authoritative rate of the stored signal arrays: they hold the resampling
 target once that source has reached it, and `None` while it has not. 
 
-The `OtherData` is currently provided as a placeholder which behaves as 
-`MetaData` but does not consider any names privileged. 
-It is essentially included here for future consideration of data which might
-not fit the other headers. 
-Currently the `OtherData` header can therefore be safely ignored. 
+`OtherData` follows the same header/LHS/RHS structure as `MetaData`,
+but no attribute names are privileged within it: any LHS name is
+accepted. It is optional and currently unused by the processing
+pipeline beyond storing whatever you configure; it exists as a
+placeholder for future fields that might not fit `MetaData`.
 
 ### File variable names
 
@@ -148,8 +165,20 @@ To handle this the reader classes will recognise configuration entries prefixed 
 `[STARTSWITH]` keyword, and will concatenate the content of all the matching tags 
 inserting a `[DELIM]` keyword between the original text chunks. 
 
+The `[STARTSWITH]` keyword goes on the RHS, followed by the tag prefix
+to match (not a header, and not on the LHS):
+
+```bash
+[MetaData]
+conclusion				[STARTSWITH]conclusion_
+```
+
+This matches every source tag starting with `conclusion_`
+(i.e. `conclusion_1`, `conclusion_2`, ...) and assigns their `[DELIM]`-joined
+content to the `conclusion` attribute. 
+
 The [config](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/config?ref_type=heads) 
-directory also includes a few example `.cnf` files to get you started. 
+directory includes a few example `.cnf` files to get you started. 
 
 
 
