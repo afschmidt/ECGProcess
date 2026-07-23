@@ -7,28 +7,25 @@ __version__: `1.1.0`
 This repository hosts a collection of functions for processing
 electrocardiogram (ECG) data and preparing it for analysis.
 
-At a glance, ECGProcess is driven by three pieces that fit together:
+At a glance, ECGProcess is driven by three units:
 
-* A **reader**, which maps a raw ECG file (XML or DICOM) to waveform
-  signals, median beats, and metadata. What gets extracted is
-  controlled by a user-supplied configuration file (a `.cnf` text
-  file; see [Configuration files](https://SchmidtAF.gitlab.io/ECGProcess/configuration_files.html)).
-* `ECGTable`, which loops over a directory of ECG files, calls the
-  reader for each one, and can apply optional engineering steps
-  (e.g. resampling, calibration, lead correction).
-* A pluggable **writer**, which tells `ECGTable` what to write to disk
-  (tables, arrays, WFDB records, images, ...). Built-in writers cover
-  common cases, and custom writers are straightforward to add.
+* A **processor** unit, reads individual ECG files and based on 
+  a user-supplied configuration file extracts waveform
+  signals, median beats, and metadata to python dictionaries; see [Configuration files](https://SchmidtAF.gitlab.io/ECGProcess/configuration_files.html)).
+* The **table** unit, `ECGTable`, loops over a directory of ECG files, 
+  calls the reader for each one, while applying optional engineering steps
+  (e.g. resampling, calibration, lead correction), and again optionally 
+  concatenating multiple files together.
+* A **writer** unit, tells `ECGTable` what to write to disk
+  (tables, NumPy arrays, WFDB records, images, ...). 
 
-The module implements an application programming interface (API),
+Together these units implement an application programming interface (API),
 mapping ECG data from distinct file types to class attributes
-providing a fixed interface for downstream processing. While working
-from robust defaults, the functionality with regards to reading,
-processing, and writing of standardised outputs is highly flexible
-and puts the users in full control. The package ships with boilerplate
-classes and validation utilities, letting you expand processing to new
-file types, build custom standardisation (i.e. engineering) pipelines,
-and write to any output type you need.
+providing a fixed interface for downstream processing. 
+The package ships with boilerplate classes and validation utilities,
+letting the user expand **processing** of additional file types,
+build custom **engineering** (e.g. standardisation) pipelines, as well as 
+create custom **writers**.
 
 Please consult the [documentation](https://SchmidtAF.gitlab.io/ECGProcess/)
 for the full picture.
@@ -96,12 +93,14 @@ commit hooks configured:
 ```bash
 make install-dev
 ```
+
 This command installs the package in editable mode with the `[dev]`
 extras and configures Git commit hooks, allowing you to run `git pull`
 to update the repository or switch branches without reinstalling.
 
 Alternatively, you can install manually. This is exactly equivalent
 to `make install-dev`:
+
 ```bash
 python -m pip install -e ".[dev]"
 python .githooks/.setup_git_hooks.py
