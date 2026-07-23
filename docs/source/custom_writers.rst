@@ -87,8 +87,8 @@ for a user.
 See also
 ~~~~~~~~
 
-- :doc:`../examples/recipe/writer` — worked example of a custom writer
-- :doc:`../examples/recipe/validate_writer` — validation in action
+- :doc:`../examples/recipe/writer` — worked example of a custom writer,
+  including validation
 
 The write method
 --------------------

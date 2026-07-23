@@ -393,41 +393,55 @@ class WriterValidator:
             "BaseWriter contract checklist:\n"
             "\n"
             "Required method:\n"
-            "  write(meta_list, wave_list, median_list, ctx) – process and\n"
-            "    write data to disk using ctx.target as output directory.\n"
-            "    Should respect ctx.e_meta, ctx.e_wave, ctx.e_median flags to\n"
-            "    conditionally write each data type. On write failure, append\n"
-            "    (record_id, error_reason) to ctx.failed_records, \n"
-            "    and skip the record if ctx.skip_data is True.\n"
+            "\n"
+            "  write(meta_list, wave_list, median_list, ctx) \n"
+            "      process and write data to disk using ctx.target as output \n"
+            "      directory. Should respect ctx.e_meta, ctx.e_wave, \n "
+            "      ctx.e_median flags to conditionally write each data type. \n"
+            "      On write failure, append (record_id, error_reason) to \n "
+            "      ctx.failed_records, and skip the record if ctx.skip_data is \n"
+            "      True.\n"
             "\n"
             "Optional overrides (have sensible defaults):\n"
-            "  FILE_EXT – class attribute (str) for file extension including\n"
-            "    dot (e.g. '.json'). Default ''. Used by file_names().\n"
-            "  file_ext() – return FILE_EXT or a runtime-computed extension\n"
-            "    (e.g. with compression suffix). Called by file_names().\n"
-            "  file_names(chunk_num=None) – return a tuple of at least one\n"
-            "    filename string. Base implementation returns the standard\n"
-            "    5-tuple (metadata, waveforms, medianbeats, ecg_data,\n"
-            "    figures); derive names from FileNames constants + file_ext()\n"
-            "    + optional chunk suffix. Use only the slots relevant to your\n"
-            "    format and ignore the rest.\n"
+            "\n"
+            "  FILE_EXT \n"
+            "      class attribute (str) for file extension including\n"
+            "      dot (e.g. '.json'). Default ''. Used by file_names().\n"
+            "  file_ext() \n"
+            "      return FILE_EXT or a runtime-computed extension\n"
+            "      (e.g. with compression suffix). Called by file_names().\n"
+            "  file_names(chunk_num=None) \n"
+            "      return a tuple of at least one filename string. Base \n "
+            "      implementation returns the standard 5-tuple \n "
+            "      (metadata, waveforms, medianbeats, ecg_data, figures); \n "
+            "      derive names from FileNames constants + file_ext()\n"
+            "      + optional chunk suffix. Use only the slots relevant to your\n"
+            "      format and ignore the rest.\n"
             "\n"
             "WriteContext fields (passed to write()):\n"
-            "  All fields are populated internally by ECGTable. \n"
+            "      All fields are populated internally by ECGTable. \n"
             "\n"
-            "    e_meta (bool) – include metadata in output\n"
-            "    e_wave (bool) – include waveform signals in output\n"
-            "    e_median (bool) – include median beat signals in output\n"
-            "    key_list (list) – per-record unique identifiers (ECGTable's\n"
-            "      index); may be used as row keys in outputs\n"
-            "    target (str) – output directory path; write files here\n"
-            "    chunk_num (int or None) – current chunk number (or None for\n"
-            "      single-chunk runs); passed to file_names() for naming\n"
-            "    skip_data (bool, default False) – if True, skip records\n"
+            "  e_meta (bool) \n"
+            "      include metadata in output\n"
+            "  e_wave (bool) \n"
+            "      include waveform signals in output\n"
+            "  e_median (bool) \n"
+            "      include median beat signals in output\n"
+            "  key_list (list) \n"
+            "      per-record unique identifiers (ECGTable's index); may be \n"
+            "      used as row keys in outputs\n"
+            "  target (str) \n"
+            "      output directory path; write files here\n"
+            "  chunk_num (int or None) \n"
+            "      current chunk number (or None for single-chunk runs); \n"
+            "      passed to file_names() for naming\n"
+            "  skip_data (bool, default False) \n"
+            "      if True, skip records\n"
             "      that fail during write; if False, raise on failure\n"
-            "    failed_records (list, default []) – shared mutable list of\n"
-            "      (record_id, error_reason) tuples; append failures here,\n"
-            "      never reassign the list or ECGTable won't see them\n"
+            "  failed_records (list, default []) \n"
+            "      shared mutable list of (record_id, error_reason) tuples; \n"
+            "      append failures here, never reassign the list or ECGTable \n"
+            "      will not see them\n"
             "\n"
         )
         print(checklist)
@@ -472,12 +486,18 @@ class WriterValidator:
         placeholders = ([], [], [], None)
         try:
             if instance is not None:
-                inspect.signature(instance.write).bind(*placeholders)
+                sig = inspect.signature(instance.write)
+                sig.bind(*placeholders)
             else:
                 # the unbound function keeps `self`; NoneType stands in
-                inspect.signature(cls.write).bind(None, *placeholders)
-        except (TypeError, ValueError) as err:
-            violations.append(Error_MSG.WRITER_SIGNATURE.format(err))
+                sig = inspect.signature(cls.write)
+                sig.bind(None, *placeholders)
+        except (TypeError, ValueError):
+            # bind()'s TypeError reads backwards; report the signature
+            if instance is None:
+                sig = sig.replace(
+                    parameters=list(sig.parameters.values())[1:])
+            violations.append(Error_MSG.WRITER_SIGNATURE.format(sig))
         # #### CRITERION 4
         # #### the class route requires bare instantiation (resolve_writer
         # calls `cls()`); skipped for abstract classes and instance input
