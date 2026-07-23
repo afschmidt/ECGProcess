@@ -1,52 +1,57 @@
 """
-A module to process ECG signal data and metadata to tabular form. This also
-includes 2D figures - which are strictly speaking tables of pixels.
+A module to process ECG signal data and metadata to tabular form. This
+also includes 2D figures, which are strictly speaking tables of pixels.
 
-The module leverages the existing process class instances and based on their
-class attributes extracts the requested data.
+The module leverages the existing process class instances and, based
+on their class attributes, extracts the requested data.
 
-## FailedFiles.txt: Failure Causes and Controlling Parameters
+Notes
+-----
+Records that fail at any stage are logged to ``FailedFiles.txt`` with
+the cause that triggered failure. The cause string indicates which
+:class:`ECGTable` parameter controls whether the record is skipped or
+raises an error.
 
-Records that fail at any stage are logged to `FailedFiles.txt` with the cause
-that triggered failure. The cause string indicates which ECGTable parameter
-controls whether the record is skipped or raises an error.
+``File permission``
+    Controlled by *ignore_permission* (default `True`). Triggered by a
+    read or write permission error on the input file. When `False`,
+    raises; when `True`, skips the record and logs the cause.
 
-### Failure Cause Reference
+``No data``
+    Controlled by *confirm_wave*, *confirm_median*, *ignore_data*. When
+    *confirm_wave*/*confirm_median* is `True`, triggered by all
+    requested signal values being `None`; otherwise triggered when the
+    extracted data is missing attributes (*ignore_data* catches
+    `AttributeError`). This cause covers multiple failure modes; run
+    with *verbose* `True` to distinguish missing signal data from
+    missing attributes. When `False`, raises; when `True`, skips the
+    record and logs the cause.
 
-#### `File permission`
-- **Controlling Parameter**: `ignore_permission` (default: True)
-- **Trigger**: Read or write permission denied on the input file
-- **Behavior**: When False, raises; when True, skips record and logs cause
+``Invalid data``
+    Controlled by *ignore_invalid* (default `False`). Triggered when
+    the input file fails validation (XML schema error, file structure
+    error). When `False`, raises; when `True`, skips the record and
+    logs the cause.
 
-#### `No data`
-- **Controlling Parameters**: `confirm_wave`, `confirm_median`, `ignore_data`
-- **Trigger**: All requested signal values are None (confirm_wave/median) OR
-  extracted data missing attributes (ignore_data catches AttributeError)
-- **Behavior**: When False, raises; when True, skips record and logs cause
-- **Note**: This cause is used for multiple failure modes. Run with verbose=True
-  to distinguish between missing signal data vs. missing attributes.
+``Missing lead(s): [...] [ignore_missing_leads]``
+    Controlled by *ignore_missing_leads* (default `False`). Triggered
+    when one or more configured leads are missing after extraction,
+    including the all-missing case whenever
+    *confirm_wave*/*confirm_median* is `False` (the default), since
+    that case is then not caught by ``No data`` first. The parameter
+    name is logged in the cause string. When `False`, raises; when
+    `True`, skips the record and logs the cause.
 
-#### `Invalid data`
-- **Controlling Parameter**: `ignore_invalid` (default: False)
-- **Trigger**: Input file fails validation (XML schema error, file structure error)
-- **Behavior**: When False, raises; when True, skips record and logs cause
+``Annotation failed (ignore_data): {...}``
+    Controlled by *ignore_data* (default `False`). Triggered when an
+    annotation template references a missing or `None` metadata key
+    (a write-stage failure in `FigureWriter`/`PixelWriter`); the
+    parameter name is included in the cause string. When `False`,
+    raises; when `True`, skips the record and logs the cause.
 
-#### `Missing lead(s): [...] [ignore_missing_leads]`
-- **Controlling Parameter**: `ignore_missing_leads` (default: False)
-- **Trigger**: Record has some (but not all) configured leads present after extraction
-- **Behavior**: When False, raises; when True, skips record and logs cause
-- **Note**: Distinct from "No data" (all-None case). Logs parameter name in cause string.
-
-#### `Annotation failed (ignore_data): {...}`
-- **Controlling Parameter**: `ignore_data` (default: False)
-- **Trigger**: Annotation template references missing or None metadata key
-  (write-stage failure in FigureWriter/PixelWriter)
-- **Behavior**: When False, raises; when True, skips record and logs cause
-- **Note**: Parameter name appears in cause string for clarity.
-
-### Default Behavior
-All control parameters default to False (strict mode: raise on any error).
-Set any to True to skip failing records and continue batch processing.
+All control parameters default to `False` (strict mode: raise on any
+error). Set any to `True` to skip failing records and continue batch
+processing.
 """
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -194,15 +199,6 @@ class ECGTable(object):
     raw_path_list : `list` [`str`]
         A list of file paths.
     
-    Methods
-    -------
-    get_table(unique, **kwargs)
-        extract ECG data and maps these to class attributes.
-    write_ecg(chunk, target_tar, target_path, tar_mode, file_type, tab_sep,
-    tab_compression, tab_append, unique, write_failed, write_chunk_record,
-    kwargs_reader, kwargs_tab)
-        writes processed ECG data to a single or multiple files.
-    
     Notes
     -----
     The engineering parameters can be used to supply functions that will be
@@ -210,10 +206,10 @@ class ECGTable(object):
     dictionaries are combined and written to disk. The functions are applied in
     the following order to the internal objects: meta_dict (for metadata),
     wave_dict (for waveform signals), median_dict (for medianbeats signals).
-    Please ensure the waveform and medianbeats functions includes a **kwargs
-    parameter. The kwargs will be used internally to include the metadata. This
-    ensures for example, that the engineer_wave function will have access to
-    the metadata.
+    Please ensure the waveform and medianbeats functions include a
+    ``**kwargs`` parameter. The kwargs will be used internally to
+    include the metadata. This ensures, for example, that the
+    engineer_wave function will have access to the metadata.
     '''
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     def __init__(self, ecgreader:BaseReader, path_list:list[str],

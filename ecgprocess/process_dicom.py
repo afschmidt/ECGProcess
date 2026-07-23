@@ -13,7 +13,6 @@ leveraging the API.
 import pathlib
 import pydicom
 import numpy as np
-import ecgprocess.utils.ecg_tools as ecg_utils
 import ecgprocess.utils.reader_tools as reader_utils
 from ecgprocess.process_xml import ECGXMLReader
 from dataclasses import dataclass, field
@@ -67,13 +66,6 @@ class ECGDICOMReader(ECGXMLReader):
         Whether the augmented leads were calculated if these were unavailable.
     resample_500 : `bool`
         Whether the ECG was resampled to a 500 Hertz frequency.
-    
-    Methods
-    -------
-    extract(config, skip_empty, parse_numeric, **kwargs)
-        Processes the DICOM file content applying optional lead augmentation
-        and resampling. The DICOM content will be mapped to class attributes.
-    
     """
     # #### properties
     tags = ManagedProperty(CProc.TAGS, list)

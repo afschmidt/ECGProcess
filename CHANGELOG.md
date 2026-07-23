@@ -4,8 +4,9 @@
 
 #### Added
 
-* `extra_leads` parameter on `DataMap`, allowing WaveForms and MedianBeats
-  config sections to declare custom lead names beyond the standard 12
+* `extra_leads` parameter on `DataMap`; when True, WaveForms and MedianBeats
+  config sections accept custom lead names beyond the standard 12
+  automatically instead of raising KeyError
 * `PrivilegedNames` registry in `ecgprocess.constants` (public API via
   `from ecgprocess import PrivilegedNames`), documenting all reserved lead and
   metadata field names
@@ -60,6 +61,19 @@
 
 * The `file_type` argument of `ECGTable.write_ecg` (use `writer`
   instead; removed in v2.0.0, legacy `'numpy'` → `'npz'`)
+
+#### Fixed
+
+* `WriterValidator`'s signature-violation message no longer surfaces
+  Python's raw (and misleading) `bind()` error text; it now reports the
+  writer's actual `write` signature instead
+* Sphinx docs build warnings: napoleon Attributes/Methods sections no
+  longer duplicate autodoc's own member entries, malformed docstrings
+  in `tabular`, `config_tools`, `ecg_tools`, and `engineering_tools`
+  now parse as valid RST, the unsupported `display_version` theme
+  option was removed, and the orphaned legacy `examples.rst`/
+  `examples/ecgprocess.rst` toctree files were deleted; the CI docs
+  build now completes with zero warnings (previously 80)
 
 #### Removed
 

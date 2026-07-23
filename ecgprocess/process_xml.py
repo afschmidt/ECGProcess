@@ -70,13 +70,6 @@ class ECGXMLReader(BaseReader):
         Whether the augmented leads were calculated if these were unavailable.
     resample_500 : `bool`
         Whether the ECG was resampled to a 500 Hertz frequency.
-    
-    Methods
-    -------
-    extract(config, skip_empty, parse_numeric, **kwargs)
-        Processes the XML file content applying optional lead augmentation and
-        resampling. The XML content will be mapped to class attributes.
-    
     """
     # #### properties
     tags = ManagedProperty(CProc.TAGS, list)

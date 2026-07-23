@@ -132,18 +132,18 @@ def _resolve_lead_kwargs(
 def _annotation_fields(text: str) -> list[str]:
     """
     Return the replacement-field names in an annotation template.
-
+    
     Parameters
     ----------
     text : `str`
         An annotation template, e.g. ``'ECG {unique identifier}'``.
-
+    
     Returns
     -------
     fields : `list` [`str`]
         The field names referenced by the template, in order of
         appearance; empty for a literal string.
-
+    
     Raises
     ------
     ValueError
@@ -161,14 +161,14 @@ def _split_annotation_spec(
 ) -> tuple[str, tuple[float, float], dict[str, Any]]:
     """
     Validate an annotation spec dict and split it into its parts.
-
+    
     Parameters
     ----------
     spec : `dict` [`str`, `any`]
         One annotation spec with the required keys ``'text'`` (`str`)
         and ``'xy'`` (a 2-item tuple/list of numbers); all remaining
         keys are treated as `matplotlib.figure.Figure.text` kwargs.
-
+    
     Returns
     -------
     text : `str`
@@ -177,7 +177,7 @@ def _split_annotation_spec(
         The figure-fraction position.
     extras : `dict` [`str`, `any`]
         The remaining fig.text keyword arguments.
-
+    
     Raises
     ------
     InputValidationError
@@ -200,7 +200,7 @@ def _split_annotation_spec(
 def _resolve_annotation(text: str, meta: Any) -> str:
     """
     Resolve ``'{key}'`` placeholders in a template from metadata.
-
+    
     Parameters
     ----------
     text : `str`
@@ -209,12 +209,12 @@ def _resolve_annotation(text: str, meta: Any) -> str:
     meta : mapping or `None`
         The metadata mapping (supports ``.get``) the field names are
         resolved against.
-
+    
     Returns
     -------
     resolved : `str`
         The template with every placeholder substituted.
-
+    
     Raises
     ------
     InputValidationError
@@ -362,18 +362,6 @@ class ECGDrawing:
         Resolved voltage scaling in mm/mV.
     default_leads : list[str]
         Lead names plotted by default. Set at init; overridable per call.
-    
-    Methods
-    -------
-    tile_x_axis(xlims)
-        Tiles each column's x-axis to an equal slice of the full signal,
-        mimicking continuous ECG paper. Per-lead overrides via ``xlims``.
-    annotate(annotations)
-        Adds free-form templated text annotations to the figure;
-        ``'{key}'`` placeholders resolve from the captured MetaData.
-    to_numpy(crop, close)
-        Renders the figure to a 3-D numpy array (RGBA).
-    
     """
     # /////////////////////////////////////////////////////////////////////////
     # class attributes
@@ -917,20 +905,20 @@ class ECGDrawing:
         """
         Tile the x-axis so each column shows an equal slice of the total
         signal duration, mimicking continuous ECG paper.
-
+        
         The column count is derived from the mapper used at render time.
         Each column's x window runs from
         ``x_min + col * segment`` to ``x_min + (col + 1) * segment``,
         where ``segment = (x_max - x_min) / n_cols``. Multi-column spans
         (e.g. a full-width rhythm strip) receive the proportionally wider
         window. Each row resets to zero independently.
-
+        
         Signal data outside a column's x window is removed from the line
         artists rather than clipped. This prevents traces from bleeding
         horizontally into adjacent panels while leaving
         ``clip_on_trace=False`` intact so tall deflections can still cross
         row boundaries.
-
+        
         Parameters
         ----------
         xlims : `dict` [`str`, `tuple` [`float`, `float`]] | `None`, \
@@ -938,12 +926,12 @@ optional
             Per-lead x-axis overrides. Keys are lead names; values are
             ``(x_min, x_max)`` in seconds. Leads not listed fall back to
             the auto-tiled column window.
-
+        
         Returns
         -------
         self : ECGDrawing
             Returns the instance for method chaining.
-
+        
         Raises
         ------
         NotCalledError
