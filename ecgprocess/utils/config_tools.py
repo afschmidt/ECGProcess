@@ -29,19 +29,10 @@ CMeta  = Core.MetaData
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @dataclass
 class PrivilegedData(object):
-    '''
+    r'''
     The core metadata dictionary, where the key values cannot not be changed
     because these are expected used by downstream programs. The values can
     however be user defined.
-    
-    Methods
-    -------
-    update_values(**kwargs)
-        Update the values of existing dictionary keys.
-    to_dict()
-        Returns the current dictionary.
-    keys()
-        Returns the dictionary keys.
     
     Notes
     -----
@@ -118,15 +109,6 @@ class OtherData(PrivilegedData):
     """
     A class to map internal attribute names to DICOM/XML tags and collect data
     based on optional attributes.
-    
-    Methods
-    -------
-    update_values(**kwargs)
-        Update the values of existing dictionary keys.
-    to_dict()
-        Returns the current dictionary.
-    keys()
-        Returns the dictionary keys.
     """
     # overwrite _data from PrivilegedData
     _data: Optional[dict[str, str]] = field(default_factory=dict)
@@ -162,37 +144,26 @@ class DataMap(object):
         A dictionary containing metadata attributes and their values.
     OtherData : `dict` [`str`, `str`], default `NoneType`
         An optional dictionary for additional data mappings.
-    extra_leads : `tuple` [`str`], default `()`
-        Additional lead names to accept in WaveForms/MedianBeats
-        sections beyond the standard 12.
-    
-    Methods
-    -------
-    get_attributes(all_)
-        Returns the names of attributes with non-None values.
-    keys(attr_name)
-        Returns the keys of the specified dictionary ('MetaData' or
-        'OtherData'), or both if no specific dictionary is specified.
-    items(attr_name)
-        Returns the key-value pairs of the specified dictionary ('MetaData' or
-        'OtherData'), or both if no specific dictionary is specified.
+    extra_leads : `bool`, default `False`
+        If True, any WaveForms/MedianBeats key found in the parsed
+        config file that is not part of the standard 12 is accepted
+        automatically instead of raising `KeyError`. Off by default so
+        unrecognised lead names (e.g. a typo) still fail loudly at
+        parse time.
     
     Examples
     --------
     >>> data_map = DataMap()
     >>> data_map.get_attributes()
     ['WaveForms', 'MedianBeats', 'MetaData']
-    >>> data_map_with_extra = DataMap(extra_leads=('V7', 'V3R'))
-    >>> 'V7' in data_map_with_extra.WaveForms
-    True
     
     Notes
     -----
     The class is intended to work in conjunction with a config file processed
     using `ConfigParser.map(DataMap)`. DataMap ensures any privileged
     attributes omitted from the config are added and set to None, and prevents
-    the config file to be altered after processing. Extra lead names can be
-    specified to extend the standard 12-lead set.
+    the config file to be altered after processing. Set `extra_leads=True`
+    to accept lead names beyond the standard 12 directly from the config file.
     """
     # setting attributes
     WaveForms: dict = field(default_factory=lambda: PrivilegedData(
@@ -201,7 +172,7 @@ class DataMap(object):
         _data=DataMap.get_leads()).to_dict())
     MetaData: dict = field(default_factory=lambda: PrivilegedData().to_dict())
     OtherData: dict | None = None
-    extra_leads: tuple[str, ...] = field(default_factory=tuple)
+    extra_leads: bool = False
     _VALIDATE_ATTR = (
         ConfigNames.WaveForms, ConfigNames.MedianBeats,
         ConfigNames.MetaData, ConfigNames.OtherData
@@ -218,23 +189,7 @@ class DataMap(object):
         is_type(self.MedianBeats, dict, 'MedianBeats')
         is_type(self.MetaData, dict, 'MetaData')
         is_type(self.OtherData, (type(None), dict), 'OtherData')
-        is_type(self.extra_leads, (tuple, list), 'extra_leads')
-        # #### validate extra_leads content
-        standard_leads = set(self.get_leads().keys())
-        extra_set = set()
-        for lead in self.extra_leads:
-            is_type(lead, str, 'extra_leads element')
-            if lead in standard_leads:
-                raise InputValidationError(
-                    Error_MSG.EXTRA_LEAD_RESERVED.format(lead))
-            if lead in extra_set:
-                raise InputValidationError(
-                    Error_MSG.EXTRA_LEAD_DUPLICATE.format(lead))
-            extra_set.add(lead)
-        # #### merge extra leads into WaveForms and MedianBeats
-        for lead in self.extra_leads:
-            self.WaveForms[lead] = None
-            self.MedianBeats[lead] = None
+        is_type(self.extra_leads, bool, 'extra_leads')
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @property
     def VALIDATE_ATTR(self) -> tuple:
@@ -454,8 +409,8 @@ class ConfigParser(object):
             An instance of the `DataMap` class, which is expected to have
             attributes corresponding to the parsed data sections (e.g., headers
             or types). These attributes will be updated with the data parsed by
-            this class. Can optionally include `extra_leads` to extend the
-            standard 12-lead set.
+            this class. Set `mapper.extra_leads=True` to accept lead
+            names beyond the standard 12 directly from the config file.
         
         Notes
         -----
@@ -464,8 +419,8 @@ class ConfigParser(object):
         """
         WRONG = ('Attribute `{}` is outside the allowed key set for `{}`.'
                  'Please update your configuration file to only list allowed '
-                 'attribute names, or specify additional lead names in '
-                 'mapper.extra_leads. For example, consult the mapper object.')
+                 'attribute names, or set mapper.extra_leads=True to '
+                 'accept lead names beyond the standard 12.')
         # ### make sure the instance was called
         if len(getattr(self, ConfigNames.data)) == 0:
             raise NotCalledError
@@ -480,10 +435,15 @@ class ConfigParser(object):
                 f"corresponding attributes for all required data types."
             )
         # ### class instances
-        # setting up the signal data with extra_leads
-        standard_leads = mapper.get_leads()
-        extra_leads_dict = {l: None for l in mapper.extra_leads}
-        combined_leads = {**standard_leads, **extra_leads_dict}
+        # setting up the signal data, auto-discovering extra leads if enabled
+        combined_leads = mapper.get_leads()
+        if mapper.extra_leads:
+            discovered = set()
+            for section in (ConfigNames.WaveForms, ConfigNames.MedianBeats):
+                discovered.update(
+                    getattr(self, ConfigNames.data).get(section, {}).keys())
+            discovered -= combined_leads.keys()
+            combined_leads.update({lead: None for lead in discovered})
         wave_data = PrivilegedData(_data=combined_leads.copy())
         median_data = PrivilegedData(_data=combined_leads.copy())
         lead_keys = combined_leads.keys()

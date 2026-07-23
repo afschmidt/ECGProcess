@@ -76,20 +76,20 @@ only 8 recorded leads, and the derived limb leads (`III`, `aVR`, `aVL`,
 
 **Additional/non-standard leads** — if your data includes extra leads beyond
 the standard 12 (e.g., `V7`, `V8`, `V9` for orthogonal vectors, or `V3R`,
-`V4R` for right-sided precordials), this is declared in the calling
-Python script rather than in the config file itself: pass `extra_leads`
-to the `DataMap` instance before mapping the config file:
+`V4R` for right-sided precordials), set `extra_leads=True` on the `DataMap`
+instance before mapping the config file. Any `[WaveForms]`/`[MedianBeats]`
+key in the config file that is not one of the standard 12 is then accepted
+automatically:
 
 ```python
 from ecgprocess.utils.config_tools import ConfigParser, DataMap
 
-# Parse the config file with extra_leads declared
 parser = ConfigParser(path='my_config.cnf')()
-mapper = DataMap(extra_leads=('V7', 'V8', 'V3R'))
+mapper = DataMap(extra_leads=True)
 parser.map(mapper=mapper)
 ```
 
-The config file's LHS names may now reference the extra leads:
+The config file's LHS names may now include non-standard leads directly:
 
 ```bash
 [WaveForms]
@@ -101,8 +101,8 @@ V8                      StripData.WaveformData_13.#text
 V3R                     StripData.WaveformData_14.#text
 ```
 
-Validation will reject duplicate names within `extra_leads` and names that
-collide with the standard 12 lead set.
+`extra_leads` defaults to `False`, so an unrecognised lead name (e.g. a
+typo) still raises `KeyError` unless it is explicitly enabled.
 
 ### MetaData and OtherData
 

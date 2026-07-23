@@ -320,14 +320,6 @@ class Error_MSG(object):  # pragma: no cover
         "were not extracted (None): {}. Set `ignore_missing_leads=True` "
         "on the ECGTable call to skip such records instead of raising."
     )
-    EXTRA_LEAD_RESERVED=(
-        "`{}` is a reserved lead name (part of the standard 12-lead set); "
-        "choose a different name for extra_leads."
-    )
-    EXTRA_LEAD_DUPLICATE=(
-        "lead name `{}` appears more than once in extra_leads; "
-        "all lead names must be unique."
-    )
     MISSING_ATTR='attribute `{}` not found in object `{}`.'
     CHOICE_PARM='`{}` is constrained to `{}`.'
     MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
@@ -389,8 +381,8 @@ class Error_MSG(object):  # pragma: no cover
     WRITER_NOT_WRITER='`{}` is not a `BaseWriter` subclass or instance.'
     WRITER_ABSTRACT='abstract methods are not implemented: {}.'
     WRITER_SIGNATURE=(
-        '`write` cannot accept the four data arguments (meta_list, '
-        'wave_list, median_list, ctx): {}.'
+        '`write` should accept four arguments (meta_list, '
+        'wave_list, median_list, ctx); found signature `{}` instead.'
     )
     WRITER_INIT='the class cannot be instantiated without arguments: {}.'
     WRITER_FILE_EXT_TYPE='`FILE_EXT` must be a `str`, not `{}`.'

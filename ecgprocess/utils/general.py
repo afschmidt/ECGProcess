@@ -164,13 +164,7 @@ class ManagedProperty(object):
         The name of the setters and getters
     types: `Type`, default `NoneType`
         Either a single type, or a tuple of types to test against.
-    
-    Methods
-    -------
-    set_with_setter(instance, value)
-        Temporarily unlocks the property on `instance`, sets the value,
-        then re-locks it.
-    
+
     Returns
     -------
     property

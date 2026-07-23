@@ -137,10 +137,11 @@ def signal_correction(
     **kwargs
         Additional keyword arguments, which must include a dictionary under
         the key `TabNames.META_DICT`. This dictionary should contain:
+        
         - wave_channel_correctionfactor_i : float
-            Correction factor for channel i.
+          Correction factor for channel i.
         - wave_channel_baseline_i : float
-            Baseline offset for channel i.
+          Baseline offset for channel i.
     
     Returns
     -------
@@ -150,7 +151,7 @@ def signal_correction(
     Raises
     ------
     KeyError
-        If `TabNames.META_DICT` is not found in **kwargs.
+        If `TabNames.META_DICT` is not found in ``**kwargs``.
     """
     # constants - these values should be in meta_dict
     corr = correctionfactor_name
@@ -213,7 +214,7 @@ def signal_standardise_res(
     Raises
     ------
     KeyError
-        If `TabNames.META_DICT` is not found in **kwargs.
+        If `TabNames.META_DICT` is not found in ``**kwargs``.
         If resolution_name+str(i) is not found in `TabNames.META_DICT`.
     
     Notes

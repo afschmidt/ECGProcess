@@ -82,10 +82,10 @@ def get_limb_leads(signals:dict[str, np.array],
     
     Notes
     -----
-    please see this
+    Please see this
     `url <https://ecgwaves.com/topic/ekg-ecg-leads-electrodes-systems-limb-chest-precordial/>`_
-     for the relevant explanation about the relationships between leads I and II
-    and the limb leads.
+    for the relevant explanation about the relationship between leads I
+    and II and the limb leads.
     """
     # #### check input and set constants
     is_type(signals, dict)
