@@ -56,6 +56,8 @@
   write_ecg` dispatches through writer registry instead of hard-coded
   logic
 * TensorFlow moved to optional dependency (lazy import in `TFRecordWriter`)
+* `ecgprocess.writer` reorganised from a single module into a package,
+  one file per writer family; the public import surface is unchanged
 
 #### Deprecated
 

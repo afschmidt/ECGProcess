@@ -34,6 +34,7 @@ writer
 ~~~~~~
 .. automodule:: ecgprocess.writer
    :members:
+   :imported-members:
    :special-members: __call__,__init__
    :show-inheritance:
    :undoc-members: False

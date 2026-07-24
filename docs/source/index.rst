@@ -13,35 +13,35 @@
 ECGProcess
 ==========
 
-ECGProcess is a Python library for reading, processing, and exporting
-electrocardiogram (ECG) data. It provides a unified interface for
-extracting waveform signals and clinical metadata from heterogeneous ECG
-file formats, including XML and DICOM, and mapping them to
+ECGProcess is a Python library for processing, standardising, and exporting
+electrocardiogram (ECG) data.
+It provides a unified interface for extracting waveform signals and metadata 
+from heterogeneous ECG file formats, including XML and DICOM, and mapping them to
 formats suitable for downstream quality control, statistical analysis, or 
 machine learning pipelines.
 
-Data processing is driven by three ingredients:
+Data processing is driven by three units:
 
-* A file type specific ``processing`` callable combined with a
-  a fixed, user supplied, configuration file mapping file entries
+* A file type specific **processing** units combined with a
+  fixed, user supplied, configuration file mapping file entries
   to python dictionary key names.
-* The core ``ECGTable`` instance take a ``processing`` instance and
+* The table units, ``ECGTable``, which takes **processing** instance and
   loops over all ECG files available in a directory, applying optional
-  file specific standardisations using user supplied engineering
-  callables.
-* A ``writer`` callable which slots into ``ECGTable`` and tells it
-  what type of file to write to, allowing for optional file specific
+  standardisations using user supplied **engineering** callables.
+* A **writer** callable which slots into ``ECGTable`` and tells it
+  what type of file to write, allowing for optional file specific
   operations.
 
-The processing pipeline is highly flexible and users are 
-encouraged to create their own ``processing``, ``engineering``, and/or
-``writer`` applications which can be used to extent and alter ``ECGTable``
+Together these units implement a highly customisable processing pipeline.
+Users are encouraged to create their own **processing**, **engineering**, and/or
+**writer** applications which can be used to extent and alter ``ECGTable``
 functionally.
 
-Additionally, the module provides a flexible plotting API built on top of
-matplotlib. This can be used for research illustrations as well as to 
-mimic clinical ECG prints. These can be written to disk as illustrations 
-or as numpy arrays using ``ECGTable``. 
+The module provides a plotting API built on top of matplotlib. 
+This can be used for research illustrations as well as to mimic
+clinical ECG prints.
+These can also be batch-written to disk as illustrations or as 
+numpy arrays using ``ECGTable``. 
 
 Installation
 ----------------------------
@@ -61,15 +61,17 @@ or instead using conda:
 Documentation
 =============
 
-A typical session reads an ECG file with a file type specific reader,
+A typical session reads ECG file with a file type specific reader (processor),
 guided by a configuration file that says which parts of the file to
-extract. The reader produces waveform signals, median beats, and
+extract. The reader extracts waveform signals, median beats, and
 metadata, which ``ECGTable`` can batch across many files, optionally
 applying engineering steps such as resampling or lead correction,
-before handing the result to a writer of your choosing. The Quickstart
-pages below follow that same order: the configuration file format
-first (the input format every reader depends on), then how a reader
-and ``ECGTable`` process it, then the reserved/privileged names to
+before handing the result to a writer of your choosing.
+
+The Quickstart pages below follow that same order: the configuration file format
+first (the input format every reader depends on), 
+then the reserved/privileged names to
+then how a reader and ``ECGTable`` process it,
 avoid, and finally how to build a custom writer.
 
 .. toctree::
@@ -77,8 +79,8 @@ avoid, and finally how to build a custom writer.
    :caption: Quickstart
 
    configuration_files
-   processing_signal_data
    privileged_names
+   processing_signal_data
    custom_writers
 
 .. toctree::
