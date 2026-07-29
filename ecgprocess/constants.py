@@ -200,6 +200,7 @@ class TabularNames(object):
     SKIP_DATA      = 'ignore_data'
     SKIP_INVALID   = 'ignore_invalid'
     SKIP_MISSING   = 'ignore_missing_leads'
+    CHUNK_STRICT   = 'chunk_strict'
     CONFIRM_META   = 'confirm_meta'
     CONFIRM_WAVE   = 'confirm_wave'
     CONFIRM_MEDIAN = 'confirm_median'

@@ -95,7 +95,6 @@ from ecgprocess.writer import (
 from ecgprocess.utils.general import (
     replace_with_tar,
     _update_kwargs,
-    chunk_list,
     update_dict_with_warning,
 )
 from ecgprocess.utils.reader_tools import(
@@ -508,6 +507,8 @@ class ECGTable(object):
     def _loop_table(self, path_list:list[str],
                     parsed_config:ConfigParser,
                     unique:bool=True,
+                    chunk:int | None = None,
+                    chunk_strict:bool = False,
                     kwargs_reader_call:dict[Any, Any] | None = None,
                     kwargs_reader_extract:dict[Any, Any] | None = None,
                   ) -> tuple[list[dict[str, Any]], list[dict[str, np.ndarray]],
@@ -527,6 +528,18 @@ class ECGTable(object):
             ensure the UID key-value pair is appropriately set in
             the config file. If set to false a file-specific integer key will
             be assigned instead.
+        chunk : `int` or `NoneType`, default `NoneType`
+            The number of files to consume from `path_list` before
+            returning. `NoneType` consumes every file in `path_list`.
+        chunk_strict : `bool`, default `False`
+            When `chunk` is set, controls how the stopping point is
+            counted. `False` stops after `chunk` files have been
+            *attempted*. `True` stops once `chunk` files have been
+            *successfully* extracted (i.e. appended to `meta_list`/
+            `wave_list`/`median_list`), pulling in additional files from
+            `path_list` to make up for any that failed, or once
+            `path_list` is exhausted. Has no effect when `chunk` is
+            `NoneType`.
         kwargs_reader_call: `dict` [`any`, `any`]  or None, default `NoneType`
             passed to the kwargs of the `BaseReader` call method.
         kwargs_reader_extract: `dict` [`any`, `any`]  or None, default `NoneType`
@@ -591,13 +604,32 @@ class ECGTable(object):
             setattr(self, TabNames.INVALID_L, [])
         if hasattr(self, TabNames.ID_START) == False:
             setattr(self, TabNames.ID_START, 1)
+        # #### chunk bookkeeping
+        # `n_attempted`/`n_success` drive `ID_START` and the `chunk_strict`
+        # stopping condition below, without relying on a loop-scoped `i`.
+        id_start = getattr(self, TabNames.ID_START)
+        n_attempted = 0
+        n_success = 0
+        idx = 0
         # loop over individual files
-        for i, p in enumerate(path_list,
-                              start=getattr(self, TabNames.ID_START)):
+        while idx < len(path_list):
+            if chunk is not None:
+                # when to stop
+                if chunk_strict:
+                    if n_success >= chunk:
+                        break
+                elif n_attempted >= chunk:
+                    break
+            p = path_list[idx]
+            idx += 1
+            i = id_start + n_attempted
+            # update counter
+            n_attempted += 1
             if self.verbose == True:
                 print(STDOUT_MSG.PROCESSING_PATH.format(p), file=sys.stdout)
             # get instance and check how errors should be handled
             if not getattr(self, TabNames.SCHEMA) is None:
+                # try-except for XML schemas
                 try:
                     ecg_inst = self.ecgreader(
                         p, schema=getattr(self, TabNames.SCHEMA),
@@ -786,11 +818,13 @@ class ECGTable(object):
                 wave_list.append(wave_temp)
             if getattr(self, TabNames.E_MEDIAN):
                 median_list.append(median_temp)
+            # record successful extraction (drives chunk_strict's target)
+            n_success += 1
             # make sure this object is unique
             setattr(self,TabNames.NO_DATA_L, list(np.unique(
                 getattr(self,TabNames.NO_DATA_L))))
         # record and update the last ID_START
-        setattr(self, TabNames.ID_START, i+1)
+        setattr(self, TabNames.ID_START, id_start + n_attempted)
         # to we want to print warnings?
         if len(getattr(self, TabNames.NO_DATA_L)) > 0:
             _log.warning(
@@ -892,8 +926,8 @@ class ECGTable(object):
                   target_path:str='.', tar_mode:str='w:gz',
                   writer: str | BaseWriter | Callable | None = None,
                   file_type:Literal['table', 'numpy', 'npz', 'tensorflow',
-                                    'npy']
-                  | None = None,
+                                    'npy'] | None = None,
+                  chunk_strict:bool = False,
                   tab_sep:str='\t', tab_compression:str | None ='gzip',
                   tab_append:bool=True, unique:bool=True,
                   write_failed:bool=True, write_chunk_record:bool = False,
@@ -941,6 +975,13 @@ class ECGTable(object):
 `NoneType`, default `NoneType`
             Deprecated,  use `writer` instead. 'numpy' is a legacy alias
             for 'npz'.
+        chunk_strict : `bool`, default `False`
+            When `chunk` is set, whether a chunk counts only
+            successfully-extracted files toward its `chunk` size
+            (`True`),or every attempted file regardless of processing outcome.
+            (`False`). "Successful" means surviving `_loop_table`'s extraction
+            checks only; write-stage (writer) failures are never backfilled.
+            Has no effect when `chunk` is `NoneType`.
         tar_mode : `str`, default `w:gz`
             The tarfile.open mode.
         tab_sep : `str`, default `\\t`
@@ -1007,6 +1048,7 @@ class ECGTable(object):
         is_type(tab_compression, (type(None), str))
         is_type(write_failed, bool)
         is_type(write_chunk_record, bool)
+        is_type(chunk_strict, bool)
         is_type(file_type, (type(None), str))
         is_type(writer, (type(None), str, BaseWriter, Callable))
         # #### resolve the writer
@@ -1062,26 +1104,39 @@ class ECGTable(object):
             setattr(self, TabNames.WRITE_ECG_PATH, target)
         # #### extract data
         chunk_record = {}
-        # chunk data
-        if not chunk is None:
-            path_list = chunk_list(getattr(self, TabNames.CPATH_L), chunk)
-            
-        else:
-            # making this into  single chunk [[ ]]
-            path_list = [getattr(self, TabNames.CPATH_L)]
+        cpath_l = getattr(self, TabNames.CPATH_L)
+        pointer = 0
+        n = 0
         # #### loop over the path_list
         try:
-            for n, p in enumerate(path_list, start=1):
-                # record the chunk_number and the files included
-                # NOTE `p` is a list and `n` an integer
-                chunk_record[n] = p
+            while pointer < len(cpath_l) or (chunk is None and n == 0):
+                # get id number
+                id_before = getattr(self, TabNames.ID_START, 1)
                 # extract data
                 meta_list, wave_list, median_list = self._loop_table(
-                    p, parsed_config=parsed_config,
-                    unique=unique,
+                    cpath_l[pointer:], parsed_config=parsed_config,
+                    unique=unique, chunk=chunk, chunk_strict=chunk_strict,
                     kwargs_reader_call=kwargs_reader_call,
                     kwargs_reader_extract=kwargs_reader_extract,
                 )
+                # update bookkeeping
+                n_consumed = getattr(self, TabNames.ID_START) - id_before
+                n_success = max(
+                    len(meta_list),
+                    len(wave_list),
+                    len(median_list),
+                )
+                consumed_files = cpath_l[pointer:pointer + n_consumed]
+                pointer += n_consumed
+                # zero successes under chunk_strict means the file source
+                # is exhausted: skip the writer, no chunk_record entry.
+                if chunk is not None and chunk_strict and n_success == 0:
+                    if hasattr(self, TabNames.KEY_L) == True:
+                        delattr(self, TabNames.KEY_L)
+                    continue
+                n += 1
+                # record the chunk_number and the files actually consumed
+                chunk_record[n] = consumed_files
                 # the chunk number is only used when writing separate files
                 chunk_num = n if chunk is not None else None
                 # #### write the extracted chunk

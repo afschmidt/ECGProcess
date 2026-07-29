@@ -39,6 +39,9 @@
   extracted records instead of raising
 * Error messages for missing optional dependencies and validation
   failures
+* `chunk_strict` parameter on `ECGTable.write_ecg`: when True, a chunk
+  counts only successfully-extracted files toward its `chunk` size,
+  pulling in further files to make up for any that failed
 
 #### Changed
 

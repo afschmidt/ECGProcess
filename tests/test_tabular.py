@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import pytest
 import numpy as np
 import pandas as pd
@@ -70,6 +71,7 @@ def remove_waveform(in_path, out_path):
         del ds.WaveformSequence
     ds.save_as(out_path)
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @pytest.fixture
 def dicom_no_waveform(tmp_path):
     """
@@ -82,6 +84,19 @@ def dicom_no_waveform(tmp_path):
     remove_waveform(second_path, out_path)
     return [first_path, str(out_path)]
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@pytest.fixture
+def dicom_path_list_3(tmp_path):
+    """
+    Three-file path list for chunk_strict scenarios: the two fixture
+    DICOM files plus a duplicate of the first under a distinct filename,
+    so every row in chunkrecord.txt is a visibly distinct path.
+    """
+    copy_path = tmp_path / "example-DICOM1-copy.dcm"
+    shutil.copy(dicom_path_list[0], copy_path)
+    return [dicom_path_list[0], dicom_path_list[1], str(copy_path)]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # #### engineer functions producing deterministic lead sets, independent of
 # the example file contents, used to exercise the missing-lead check.
 _TEN = np.ones(10, dtype=float)
@@ -103,6 +118,7 @@ def _eng_null_derived(signals, **kwargs):
     out[CLeads.aVR] = None
     return out
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class _EngPartialFirst(object):
     """
     Stateful engineer that makes only the first record it sees
@@ -114,6 +130,26 @@ class _EngPartialFirst(object):
     def __call__(self, signals, **kwargs):
         self.calls += 1
         if self.calls == 1:
+            out = dict(signals)
+            out[CLeads.aVR] = None
+            return out
+        return signals
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class _EngFailOrdinals(object):
+    """
+    Generalises `_EngPartialFirst` to an arbitrary set of 1-based call
+    ordinals: those calls come back strictly-partial (aVR nulled, so the
+    missing-lead check skips them), every other call passes signals
+    through unchanged. Lets a test dictate exactly which files in a
+    multi-file `chunk_strict` run fail extraction.
+    """
+    def __init__(self, fail_at):
+        self.calls = 0
+        self.fail_at = set(fail_at)
+    def __call__(self, signals, **kwargs):
+        self.calls += 1
+        if self.calls in self.fail_at:
             out = dict(signals)
             out[CLeads.aVR] = None
             return out
@@ -530,6 +566,141 @@ class TestTable(object):
         # get content and read in a table
         content = os.listdir(getattr(res, TabNames.WRITE_ECG_PATH))
         assert set(content) == set(expected_content)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestChunkStrict(object):
+    """
+    Testing ECGTable.write_ecg's chunk_strict parameter: whether a chunk
+    counts only successfully-extracted files (True) or every attempted
+    file (False, the historical/default behavior) toward its `chunk`
+    fill target.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_default_false(self, tmp_path, dicom_path_list_3):
+        """
+        Regression baseline: `chunk_strict` defaults to `False` and must
+        not top up a chunk on failure.
+        Also covers parameter validation and the `TabularNames` constant.
+        """
+        assert TabNames.CHUNK_STRICT == 'chunk_strict'
+        os.chdir(tmp_path)
+        path_list = dicom_path_list_3
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=path_list,
+                            extract_median=False,
+                            engineer_wave=_EngFailOrdinals(fail_at={1}))
+        with pytest.raises(InputValidationError):
+            ecgtable(verbose=False).write_ecg(
+                parsed_config=parser_dicom, chunk_strict='nope')
+        res = ecgtable(verbose=False, ignore_missing_leads=True).write_ecg(
+            parsed_config=parser_dicom, tab_append=False, unique=False,
+            chunk=2, write_chunk_record=True,
+        )
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        content = os.listdir(target)
+        # two chunks are written (fixed 2/1 split), each short by the one
+        # failure it happened to contain -- not topped up to size 2
+        assert 'metadata_1.tsv.gz' in content
+        assert 'metadata_2.tsv.gz' in content
+        meta_1 = pd.read_csv(os.path.join(target, 'metadata_1.tsv.gz'),
+                             sep='\t', index_col=0)
+        meta_2 = pd.read_csv(os.path.join(target, 'metadata_2.tsv.gz'),
+                             sep='\t', index_col=0)
+        assert meta_1.shape[0] == 1
+        assert meta_2.shape[0] == 1
+        # chunk_record reflects the planned fixed-size slices
+        chunk_tab = pd.read_csv(
+            os.path.join(target, 'chunkrecord.txt'), sep='\t')
+        assert chunk_tab[chunk_tab['Chunk number'] == 1]['Files'].tolist() \
+            == path_list[0:2]
+        assert chunk_tab[chunk_tab['Chunk number'] == 2]['Files'].tolist() \
+            == path_list[2:3]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_true_refills_on_mid_chunk_failure(
+            self, tmp_path, dicom_path_list_3):
+        """
+        A mid-chunk extraction failure pulls in the next file so the
+        chunk still reaches the requested `chunk` size; all 3 files end
+        up consumed by the single resulting chunk, and `chunk_record`
+        reflects those 3 actually-consumed files, not the planned 2-file
+        slice.
+        """
+        os.chdir(tmp_path)
+        path_list = dicom_path_list_3
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=path_list,
+                            extract_median=False,
+                            engineer_wave=_EngFailOrdinals(fail_at={1}))
+        res = ecgtable(verbose=False, ignore_missing_leads=True).write_ecg(
+            parsed_config=parser_dicom, tab_append=False, unique=False,
+            chunk=2, chunk_strict=True, write_chunk_record=True,
+        )
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        content = os.listdir(target)
+        # only one chunk is written -- the failure was topped up, not
+        # spilled into a second short chunk
+        assert 'metadata_1.tsv.gz' in content
+        assert 'metadata_2.tsv.gz' not in content
+        meta_1 = pd.read_csv(os.path.join(target, 'metadata_1.tsv.gz'),
+                             sep='\t', index_col=0)
+        assert meta_1.shape[0] == 2
+        chunk_tab = pd.read_csv(
+            os.path.join(target, 'chunkrecord.txt'), sep='\t')
+        assert chunk_tab['Files'].tolist() == path_list
+        # the failed file is recorded, distinctly from "No data"
+        with open(os.path.join(target, 'FailedFiles.txt')) as fh:
+            rows = [r for r in fh.read().splitlines() if r]
+        assert len(rows) == 1
+        assert rows[0].split('\t')[-1] != 'No data'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_true_exhaustion(self, tmp_path):
+        """
+        The file source is exhausted before reaching `chunk` successes:
+        the final short chunk is still written, no hang, no exception.
+        """
+        os.chdir(tmp_path)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,)
+        res = ecgtable(verbose=False).write_ecg(
+            parsed_config=parser_dicom, tab_append=False,
+            chunk=5, chunk_strict=True, write_chunk_record=True,
+        )
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        content = os.listdir(target)
+        assert 'metadata_1.tsv.gz' in content
+        assert 'metadata_2.tsv.gz' not in content
+        meta_1 = pd.read_csv(os.path.join(target, 'metadata_1.tsv.gz'),
+                             sep='\t', index_col=0)
+        assert meta_1.shape[0] == 2
+        chunk_tab = pd.read_csv(
+            os.path.join(target, 'chunkrecord.txt'), sep='\t')
+        assert chunk_tab['Files'].tolist() == dicom_path_list
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_true_all_fail(self, tmp_path):
+        """
+        Every remaining file fails: the final chunk has zero successes
+        and is skipped entirely. No writer call (no metadata/waveforms
+        output), no chunk_record entry, no UnboundLocalError.
+        """
+        os.chdir(tmp_path)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            extract_median=False, engineer_wave=_eng_partial)
+        res = ecgtable(verbose=False, ignore_missing_leads=True).write_ecg(
+            parsed_config=parser_dicom, tab_append=False,
+            chunk=3, chunk_strict=True, write_chunk_record=True,
+        )
+        target = getattr(res, TabNames.WRITE_ECG_PATH)
+        content = os.listdir(target)
+        assert not any(c.startswith('metadata') for c in content)
+        assert not any(c.startswith('waveforms') for c in content)
+        # no chunks were ever recorded: chunkrecord.txt has no data rows
+        # (not even a header, since no chunk ever reached the writer)
+        with open(os.path.join(target, 'chunkrecord.txt')) as fh:
+            assert [r for r in fh.read().splitlines() if r] == []
+        with open(os.path.join(target, 'FailedFiles.txt')) as fh:
+            rows = [r for r in fh.read().splitlines() if r]
+        assert len(rows) == 2
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestPadTruncate(object):
