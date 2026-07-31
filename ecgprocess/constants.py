@@ -223,6 +223,7 @@ class TabularNames(object):
     WRITE_FIGURE   = 'figure'
     WRITE_PIXEL    = 'pixel'
     WRITE_WFDB     = 'wfdb'
+    WRITE_XML      = 'xml'
     WRITE_ECG_PATH = 'target_path'
     ID_START       = '_id_start_number'
     KEY            = 'key'
@@ -272,6 +273,10 @@ class WriteNames(object):
     # the FailedFiles.txt cause for a write-stage annotation failure:
     # Controlled by: ignore_data
     ANNOT_CAUSE = 'Annotation failed (ignore_data): {}'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # the FailedFiles.txt cause for a write-stage XML export failure:
+    # Controlled by: ignore_data
+    XML_CAUSE = 'XML export failed (ignore_data): {}'
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # the pixel writer channel formats
     RGBA = 'rgba'

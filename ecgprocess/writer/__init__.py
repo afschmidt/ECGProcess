@@ -45,6 +45,9 @@ from ecgprocess.writer.writer_pixel import (
 from ecgprocess.writer.writer_wfdb import (
     WFDBWriter,
 )
+from ecgprocess.writer.writer_xml import (
+    XMLWriter,
+)
 
 __all__ = [
     'WriteContext',
@@ -61,5 +64,6 @@ __all__ = [
     'FigureWriter',
     'PixelWriter',
     'WFDBWriter',
+    'XMLWriter',
     'signal_dicts_to_long_table',
 ]

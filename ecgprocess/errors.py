@@ -375,6 +375,28 @@ class Error_MSG(object):  # pragma: no cover
         'records with one fixed figure size '
         '(`ECGStyle(figsize=..., dpi=...)`). '
     )
+    XML_SOURCE_CASING=(
+        'XMLWriter template leaf {} reads {!r}, whose prefix {!r} differs '
+        'only in case from the data source {!r}. Correct the casing to '
+        'reference that source; if the value was meant as a literal '
+        'string, change it so its prefix no longer resembles a source '
+        'name (only {} are recognised).'
+    )
+    XML_NO_TEMPLATE=(
+        'XMLWriter requires a template; pass one to the constructor '
+        '(`XMLWriter(template=...)`) instead of selecting the writer by '
+        'its registry key alone.'
+    )
+    XML_MISSING_FIELD=(
+        'template leaf {} references {!r}, which is absent from this '
+        "record's {} data."
+    )
+    XML_SOURCE_NOT_EXTRACTED=(
+        'XMLWriter template references the source(s) {}, which were not '
+        'extracted; enable the corresponding extract_meta/extract_wave/'
+        'extract_median flag(s), or drop those references from the '
+        'template.'
+    )
     WRITER_INVALID=(
         'the supplied writer failed validation with {} violation(s):\n{}'
     )
@@ -414,6 +436,10 @@ class Warn_MSG(object):  # pragma: no cover
                         'failed annotation: %s')
     PIXEL_EMPTY_CHUNK = ('all records in the chunk were skipped; no '
                          'pixel tensor was written.')
+    XML_SKIPPED = ('record %s was skipped and recorded due to a failed '
+                   'XML export: %s')
+    XML_NOT_IN_XSD = ('the written XML is valid, ignoring elements not '
+                      'present in the supplied XSD (strict=False).')
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # error messages

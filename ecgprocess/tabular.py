@@ -980,8 +980,8 @@ class ECGTable(object):
             successfully-extracted files toward its `chunk` size
             (`True`),or every attempted file regardless of processing outcome.
             (`False`). "Successful" means surviving `_loop_table`'s extraction
-            checks only; write-stage (writer) failures are never backfilled.
-            Has no effect when `chunk` is `NoneType`.
+            checks; Any writer-stage does not affect chunck creation and is
+            therefore out of bounds.  Has no effect when `chunk` is `NoneType`.
         tar_mode : `str`, default `w:gz`
             The tarfile.open mode.
         tab_sep : `str`, default `\\t`
