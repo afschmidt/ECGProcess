@@ -1,0 +1,31 @@
+{
+    "ECGExport": {
+        "@id": "MetaData.unique identifier",
+        "@schemaVersion": "1.0",
+        "SamplingFrequency": "MetaData.sampling frequency (original)",
+        "WaveForms": {
+            "Lead": [
+                {
+                    "@name": "I",
+                    "#text": "WaveForms.I"
+                },
+                {
+                    "@name": "II",
+                    "#text": "WaveForms.II"
+                }
+            ]
+        },
+        "MedianBeats": {
+            "Lead": [
+                {
+                    "@name": "I",
+                    "#text": "MedianBeats.I"
+                },
+                {
+                    "@name": "II",
+                    "#text": "MedianBeats.II"
+                }
+            ]
+        }
+    }
+}

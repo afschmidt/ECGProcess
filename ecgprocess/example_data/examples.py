@@ -311,6 +311,36 @@ def list_xml_paths():
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataset
+def list_xml_writer_paths():
+    """
+    Returns the paths to the example `XMLWriter` template and its
+    validating XSD schema.
+
+    Returns
+    -------
+    paths: dict
+        The data names (keys) and paths (values) available in ECGProcess.
+
+    Notes
+    -----
+    Unlike `list_xml_paths`, which locates an example XML document to be
+    read and validated, this locates the JSON template and XSD schema
+    used to configure `ecgprocess.writer.writer_xml.XMLWriter` to write
+    XML documents: the writer-side, not the reader-side, example.
+    """
+    FILENAME = 'example-XMLWriter1'
+    # paths dictionary
+    paths_dict = {
+        'example_1_template': os.path.join(
+            _ROOT_DATASETS_DIR, FILENAME+'.json'),
+        'example_1_schema': os.path.join(
+            _ROOT_DATASETS_DIR, FILENAME+'.xsd'),
+    }
+    # return
+    return paths_dict
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@dataset
 def config_file(path=None, text:None | dict[str, list[str]]=None) -> str:
     """
     Returns a toy example of a data configuration file as a string or uses

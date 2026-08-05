@@ -44,7 +44,7 @@ exclude = ["tests", "*.tests", "*.tests.*", "tests.*"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-"ecgprocess" = ["*.md", "*.txt", "*.rst"]
+"ecgprocess" = ["*.md", "*.txt", "*.rst", "*.xsd", "*.json"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["tests/*"]

@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="MeasurementType">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="units" type="xs:string" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="LeadGroupType">
+    <xs:sequence>
+      <xs:element name="SamplingNumber" type="xs:integer"/>
+      <xs:element name="Resolution" type="MeasurementType"/>
+      <xs:element name="Lead" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:simpleContent>
+            <xs:extension base="xs:string">
+              <xs:attribute name="name" type="xs:string" use="required"/>
+            </xs:extension>
+          </xs:simpleContent>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DeviceType">
+    <xs:sequence>
+      <xs:element name="Description" type="xs:string"/>
+      <xs:element name="SoftwareVersion" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DiagnosticsType">
+    <xs:sequence>
+      <xs:element name="VentricularRate" type="MeasurementType"/>
+      <xs:element name="PRInterval" type="MeasurementType"/>
+      <xs:element name="QRSDuration" type="MeasurementType"/>
+      <xs:element name="QTInterval" type="MeasurementType"/>
+      <xs:element name="QTCInterval" type="MeasurementType"/>
+      <xs:element name="PAxis" type="MeasurementType"/>
+      <xs:element name="RAxis" type="MeasurementType"/>
+      <xs:element name="TAxis" type="MeasurementType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ECGExport">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="NumberOfLeads" type="xs:integer"/>
+        <xs:element name="SamplingFrequency" type="xs:decimal"/>
+        <xs:element name="SamplingFrequencyUnit" type="xs:string"/>
+        <xs:element name="AcquisitionDate" type="xs:string"/>
+        <xs:element name="Device" type="DeviceType"/>
+        <xs:element name="Diagnostics" type="DiagnosticsType"/>
+        <xs:element name="WaveForms" type="LeadGroupType"/>
+        <xs:element name="MedianBeats" type="LeadGroupType"/>
+      </xs:sequence>
+      <xs:attribute name="id" type="xs:string" use="required"/>
+      <xs:attribute name="schemaVersion" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,66 @@
+{
+    "ECGExport": {
+        "@id": "MetaData.unique identifier",
+        "@schemaVersion": "1.0",
+        "NumberOfLeads": "MetaData.number of leads",
+        "SamplingFrequency": "MetaData.sampling frequency (original)",
+        "SamplingFrequencyUnit": "MetaData.sampling frequency unit",
+        "AcquisitionDate": "MetaData.acquisition date",
+        "Device": {
+            "Description": "MetaData.device description",
+            "SoftwareVersion": "MetaData.device software version"
+        },
+        "Diagnostics": {
+            "VentricularRate": {"@units": "bpm", "#text": "MetaData.ventricular rate"},
+            "PRInterval": {"@units": "ms", "#text": "MetaData.pr interval"},
+            "QRSDuration": {"@units": "ms", "#text": "MetaData.qrs duration"},
+            "QTInterval": {"@units": "ms", "#text": "MetaData.qt interval"},
+            "QTCInterval": {"@units": "ms", "#text": "MetaData.qtc interval"},
+            "PAxis": {"@units": "degrees", "#text": "MetaData.p axis"},
+            "RAxis": {"@units": "degrees", "#text": "MetaData.r axis"},
+            "TAxis": {"@units": "degrees", "#text": "MetaData.t axis"}
+        },
+        "WaveForms": {
+            "SamplingNumber": "MetaData.sampling number (waveforms)",
+            "Resolution": {
+                "@units": "MetaData.resolution unit (waveforms)",
+                "#text": "MetaData.resolution (waveforms)"
+            },
+            "Lead": [
+                {"@name": "I", "#text": "WaveForms.I"},
+                {"@name": "II", "#text": "WaveForms.II"},
+                {"@name": "III", "#text": "WaveForms.III"},
+                {"@name": "aVR", "#text": "WaveForms.aVR"},
+                {"@name": "aVL", "#text": "WaveForms.aVL"},
+                {"@name": "aVF", "#text": "WaveForms.aVF"},
+                {"@name": "V1", "#text": "WaveForms.V1"},
+                {"@name": "V2", "#text": "WaveForms.V2"},
+                {"@name": "V3", "#text": "WaveForms.V3"},
+                {"@name": "V4", "#text": "WaveForms.V4"},
+                {"@name": "V5", "#text": "WaveForms.V5"},
+                {"@name": "V6", "#text": "WaveForms.V6"}
+            ]
+        },
+        "MedianBeats": {
+            "SamplingNumber": "MetaData.sampling number (medianbeats)",
+            "Resolution": {
+                "@units": "MetaData.resolution unit (medianbeats)",
+                "#text": "MetaData.resolution (medianbeats)"
+            },
+            "Lead": [
+                {"@name": "I", "#text": "MedianBeats.I"},
+                {"@name": "II", "#text": "MedianBeats.II"},
+                {"@name": "III", "#text": "MedianBeats.III"},
+                {"@name": "aVR", "#text": "MedianBeats.aVR"},
+                {"@name": "aVL", "#text": "MedianBeats.aVL"},
+                {"@name": "aVF", "#text": "MedianBeats.aVF"},
+                {"@name": "V1", "#text": "MedianBeats.V1"},
+                {"@name": "V2", "#text": "MedianBeats.V2"},
+                {"@name": "V3", "#text": "MedianBeats.V3"},
+                {"@name": "V4", "#text": "MedianBeats.V4"},
+                {"@name": "V5", "#text": "MedianBeats.V5"},
+                {"@name": "V6", "#text": "MedianBeats.V6"}
+            ]
+        }
+    }
+}

@@ -76,8 +76,8 @@ only 8 recorded leads, and the derived limb leads (`III`, `aVR`, `aVL`,
 
 **Additional/non-standard leads** — if your data includes extra leads beyond
 the standard 12 (e.g., `V7`, `V8`, `V9` for orthogonal vectors, or `V3R`,
-`V4R` for right-sided precordials), set `extra_leads=True` on the `DataMap`
-instance before mapping the config file. Any `[WaveForms]`/`[MedianBeats]`
+`V4R` for right-sided precordials), set `extra_leads=True` on `DataMap`
+before mapping the config file. Any `[WaveForms]`/`[MedianBeats]`
 key in the config file that is not one of the standard 12 is then accepted
 automatically:
 
@@ -121,7 +121,7 @@ device serial number			DeviceInfo.SerialNumber
 Metadata data can essentially contain any other type of data aside from the 
 signal arrays.
 There are some privileged attribute names here as well, please consult 
-:doc:`privileged_names` (`ecgprocess.PrivilegedNames`) for these.
+{doc}`privileged_names` (`ecgprocess.PrivilegedNames`) for these.
 In principle omitting some, or all of the privileged attributes names, does
 not prevent the processing function from working.
 Some specific arguments (i.e. such as signal resampling) might however fail 
@@ -177,7 +177,7 @@ This matches every source tag starting with `conclusion_`
 (i.e. `conclusion_1`, `conclusion_2`, ...) and assigns their `[DELIM]`-joined
 content to the `conclusion` attribute. 
 
-The [config](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/config?ref_type=heads) 
+The [config](https://gitlab.com/SchmidtAF/ECGProcess/-/tree/master/resources/config/reader?ref_type=heads) 
 directory includes a few example `.cnf` files to get you started. 
 
 
