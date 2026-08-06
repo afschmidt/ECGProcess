@@ -3,12 +3,11 @@
 # This specific template is located at:
 # https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Python.gitlab-ci.yml
 
-# Official language image. Look for the different tagged releases at:
-# https://hub.docker.com/r/library/python/tags/
+# Default image used by the pages deploy job.
+# Test jobs override this per Python version via parallel: matrix.
 image:
-    name: floriaan1/ecgprocess:master 
-    # entrypoint: ["/bin/bash", "-c"]
-    entrypoint: [ '/bin/bash', '-c', 'ln -snf /bin/bash /bin/sh && /bin/bash -c $0' ]
+    name: floriaan1/ecgprocess:py313
+    entrypoint: ["/bin/sh", "-c"]
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
 variables:
@@ -33,6 +32,20 @@ stages:
   before_script:
     - resources/ci_cd/before_script.sh
 
+# Test matrix: runs on every branch across all supported Python versions.
+test:
+  stage: test
+  <<: *build_test-integration
+  image:
+    name: floriaan1/ecgprocess:$PYTHON_TAG
+    entrypoint: ["/bin/sh", "-c"]
+  script:
+    - resources/ci_cd/test.sh
+  parallel:
+    matrix:
+      - PYTHON_TAG: [py311, py312, py313]
+
+# Pages deploy: only on the default branch; tests already passed above.
 pages:
   stage: deploy
   <<: *build_test-integration

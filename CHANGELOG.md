@@ -74,6 +74,15 @@
 * `resources/config` split into `resources/config/reader` (the
   existing input-side `.cnf` docs and examples) and
   `resources/config/writer` (the new `XMLWriter` template docs)
+* GitLab CI test stage now runs across a Python 3.11/3.12/3.13 matrix
+  on every branch (previously only ran on the default branch, inside
+  the deploy job, on a single Python version); Docker images split
+  from a single `:master` tag into `py311`/`py312`/`py313` tags under
+  `resources/docker/ECGProcess`
+* CI/CD debug scripts (`resources/ci_cd/debug_run_docker.sh`,
+  `run_docker.sh`) rewritten to support the Python-version matrix,
+  with a docker pre-flight check and settings read from
+  `.gitlab-ci.yml` instead of being hardcoded
 
 #### Deprecated
 

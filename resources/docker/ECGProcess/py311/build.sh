@@ -5,5 +5,5 @@ set -euo pipefail
 # no files are duplicated on disk.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../../../.." && pwd)"
-docker buildx build --load -t floriaan1/ecgprocess:master \
+docker buildx build --load -t floriaan1/ecgprocess:py311 \
     -f "${script_dir}/Dockerfile" "${repo_root}"

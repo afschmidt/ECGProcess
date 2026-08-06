@@ -37,6 +37,7 @@ git config --global --add safe.directory "$PWD"
 
 # Now run the CI/CD scripts
 . "$ci_cd"/before_script.sh
+. "$ci_cd"/test.sh
 . "$ci_cd"/pages.sh
 
 echo "[info] current dir (end)"

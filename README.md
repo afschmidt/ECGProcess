@@ -3,6 +3,9 @@
 # An ECG processing module
 __version__: `1.1.0`
 
+Supports Python 3.11-3.13; the test suite runs against all three versions
+in CI.
+
 
 This repository hosts a collection of functions for processing
 electrocardiogram (ECG) data and preparing it for analysis.
