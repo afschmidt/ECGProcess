@@ -1,4 +1,4 @@
-# Configuration files to process ECG data
+# ECG processing configuration files
 
 It typically is fairly straightforward to extract signal data 
 from XML or DICOM files. 

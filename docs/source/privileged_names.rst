@@ -28,8 +28,8 @@ Import the registry and check if a name is reserved:
         print("I is reserved (standard lead)")
     
     # View all reserved names
-    print(PrivilegedNames.LEADS)       # 12 standard leads
-    print(PrivilegedNames.METADATA)    # 10 privileged metadata fields
+    print(PrivilegedNames.LEADS)      
+    print(PrivilegedNames.METADATA)  
 
 Standard Lead Names (12)
 ------------------------
@@ -43,8 +43,8 @@ Standard 12-lead ECG names. These cannot be overridden:
 Privileged Metadata Field Names (10)
 -------------------------------------
 
-Metadata fields used in config files and data extraction. These cannot
-be overridden as custom field names:
+the following Metadata fields are used in config files and data extraction.
+These cannot be overridden as custom field names:
 
 - unique identifier
 - number of leads
@@ -61,17 +61,15 @@ Using Custom Lead Names
 -----------------------
 
 To use custom lead names beyond the standard 12, set ``extra_leads=True``
-on ``DataMap`` before parsing the config file. Any ``[WaveForms]``/
-``[MedianBeats]`` key in the config file that is not one of the standard
-12 is then accepted automatically:
+on ``DataMap`` before parsing the config file.
+Any ``[WaveForms]`` or ``[MedianBeats]`` key in the config file that is 
+not one of the standard 12 is then accepted automatically:
 
 .. code-block:: python
 
     from ecgprocess.utils.config_tools import ConfigParser, DataMap
-
+    
     mapper = DataMap(extra_leads=True)
     parser = ConfigParser(path='config.cnf')()
     parser.map(mapper=mapper)
 
-Custom metadata field names can be placed in the ``[OtherData]`` section
-of the config file and do not require declarations.

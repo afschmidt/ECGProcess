@@ -42,6 +42,14 @@
 * `chunk_strict` parameter on `ECGTable.write_ecg`: when True, a chunk
   counts only successfully-extracted files toward its `chunk` size,
   pulling in further files to make up for any that failed
+* `XMLWriter` for template-driven XML export (`writer='xml'`), with
+  multi-source templates (metadata, waveforms, and median beats in one
+  document) and optional per-document XSD validation, schema compiled
+  once per writer instance
+* Example XML writer template and schema
+  (`ecgprocess.example_data.examples.list_xml_writer_paths`) and
+  documentation: writers catalogue page and dedicated XML writer
+  reference page
 
 #### Changed
 
@@ -61,6 +69,11 @@
 * TensorFlow moved to optional dependency (lazy import in `TFRecordWriter`)
 * `ecgprocess.writer` reorganised from a single module into a package,
   one file per writer family; the public import surface is unchanged
+* `xmltodict` dependency floor raised to `>=1.0.3` (was `>=0.14`);
+  0.14.2-0.15.1 are affected by CVE-2025-9375
+* `resources/config` split into `resources/config/reader` (the
+  existing input-side `.cnf` docs and examples) and
+  `resources/config/writer` (the new `XMLWriter` template docs)
 
 #### Deprecated
 

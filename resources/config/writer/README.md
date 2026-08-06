@@ -1,22 +1,23 @@
-# XML export templates for the XMLWriter
+# XMLWriter configuration templates
 
-`XMLWriter` (`writer='xml'`) writes one XML document per ECG UID. You
-tell it what the document should look like with a *template*: a
-description of the XML written in JSON (a text format for structured
-data, explained in the next section), with a few of its values
-swapped out for references to that record's data. This page covers
-how a template turns into XML, the rule that tells a literal value
-apart from a data reference, and XSD validation.
+`XMLWriter` (`writer='xml'`) writes one XML document per ECG UID.
+You tell it what the document should look like with a *template*: a
+description of the XML written in JSON, with a few of its values
+swapped out for references to that record's data.
+This page covers how a template turns into XML, the rule that tells a 
+literal value apart from a data reference, and (optional) XSD validation.
 
 ## How the template maps to XML
 
-A template is written in JSON, a plain text format for storing
+The XML template is written in JSON, a plain text format for storing
 structured data as named values, widely used for configuration files
-and for passing data between programs. JSON groups values two ways: a
-dictionary holds named values, each name is called a key, paired with
-its value; a list holds an ordered sequence of values with no names
-attached. A template is one such dictionary (or a path to a JSON file
-holding one). Its shape *is* the XML structure: writing the template
+and for passing data between programs.
+JSON groups values: 1) a dictionary holds named values, each name is
+called a key, paired with its value; 2) a list holds an ordered sequence of 
+values with no names attached.
+A template is one such dictionary (or a path to a JSON file
+holding one).
+Its shape *is* the XML structure: writing the template
 is really just writing XML using this dictionary and list form
 instead of angle brackets.
 
@@ -31,10 +32,8 @@ instead of angle brackets.
 
 This mapping is not specific to ECGProcess: it comes directly from
 `xmltodict`, a widely used Python library that converts between XML
-documents and this same JSON dictionary/list form. The example
-template shipped with ecgprocess
-(`ecgprocess.example_data.examples.list_xml_writer_paths()['example_1_template']`)
-puts it together:
+documents and this same JSON dictionary/list form.
+See the example JSON snippet:
 
 ```json
 {
@@ -64,9 +63,10 @@ entry (and likewise for `<MedianBeats>`).
 ## Literals and data references
 
 The one piece that is not plain `xmltodict`: a string value, a piece
-of text, can also be a *reference* into the record being written,
-rather than literal text. A string is read as a reference only when
-the text before its first dot matches a data source exactly
+of text, can also be a *reference* into the dictionary keys internally
+created by `ECGTable`, rather than literal text.
+A string is read as a reference only when the text before its first dot 
+matches a data source exactly
 (`MetaData`, `WaveForms`, or `MedianBeats`), as in
 `"MetaData.unique identifier"` above. Every other string is written
 out exactly as given, which is how a fixed value like
@@ -82,20 +82,19 @@ Two things follow from that rule:
   it is written out as that literal text.
 * A source name matched in every way but case raises
   `InputValidationError` when you set up the writer (when the
-  `XMLWriter` is created, before it processes any records). For
-  example, `"metadata.unique identifier"` or `"WAVEFORMS.I"` is treated as a
-  typo, not a literal. So a genuine literal that happens to start with
-  a source name in a different case (a filename like `"metadata.xml"`
-  used as an attribute value) needs rewording to avoid the clash.
-
-So, to directly answer the obvious question: yes, apart from that one
-convention on string leaves, the template's values are simply the XML
-content you want, written in JSON.
+  `XMLWriter` is created, before it processes any records).
+  For example, `"metadata.unique identifier"` or `"WAVEFORMS.I"` is treated as a
+  typo, not a literal.
+  So a genuine literal that happens to start with a source name in a different 
+  case (a filename like `"metadata.xml"` used as an attribute value) needs
+  rewording to avoid the clash.
 
 ## XSD validation
 
-You can pass an XSD file using `xsd_path` to validate every document 
+You can pass an (optional) XSD file using `xsd_path` to validate every document 
 against that schema before it is written.
+This ensures the outputted files adhere the XSD structure and allows
+for direct quality control of XML before written to disk. 
 The schema is parsed once per writer instance and reused for every
 record.
 
@@ -105,9 +104,7 @@ record.
 An XSD is a set of rules for what your XML is allowed to look like:
 which elements can appear, in what order, what attributes they carry,
 and what type their content is. If you have not written one before,
-read this alongside the shipped example schema
-(`list_xml_writer_paths()['example_1_schema']`). Its root element
-looks like this:
+read the below alongside the shipped example schema. 
 
 ```xml
 <xs:element name="ECGExport">
@@ -126,7 +123,7 @@ looks like this:
 Reading it piece by piece:
 
 * `<xs:element name="ECGExport">` declares the root element. Its
-  `name` must match the template's one top-level key.
+  `name` must match the JSON template's one top-level key.
 * `<xs:sequence>` lists, in order, the child elements `ECGExport`
   must contain: `SamplingFrequency`, then `WaveForms`, then
   `MedianBeats`. This order is not just documentation: validation
@@ -135,7 +132,7 @@ Reading it piece by piece:
   that means your template's key order has to match the schema.
 * `<xs:attribute name="id" .../>` and `.../"schemaVersion"` sit next
   to `xs:sequence`, not inside it, which is what makes them attributes
-  on `ECGExport` (matching the template's `@id`/`@schemaVersion`)
+  on `ECGExport` (matching the JSON template's `@id`/`@schemaVersion`)
   rather than child elements. `use="required"` fails validation if
   the attribute is missing.
 * `type="xs:decimal"` / `type="xs:string"` say what kind of value is

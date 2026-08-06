@@ -15,30 +15,20 @@ To process ECG data ECGprocess leverages three key components
   can optionally include validation steps (e.g. using XML 
   schema's).
 
-  All reader classes are able to perform data augmentation steps such as re-sampling 
-  the ECG signal and calculating the peripheral leads if 
-  these were omitted for the source file. 
+  All reader classes are able to perform data augmentation steps such as re-sampling
+  the ECG signal and calculating the limb leads if
+  these were omitted for the source file.
 
 * ``ECGTable`` processes any type of ECG data (with a corresponding
   reader class) and can chunk multiple files into a pandas table or write
   them to disk through a pluggable writer registry. The output format is
-  chosen with the ``writer`` argument of ``ECGTable.write_ecg``:
-
-  - ``'table'`` — tab-delimited .tsv tables (the default);
-  - ``'npz'`` — a single bundled NumPy .npz archive;
-  - ``'npy'`` — one .npy file per data source;
-  - ``'tensorflow'`` — binary tfrecord files;
-  - ``'wfdb'`` — one WFDB (PhysioNet) record per ECG UID;
-  - ``'figure'`` — a rendered ECG image per record (e.g. PNG, PDF, SVG);
-  - ``'pixel'`` — stacked pixel tensors for imaging-based machine learning.
-
-  *Note*: tensorflow and wfdb are strictly optional package and will need
-  to be installed separately, e.g. ``pip install ecgprocess[tensorflow]``.
+  chosen with the ``writer`` argument of ``ECGTable.write_ecg``; see
+  :doc:`writers` for the full catalogue of built-in formats.
 
   The ``writer`` argument also accepts any ``BaseWriter`` subclass or
-  callable, allowing new formats without changing library code; see
-  :doc:`custom_writers`. The ``WriterValidator`` class in ``writer.py``
-  can be used to validate any custom built writer class.
+  callable, allowing new formats without changing library code, and can
+  be checked with ``WriterValidator`` before running a batch; see
+  :doc:`custom_writers` for how to build and validate one.
 
   *Note*: the ``file_type`` argument is deprecated and will be removed in
   version 2.0.0; use ``writer`` instead.
@@ -109,7 +99,10 @@ the output schema stable:
 *sampling number padded (medianbeats)*, and
 *duration padded (sec)*.
 
-*Note*: these are also privileged variable names and should not be overwritten.
+*Note*: these three keys are populated automatically by ``ECGTable`` and
+will be overwritten if reused as a custom metadata field name. They are a
+separate set from the reserved names described in
+:doc:`privileged_names`.
 
 Engineering callables
 ---------------------
@@ -131,8 +124,7 @@ Ready-to-use callables in ``ecgprocess.utils.engineering_tools``:
   and model.
 * ``signal_correction`` — applies gain and baseline correction.
 * ``signal_standardise_res`` — rescales signal amplitude to a target
-  resolution (e.g. converts 10 μV/sample to 5 μV/sample by multiplying
-  each sample by 2).
+  resolution.
 
 Users can supply any callable matching the signature above in place of or
 alongside these built-ins.

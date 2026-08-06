@@ -41,7 +41,7 @@ The module provides a plotting API built on top of matplotlib.
 This can be used for research illustrations as well as to mimic
 clinical ECG prints.
 These can also be batch-written to disk as illustrations or as 
-numpy arrays using ``ECGTable``. 
+numpy arrays using ``ECGTable`` and the relevant **writer** callable. 
 
 Installation
 ----------------------------
@@ -78,9 +78,9 @@ avoid, and finally how to build a custom writer.
    :maxdepth: 1
    :caption: Quickstart
 
+   processing_signal_data
    configuration_files
    privileged_names
-   processing_signal_data
    custom_writers
 
 .. toctree::
@@ -90,14 +90,16 @@ avoid, and finally how to build a custom writer.
    examples/recipe/process_xml.nblink
    examples/recipe/process_dicom.nblink
    examples/recipe/tabular.nblink
-   examples/recipe/writer.nblink
    examples/recipe/plot_ecgs.nblink
    examples/recipe/utils/engineering_tools.nblink
+   examples/recipe/writer.nblink
 
 .. toctree::
    :maxdepth: 1
    :caption: Additional documentation
 
+   writers
+   xml_writer
    api
 
 .. toctree::

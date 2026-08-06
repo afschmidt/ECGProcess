@@ -4,11 +4,11 @@ Custom writers
 
 The output formats of ``ECGTable.write_ecg`` are pluggable: next to the
 built-in writers, you can supply any ``BaseWriter`` subclass through the
-``writer`` argument, either as a class or as a configured instance. When
-passed as a class, the writer is instantiated without arguments, so every
-constructor parameter must carry a default. This page describes what a
-custom writer needs to do, walks through a worked example, and introduces
-the ``WriterValidator`` pre-flight check.
+``writer`` argument, either as a class or as a configured instance.
+When passed as a class, the writer is instantiated without arguments, so every
+constructor parameter must carry a default.
+This page describes what a custom writer needs to do, walks through a worked example,
+and introduces the ``WriterValidator`` pre-flight check.
 
 Requirements checklist
 ----------------------
@@ -17,9 +17,9 @@ To create a working writer, your ``BaseWriter`` subclass must implement the
 ``write`` method and may override three filename-related attributes/methods.
 The ``WriteContext`` (i.e. ``ctx``, see `The WriteContext`_ below for
 the full field list) provides runtime information and is internally
-passed to ``write`` by ``ECGTable``, and hence you do not need to
-touch this yourself. It is simply available to source information to
-the ``Writer`` callable.
+passed to ``write`` by ``ECGTable``. 
+You therefore do not need to touch this yourself, it is simply available to 
+source information to the ``Writer`` callable.
 
 The ``write`` method needs to write one or more files to disk and can 
 use the ``file_names`` and ``file_ext`` methods along with the ``ctx.target`` 
@@ -28,11 +28,11 @@ file output and location.
 
 Depending on the type of writer, it can be important to include 
 options for error handling using ``ctx.skip_data`` and ``ctx.failed_records``.
-This might be especially important if you are applying additional methods
-beyond simple writing to disk. For example if you want to
-create a figure from the signal data, or if you are performing
-chunk based processes which cannot be conducted using the record
-specific engineering callables. 
+This might be especially important if you are applying additional processing
+steps beyond simple writing to disk.
+For example if you want to create a figure from the signal data,
+or if you are performing chunk based processes which cannot be conducted
+using the record specific engineering callables. 
 
 The ``WriterValidator`` class include a ``describe`` method which 
 lists the current requirements and WriteContext fields available
@@ -126,8 +126,10 @@ The WriteContext
 --------------------
 
 The context object carries the state a writer needs, decoupling it
-from ``ECGTable``. ECGTable builds this object and passes it to your
-``write`` method. Included fields:
+from ``ECGTable``.
+ECGTable builds the ``WriteContext`` object and passes it to your ``write`` method.
+The parsed ``WriteContext`` instances contains the following fields which 
+can be used by the writer during runtime. 
 
 ``e_meta``, ``e_wave``, ``e_median`` : ``bool``
     Whether metadata, waveform, and median beat data should be
@@ -202,7 +204,7 @@ using only the standard library:
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         def write(self, meta_list, wave_list, median_list, ctx):
             # the fourth standard name is the bundled-output slot
-            # wrting to a single file so using `ecg_file` here.
+            # writing to a single file so using `ecg_file` here.
             _, _, _, ecg_file, _ = self.file_names(
                 chunk_num=ctx.chunk_num)
             record = {'identifiers': list(ctx.key_list)}
