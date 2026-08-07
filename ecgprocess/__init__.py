@@ -16,9 +16,19 @@ engineer, and writer callables to extend `ECGTable`.
 
 A matplotlib-based plotting API is included for research illustrations and
 clinical-style ECG prints.
+
+Logging is emitted under the `'ecgprocess'` logger name. No handler is
+attached by default, so messages are discarded unless the calling
+application configures one.
 """
+
+import logging
 
 from ._version import __version__
 from .constants import PrivilegedNames
+
+# Silence "No handlers could be found" noise for callers that don't
+# configure logging themselves.
+logging.getLogger('ecgprocess').addHandler(logging.NullHandler())
 
 __all__ = ['PrivilegedNames', '__version__']

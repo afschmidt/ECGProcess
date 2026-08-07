@@ -1,6 +1,7 @@
 #!/bin/sh
 # Dot-sourced under real dash locally, so stays POSIX (no "pipefail").
 set -eu
+echo "[ci_cd] running resources/ci_cd/pages.sh"
 # This is assumed to be running from the root of the repo
 echo "[pages] running in: $PWD"
 

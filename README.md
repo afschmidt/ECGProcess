@@ -1,4 +1,4 @@
-![Schematic](https://SchmidtAF.gitlab.io/ECGProcess/_static/ECGProcessSchematic.png)
+![Schematic](https://SchmidtAF.gitlab.io/ECGProcess/_static/ecgp_logo.png)
 
 # An ECG processing module
 __version__: `1.1.0`
