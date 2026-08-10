@@ -1,4 +1,7 @@
-![Schematic](https://gitlab.com/SchmidtAF/ECGProcess/-/raw/dev/docs/source/_static/ecgp_logo.png)
+<!-- TODO once dev is merged into master and the pages job redeploys, switch
+     this back to the Sphinx-published URL:
+     https://SchmidtAF.gitlab.io/ECGProcess/_static/ecgp_logo.png -->
+<img src="https://gitlab.com/SchmidtAF/ECGProcess/-/raw/d853ccf/docs/source/_static/ecgp_logo.png" alt="ECGProcess icon" width="250"/>
 
 # An ECG processing module
 __version__: `1.1.0`
