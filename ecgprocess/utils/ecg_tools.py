@@ -260,8 +260,8 @@ def signal_calibration(signal:np.ndarray,
         The recalibrated signal.
     """
     is_type(signal, np.ndarray)
-    is_type(correctionfactor, float)
-    is_type(baseline, float)
+    is_type(correctionfactor, (int, float))
+    is_type(baseline, (int, float))
     # algorithm
     new_signal = (signal - baseline) * correctionfactor
     # return
@@ -294,7 +294,7 @@ def signal_resolution(signal:np.ndarray,
     >>> import numpy as np
     >>> ecg_signal = np.array([10, 20, 30, 40, 50])
     >>> current_res = 2.0  # each digital unit equals 2 μV
-    >>> new_signal = adjust_resolution(
+    >>> new_signal = signal_resolution(
     ...     ecg_signal,
     ...     resolution_current=current_res,
     ...     resolution_target=5
@@ -303,8 +303,8 @@ def signal_resolution(signal:np.ndarray,
     [ 25.  50.  75. 100. 125.]
     """
     is_type(signal, np.ndarray)
-    is_type(resolution_current, float)
-    is_type(resolution_target, float)
+    is_type(resolution_current, (int, float))
+    is_type(resolution_target, (int, float))
     # algorithm
     new_signal = signal * resolution_target/resolution_current
     # return

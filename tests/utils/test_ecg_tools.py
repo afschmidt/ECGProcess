@@ -162,10 +162,25 @@ class TestSignalCalibration(object):
         np.testing.assert_array_almost_equal(result, [-2.0, 0.0, 2.0])
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_invalid_type(self):
-        """InputValidationError raised when correctionfactor is not a float."""
+        """InputValidationError raised when correctionfactor is not numeric."""
         signal = np.array([1.0, 2.0, 3.0])
         with pytest.raises(InputValidationError):
-            ecg_utils.signal_calibration(signal, correctionfactor=2, baseline=0.0)
+            ecg_utils.signal_calibration(
+                signal, correctionfactor='2', baseline=0.0)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_accepts_int(self):
+        """
+        signal_calibration accepts int correctionfactor/baseline without
+        raising, since metadata dicts may legitimately supply whole-number
+        values.
+
+        Test data: signal=[0,1,2], baseline=1, correctionfactor=2.
+        Expected: [-2.0, 0.0, 2.0].
+        """
+        signal = np.array([0.0, 1.0, 2.0])
+        result = ecg_utils.signal_calibration(
+            signal, correctionfactor=2, baseline=1)
+        np.testing.assert_array_almost_equal(result, [-2.0, 0.0, 2.0])
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_no_mutation(self):
         """signal_calibration must not modify the caller's array in-place."""
@@ -191,11 +206,25 @@ class TestSignalResolution(object):
         np.testing.assert_array_almost_equal(result, [25.0, 50.0, 75.0])
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_invalid_type(self):
-        """InputValidationError raised when resolution_current is not a float."""
+        """InputValidationError raised when resolution_current is not numeric."""
         signal = np.array([1.0, 2.0, 3.0])
         with pytest.raises(InputValidationError):
             ecg_utils.signal_resolution(
-                signal, resolution_current=2, resolution_target=5.0)
+                signal, resolution_current='2', resolution_target=5.0)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_accepts_int(self):
+        """
+        signal_resolution accepts int resolution_current/resolution_target
+        without raising, since metadata dicts may legitimately supply
+        whole-number values.
+
+        Test data: signal=[10,20,30], current=2, target=5.
+        Expected: [25.0, 50.0, 75.0].
+        """
+        signal = np.array([10.0, 20.0, 30.0])
+        result = ecg_utils.signal_resolution(
+            signal, resolution_current=2, resolution_target=5)
+        np.testing.assert_array_almost_equal(result, [25.0, 50.0, 75.0])
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_no_mutation(self):
         """signal_resolution must not modify the caller's array in-place."""

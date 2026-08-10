@@ -200,8 +200,9 @@ class TestBaseExtraction(object):
                 _ = config_file(path=tmp_file.name, text=config_duplicates)
                 _ = config_utils.ConfigParser(tmp_file.name)()
         # the wrong config
-        with pytest.raises(KeyError):
+        with pytest.raises(KeyError) as excinfo:
             parser1.map(mapper=config_utils.DataMap())
+        assert "`WaveForms`. Please update" in str(excinfo.value)
         # without tab a tab delimiter
         with NamedTemporaryFile("w") as tmp_file:
             _ = config_file(path=tmp_file.name, text=config_no_lhs)
@@ -212,6 +213,45 @@ class TestBaseExtraction(object):
         assert len(parser2._data) > 0
         assert len(parser2.get_section('WaveForms')) == 12
         assert parser3 == parser2
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_config_parser_eq_incompatible_type(self):
+        """Comparing a `ConfigParser` instance against an incompatible
+        type returns `False` via `==` instead of raising."""
+        config = {
+            "WaveForms": [
+                "I\tLead_I_name",
+            ],
+            "MetaData": [
+                "sampling frequency (original)\tSamplingFrequency",
+                "sampling number (waveforms)\tNumberOfWaveformSamples",
+                "Birthdate\tPatientBirthDate",
+            ]
+        }
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=config)
+            parser = config_utils.ConfigParser(tmp_file.name)()
+        assert (parser == 42) is False
+        assert (parser == {"WaveForms": []}) is False
+        assert (parser == "not a parser") is False
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_config_parser_unhashable(self):
+        """`ConfigParser` instances are explicitly unhashable, since the
+        class is mutable."""
+        config = {
+            "WaveForms": [
+                "I\tLead_I_name",
+            ],
+            "MetaData": [
+                "sampling frequency (original)\tSamplingFrequency",
+                "sampling number (waveforms)\tNumberOfWaveformSamples",
+                "Birthdate\tPatientBirthDate",
+            ]
+        }
+        with NamedTemporaryFile("w") as tmp_file:
+            _ = config_file(path=tmp_file.name, text=config)
+            parser = config_utils.ConfigParser(tmp_file.name)()
+        with pytest.raises(TypeError):
+            hash(parser)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_config_parser_extra_leads(self):
         """ConfigParser accepts undeclared leads when extra_leads=True,

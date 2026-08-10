@@ -1,10 +1,12 @@
 from __future__ import annotations
 import pytest
 import pandas as pd
+import ecgprocess.errors as errors_module
 from ecgprocess.errors import (
     InputValidationError,
     XMLValidationError,
     are_columns_in_df,
+    get_param_name,
     is_series_type,
     is_type,
     same_len,
@@ -30,6 +32,33 @@ class TestIsType(object):
         """Supplied param_name appears in the error message."""
         with pytest.raises(InputValidationError, match="my_param"):
             is_type("hello", int, param_name="my_param")
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class TestGetParamName(object):
+    """Tests for get_param_name()."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_missing_current_frame_returns_none(self, monkeypatch):
+        """
+        If there is no current frame to inspect, return None instead
+        of crashing.
+        """
+        monkeypatch.setattr(
+            errors_module.inspect, "currentframe", lambda: None
+        )
+        assert get_param_name(object()) is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_missing_outer_frame_returns_none(self, monkeypatch):
+        """
+        If the caller's frame has no parent frame to walk up to,
+        return None instead of crashing.
+        """
+        class _OneHopFrame(object):
+            f_back = None
+        monkeypatch.setattr(
+            errors_module.inspect, "currentframe", lambda: _OneHopFrame()
+        )
+        assert get_param_name(object()) is None
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

@@ -1,9 +1,10 @@
 """
-Testing an XML schema againt a testing XML file.
+Testing an XML schema against a testing XML file.
 """
 
 import os
 import numpy as np
+import pytest
 import ecgprocess.example_data.examples as examples
 from ecgprocess.utils.reader_tools import validate_xml
 from ecgprocess.writer import WriteContext, XMLWriter
@@ -37,4 +38,21 @@ def test_xml_writer_example_template_and_schema_agree(tmp_path):
     tree = validate_xml(xml_path=str(written),
                         xsd_path=paths['example_1_schema'])
     assert isinstance(tree, etree._ElementTree)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def test_dataset_duplicate_registration_raises():
+    """Registering two dataset functions under the same name raises a
+    KeyError instead of the second silently overwriting the first."""
+    name = "_test_duplicate_dataset_fn"
+
+    def _test_duplicate_dataset_fn(*args, **kwargs):
+        return None
+
+    assert _test_duplicate_dataset_fn.__name__ == name
+    try:
+        examples.dataset(_test_duplicate_dataset_fn)
+        with pytest.raises(KeyError):
+            examples.dataset(_test_duplicate_dataset_fn)
+    finally:
+        examples._DATASETS.pop(name, None)
 

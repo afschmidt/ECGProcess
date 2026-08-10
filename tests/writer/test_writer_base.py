@@ -69,6 +69,39 @@ class TestWriteContext(object):
         assert ctx.failed_records == []
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestBaseWriterReset(object):
+    """Testing the `reset` lifecycle hook on `BaseWriter`: the inherited
+    no-op default, and a subclass override, in one pass."""
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_reset_default_noop_and_override(self, tmp_path, make_context):
+        # a writer that does not override reset still works unchanged: the
+        # inherited no-op is callable, returns None, and does not disturb
+        # subsequent write() calls.
+        class _Plain(BaseWriter):
+            FILE_EXT = '.json'
+            def write(self, meta_list, wave_list, median_list, ctx):
+                return None
+        plain = _Plain()
+        assert plain.reset() is None
+        plain.write([], [], [], make_context(tmp_path))
+        plain.reset()
+        plain.write([], [], [], make_context(tmp_path))
+        # a writer that does override reset has that override used, e.g. to
+        # clear per-run state on a reused instance.
+        class _Stateful(BaseWriter):
+            def __init__(self):
+                self.runs = 0
+            def reset(self):
+                self.runs += 1
+            def write(self, meta_list, wave_list, median_list, ctx):
+                return None
+        stateful = _Stateful()
+        assert stateful.runs == 0
+        stateful.reset()
+        stateful.reset()
+        assert stateful.runs == 2
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestResolveWriter(object):
     """Testing resolve_writer normalisation."""
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -138,6 +171,38 @@ class TestWriterValidator(object):
             WriterValidator(_NoArgs)
         assert Error_MSG.WRITER_SIGNATURE.split('{')[0] in str(err.value)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_uninspectable_write_signature(self):
+        """
+        A `write` attribute that `inspect.signature()` cannot read at
+        all (e.g. certain C builtins) must produce a clear
+        validation-failure message, not an `UnboundLocalError` from
+        reading a `sig` that was never assigned.
+        """
+        class _Uninspectable(BaseWriter):
+            write = dir
+        with pytest.raises(InputValidationError) as err:
+            WriterValidator(_Uninspectable)
+        assert (Error_MSG.WRITER_SIGNATURE_UNAVAILABLE.split('{')[0]
+                in str(err.value))
+        with pytest.raises(InputValidationError) as err:
+            WriterValidator(_Uninspectable())
+        assert (Error_MSG.WRITER_SIGNATURE_UNAVAILABLE.split('{')[0]
+                in str(err.value))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_reset_not_required(self):
+        # a writer that does not override reset validates the same as one
+        # that does: reset is optional, not part of the requirements.
+        class _NoReset(BaseWriter):
+            def write(self, meta_list, wave_list, median_list, ctx):
+                return None
+        class _WithReset(BaseWriter):
+            def reset(self):
+                self.was_reset = True
+            def write(self, meta_list, wave_list, median_list, ctx):
+                return None
+        WriterValidator(_NoReset)
+        WriterValidator(_WithReset)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_required_init_args(self):
         class _NeedsArg(BaseWriter):
             def __init__(self, path):
@@ -176,3 +241,4 @@ class TestWriterValidator(object):
         assert 'chunk_num' in output
         assert 'failed_records' in output
         assert 'append' in output
+        assert 'reset' in output

@@ -82,11 +82,17 @@ class TFRecordWriter(BaseWriter):
               ) -> None:
         """
         Write a chunk of ECG data to a single `.tfrecord`.
-        
-        The enabled sources are stored as flattened `tf.train.Feature`
-        float lists in one `tf.train.Example`; the metadata column names
-        are written to a `header_metadata.txt` sidecar.
-        
+
+        `WaveForms`/`MedianBeats` are each stored as one `bytes_list`
+        feature holding a `tf.io.serialize_tensor` binary string, which
+        preserves the original `(n_records, n_leads, n_samples)` shape
+        and dtype on disk; a reader recovers the array with
+        `tf.io.parse_tensor` (passing the matching `out_type`) instead of
+        reshaping a flat list by hand. `MetaData` is stored as a
+        flattened `float_list` feature, and its column names are written
+        separately to a `header_metadata.txt` sidecar file next to the
+        `.tfrecord`.
+
         Parameters
         ----------
         meta_list : `list` [`dict` [`str`, `any`]]
@@ -97,7 +103,7 @@ class TFRecordWriter(BaseWriter):
             A list of dictionaries containing median beat signals.
         ctx : `WriteContext`
             The context carrying export flags, target path, and helpers.
-        
+
         Raises
         ------
         ImportError
@@ -115,15 +121,17 @@ class TFRecordWriter(BaseWriter):
             res_dict[CTypes.MetaData] = tf.train.Feature(
                 float_list=tf.train.FloatList(value=array.flatten()))
         if ctx.e_wave:
+            wave_array = signal_dicts_to_numpy_array(
+                wave_list, padding=False)
             res_dict[CTypes.WaveForms] = tf.train.Feature(
-                float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(
-                        wave_list, padding=False).flatten()))
+                bytes_list=tf.train.BytesList(
+                    value=[tf.io.serialize_tensor(wave_array).numpy()]))
         if ctx.e_median:
+            median_array = signal_dicts_to_numpy_array(
+                median_list, padding=False)
             res_dict[CTypes.MedianBeats] = tf.train.Feature(
-                float_list=tf.train.FloatList(
-                    value=signal_dicts_to_numpy_array(
-                        median_list, padding=False).flatten()))
+                bytes_list=tf.train.BytesList(
+                    value=[tf.io.serialize_tensor(median_array).numpy()]))
         # #### write the record and the metadata header sidecar
         with tf.io.TFRecordWriter(
                 os.path.join(ctx.target, ECG_FILE)) as record_writer:

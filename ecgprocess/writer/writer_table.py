@@ -27,7 +27,7 @@ CTypes = Core.DataTypes
 # NOTE hardcoded (not __name__), see writer_base._log
 _log = logging.getLogger('ecgprocess.writer')
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @register_writer(TabNames.WRITE_TAB)
 class TableWriter(BaseWriter):
     """
@@ -57,7 +57,7 @@ class TableWriter(BaseWriter):
         'xz':   '.xz',
         'zst':  '.zst',
     }
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, tab_append: bool = True, tab_sep: str = '\t',
                  tab_compression: str | None = 'gzip',
                  kwargs_tab: dict[str, Any] | None = None,
@@ -73,7 +73,25 @@ class TableWriter(BaseWriter):
         self.kwargs_tab = kwargs_tab or {}
         # NOTE tracks whether the next write is the first for append mode
         self._first = True
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def reset(self) -> None:
+        """
+        Reset the append-mode header state for a new `write_ecg` run.
+
+        Overrides the `BaseWriter` no-op default: `_first` tracks
+        whether the header still needs writing, and without this
+        override, a `TableWriter` instance reused across two
+        independent `write_ecg` calls would silently drop the header
+        on the second run.
+
+        Returns
+        -------
+        `NoneType`
+            This method mutates instance state in place and returns
+            nothing.
+        """
+        self._first = True
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def file_ext(self) -> str:
         """
         Return the `.tsv` extension with the compression suffix.
@@ -85,7 +103,7 @@ class TableWriter(BaseWriter):
         """
         suffix = self._COMPRESSION_SUFFIX.get(self.tab_compression, '')
         return self.FILE_EXT + suffix
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
               median_list: list[dict[str, "np.ndarray"]],
@@ -158,7 +176,7 @@ class TableWriter(BaseWriter):
                 **kwargs_tab_combi,
             )
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # helpers
 def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
                                key_list: list[Any], signal_type: str,
@@ -212,6 +230,11 @@ def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
     table = pd.DataFrame()
     # NOTE w contains a dictionary with k: lead names and v: signals.
     for w, k in zip(lead_list, key_list, strict=True):
+        # NOTE shallow-copy so NaN-replacement below never mutates the
+        # caller's original record dict (a shallow copy is sufficient:
+        # every write below is a whole-value rebind, never an in-place
+        # array mutation).
+        w = dict(w)
         # ##### are there leads with None instead of signals
         # FIRST get the length of the array and make sure this is unique.
         # SECOND replace these by arrays by NaN

@@ -21,6 +21,7 @@ from ecgprocess.process_xml import(
 )
 from ecgprocess.tabular import (
     ECGTable,
+    metadata_identity,
     signal_identity,
 )
 from ecgprocess.utils.engineering_tools import(
@@ -39,6 +40,9 @@ from ecgprocess.example_data.examples import (
 )
 from ecgprocess.utils.general import (
     list_tar,
+)
+from ecgprocess.utils.reader_tools import (
+    BaseReader,
 )
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -154,6 +158,67 @@ class _EngFailOrdinals(object):
             out[CLeads.aVR] = None
             return out
         return signals
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class _FlakyMetaReader(BaseReader):
+    """
+    Minimal `BaseReader` stub whose `fail_at`-th call leaves the
+    `MetaData` slot genuinely unset (removed with `delattr`, not set
+    to `None`), so reading it raises `AttributeError` exactly the way
+    an unset `__slots__` entry would on a real reader. Calls before
+    `fail_at` succeed with a fresh, real metadata dict, so a surviving
+    record's metadata is clearly distinct from an empty fallback.
+    """
+    def __init__(self, fail_at):
+        super().__init__()
+        self.calls = 0
+        self.fail_at = fail_at
+    def __call__(self, path, verbose=False, **kwargs):
+        self.calls += 1
+        return self
+    def extract(self, **kwargs):
+        if self.calls == self.fail_at:
+            delattr(self, CTypes.MetaData)
+        else:
+            setattr(self, CTypes.MetaData, {})
+        return self
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class _EngAllNoneAt(object):
+    """
+    Stand-in for a user-supplied engineer_wave/engineer_median
+    function. Makes one chosen record's signals come back completely
+    empty (all None), the trigger for confirm_wave/confirm_median's
+    rejection path, so a test can check ECGTable keeps its key list
+    and result lists aligned when that record is skipped. Other
+    records pass through unchanged.
+    """
+    def __init__(self, fail_at):
+        self.calls = 0
+        self.fail_at = set(fail_at)
+    def __call__(self, signals, **kwargs):
+        self.calls += 1
+        if self.calls in self.fail_at:
+            return {k: None for k in signals}
+        return signals
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class _EngMetaAllNoneAt(object):
+    """
+    Stand-in for a user-supplied engineer_meta function. Makes one
+    chosen record's metadata come back completely empty (all None),
+    the trigger for confirm_meta's rejection path, so a test can
+    check ECGTable keeps its key list and result lists aligned when
+    that record is skipped. Other records pass through unchanged.
+    """
+    def __init__(self, fail_at):
+        self.calls = 0
+        self.fail_at = set(fail_at)
+    def __call__(self, metadata, **kwargs):
+        self.calls += 1
+        if self.calls in self.fail_at:
+            return {k: None for k in metadata}
+        return metadata
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # pytest
@@ -566,6 +631,17 @@ class TestTable(object):
         # get content and read in a table
         content = os.listdir(getattr(res, TabNames.WRITE_ECG_PATH))
         assert set(content) == set(expected_content)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize('chunk', [0, -1])
+    def test_write_ecg_non_positive_chunk_raises(self, tmp_path, chunk):
+        # a non-positive `chunk` must raise `ValueError` instead of
+        # spinning the write loop forever (`pointer` never advances)
+        os.chdir(tmp_path)
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list)
+        with pytest.raises(ValueError):
+            ecgtable(verbose=False).write_ecg(
+                parsed_config=parser_dicom, chunk=chunk)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestChunkStrict(object):
@@ -829,6 +905,124 @@ class TestWriteEcgAnnotateFailures(object):
         assert len(rows) == 2
         assert all('Annotation failed' in r for r in rows)
         assert all('absent key' in r for r in rows)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestMetaNewFallback(object):
+    """
+    Testing `ECGTable._loop_table`'s `meta_new` fallback when metadata
+    extraction raises `AttributeError` under `ignore_data=True,
+    confirm_meta=False`: the failing record must be kept with fresh,
+    empty metadata, matching how `wave_temp`/`median_temp` already
+    behave, rather than reusing the previous record's real metadata
+    or raising an unbound-variable error.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_second_record_gets_empty_meta_not_stale(self):
+        # first record succeeds with real metadata, second record's
+        # metadata extraction raises AttributeError.
+        reader = _FlakyMetaReader(fail_at=2)
+        ecgtable = ECGTable(reader, path_list=dicom_path_list,
+                            extract_wave=False, extract_median=False)
+        res = ecgtable(ignore_data=True, confirm_meta=False)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom,
+            unique=False,
+        )
+        # both records are kept (fresh-empty-metadata fallback, not skip)
+        assert len(meta) == 2
+        # the first record's metadata is real and non-empty
+        assert meta[0] != {}
+        # the second record must not reuse the first record's metadata
+        assert meta[1] == {}
+        assert meta[1] != meta[0]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_first_record_failure_does_not_raise_unbound(self):
+        # a single record whose (only, first) metadata extraction fails
+        # must not raise NameError/UnboundLocalError on `meta_new`.
+        reader = _FlakyMetaReader(fail_at=1)
+        ecgtable = ECGTable(reader, path_list=[dicom_path_list[0]],
+                            extract_wave=False, extract_median=False)
+        res = ecgtable(ignore_data=True, confirm_meta=False)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom,
+            unique=False,
+        )
+        assert meta == [{}]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestKeyListAlignment(object):
+    """
+    Checks that when ECGTable skips a rejected record partway through
+    processing, it doesn't leave that record's identifier behind in
+    its key list -- otherwise the key list ends up longer than the
+    actual results, throwing off which key belongs to which row.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_confirm_meta_rejection_keeps_key_list_aligned(self):
+        """The first record's metadata comes back empty and gets
+        rejected; the second record survives normally."""
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            engineer_meta=_EngMetaAllNoneAt(fail_at=[1]))
+        res = ecgtable(confirm_meta=True)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom)
+        key_list = getattr(res, TabNames.KEY_L)
+        assert len(key_list) == len(meta) == len(wave) == len(median) == 1
+        assert len(key_list) == len(set(key_list))
+        # the rejected file is recorded once, not duplicated
+        no_data = getattr(res, TabNames.NO_DATA_L)
+        assert no_data.count(dicom_path_list[0]) == 1
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_confirm_wave_rejection_keeps_key_list_aligned(self):
+        """The first record's waveform signals come back empty and
+        get rejected; the second record survives normally."""
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            engineer_wave=_EngAllNoneAt(fail_at=[1]))
+        res = ecgtable(confirm_wave=True)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom)
+        key_list = getattr(res, TabNames.KEY_L)
+        assert len(key_list) == len(meta) == len(wave) == len(median) == 1
+        assert len(key_list) == len(set(key_list))
+        # the rejected file is recorded once, not duplicated
+        no_data = getattr(res, TabNames.NO_DATA_L)
+        assert no_data.count(dicom_path_list[0]) == 1
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_confirm_median_rejection_keeps_key_list_aligned(self):
+        """The first record's median-beat signals come back empty and
+        get rejected; the second record survives normally."""
+        ecgreader = ECGDICOMReader()
+        ecgtable = ECGTable(ecgreader, path_list=dicom_path_list,
+                            engineer_median=_EngAllNoneAt(fail_at=[1]))
+        res = ecgtable(confirm_median=True)
+        meta, wave, median = res._loop_table(
+            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom)
+        key_list = getattr(res, TabNames.KEY_L)
+        assert len(key_list) == len(meta) == len(wave) == len(median) == 1
+        assert len(key_list) == len(set(key_list))
+        # the rejected file is recorded once, not duplicated
+        no_data = getattr(res, TabNames.NO_DATA_L)
+        assert no_data.count(dicom_path_list[0]) == 1
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestEngineerIdentityVerbose(object):
+    """
+    Testing `metadata_identity`/`signal_identity`'s `verbose=True` path:
+    `kwargs` carries the real metadata payload (e.g. `meta_dict=...`),
+    which `print` rejects as an invalid keyword argument. Both functions
+    must instead log `kwargs` through the module's `_log` logger and
+    return the input data unchanged.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize('engineer_fn,payload', [
+        (metadata_identity, {'a': 1}),
+        (signal_identity, {'lead_I': None}),
+    ])
+    def test_verbose_does_not_raise(self, engineer_fn, payload):
+        result = engineer_fn(payload, verbose=True, meta_dict={'b': 2})
+        assert result == payload
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestMissingLeads(object):

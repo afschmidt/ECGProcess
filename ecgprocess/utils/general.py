@@ -4,6 +4,7 @@ The general utils module
 import os
 import shutil
 import tarfile
+import tempfile
 import numpy as np
 import warnings
 from typing import Any, Callable, Optional, Type, Generator
@@ -25,22 +26,58 @@ def replace_with_tar(old_dir:str, new_tar:str, mode:str='w:gz') -> None:
     mode: `str`, default `w:gz`
         The tarfile.open mode.
     
+    Raises
+    ------
+    ValueError
+        If `new_tar` resolves to a path inside `old_dir`. Building the
+        archive there would let `os.walk` pick up the still-growing
+        archive and add it to itself, and the final removal of
+        `old_dir` would delete the archive along with everything else.
+    FileExistsError
+        If the directory that should contain `new_tar` does not
+        already exist.
+
     Notes
     -----
-    The function does not return anything
+    The function does not return anything. The archive is built at a
+    temporary path outside `old_dir`, then moved into place once
+    writing finishes, so a crash mid-archive never leaves a partial
+    file at the destination.
     '''
-    # Create the tar.gz archive
-    with tarfile.open(new_tar, mode) as tar:
-        # Iterate through the files in the old directory
-        for root, _, files in os.walk(old_dir):
-            for file in files:
-                # Create the full path to the file
-                file_path = os.path.join(root, file)
-                # Add the file to the tar archive with only the filename
-                tar.add(file_path, arcname=file)
-    # Verify the archive was created successfully
-    if not os.path.exists(new_tar):
-        raise FileNotFoundError('Failed to create tar.gz archive.')
+    # #### reject a destination nested inside the directory being walked
+    abs_old_dir = os.path.abspath(old_dir)
+    abs_new_tar = os.path.abspath(new_tar)
+    if (abs_new_tar == abs_old_dir
+            or abs_new_tar.startswith(abs_old_dir + os.sep)):
+        raise ValueError(
+            f"'new_tar' ('{new_tar}') cannot resolve to a path inside "
+            f"'old_dir' ('{old_dir}')."
+        )
+    # #### the destination directory must already exist
+    dest_dir = os.path.dirname(new_tar)
+    if not os.path.isdir(dest_dir):
+        raise FileExistsError(
+            f"The directory for 'new_tar' does not exist: '{dest_dir}'."
+        )
+    # #### build the archive outside old_dir, then relocate it into place
+    handle, temp_path = tempfile.mkstemp(suffix='.tmp')
+    os.close(handle)
+    try:
+        # Create the tar.gz archive
+        with tarfile.open(temp_path, mode) as tar:
+            # Iterate through the files in the old directory
+            for root, _, files in os.walk(old_dir):
+                for file in files:
+                    # Create the full path to the file
+                    file_path = os.path.join(root, file)
+                    # Add the file to the tar archive with only the filename
+                    tar.add(file_path, arcname=file)
+        # Move the completed archive into place
+        shutil.move(temp_path, new_tar)
+    except BaseException:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
     # Delete the original directory
     shutil.rmtree(old_dir)
 

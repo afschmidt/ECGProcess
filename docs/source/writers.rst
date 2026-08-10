@@ -35,6 +35,13 @@ TensorFlow records
 ``TFRecordWriter`` (``writer='tensorflow'``) serialises the stacked
 arrays into a single binary tfrecord file, the native input format
 for ``tf.data`` pipelines.
+Waveforms and median beats are each stored as one ``tf.io.serialize_tensor``
+binary string, which keeps the original ``(n_records, n_leads, n_samples)``
+shape and dtype attached to the data; decode a source with
+``tf.io.parse_tensor(value, out_type=tf.float32)``, naming the dtype the
+array was written in.
+Metadata stays a flattened numeric array with column names in a
+header_metadata.txt sidecar, the same convention used by the NumPy writers.
 TensorFlow is an optional dependency (``pip install ecgprocess[tensorflow]``),
 lazily imported at write time.
 

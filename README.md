@@ -159,3 +159,9 @@ pytest tests
 
 Please have a look at the [example](https://SchmidtAF.gitlab.io/ECGProcess/examples.html)
  recipes. 
+
+## Icon
+
+The package icon features the Etruscan shrew, one of the smallest
+mammals, whose heart can beat over 1,500 times a minute, the fastest
+heart rate of any mammal.

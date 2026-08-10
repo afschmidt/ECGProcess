@@ -141,11 +141,8 @@ def dataset(func):
     >>> {'A': 1, 'B': 2, 'C': 3}
     
     """
-    try:
-        _DATASETS[func.__name__]
+    if func.__name__ in _DATASETS:
         raise KeyError("function already registered")
-    except KeyError:
-        pass
 
     _DATASETS[func.__name__] = func
     return func
@@ -350,7 +347,7 @@ def config_file(path=None, text:None | dict[str, list[str]]=None) -> str:
     ----------
     path : `str`, default None
         An optional path to write the text to disk. Uses utf-8 file encoding.
-    user_text : `dict` [`str`, `list` [`str`]], default None
+    text : `dict` [`str`, `list` [`str`]], default None
         Configuration content specified as a dictionary. Each key represents a
         header (enclosed in square brackets in the output), and the
         corresponding value is a list of attributes or entries. Tab characters
@@ -369,7 +366,7 @@ def config_file(path=None, text:None | dict[str, list[str]]=None) -> str:
         ...     "MetaData": ["CustomData\tCustomValue"],
         ...     "AdditionalInfo": ["Info1", "Info2"],
         ... }
-        >>> print(data_configuration(user_text=custom_text))
+        >>> print(config_file(text=custom_text))
         [CustomSection1]
         CustomAttribute1
         CustomAttribute2

@@ -43,6 +43,28 @@ _log = logging.getLogger('ecgprocess.writer')
 # the characters XML 1.0 forbids outright; tab, newline and carriage
 # return are the only C0 controls it allows
 _CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+# an explicit parser for every XSD load and built-document parse,
+# instead of lxml's mutable global default: entities are never
+# resolved and no network access is attempted for external references
+_XML_PARSER = etree.XMLParser(resolve_entities=False, no_network=True)
+# xmltodict's reserved key for element text; not a name, so it is
+# exempt from name validation
+_XML_TEXT_KEY = '#text'
+# a practical approximation of the XML 1.0 `Name` production, covering
+# the failure modes that actually reach this writer:
+# 1) the first character must be a letter, underscore, or colon;
+# 2) every character after it may additionally be a digit, dot, or hyphen
+# (`\w` under `re.UNICODE` already allows letters, digits, and underscore, so
+# this rejects whitespace, angle brackets, ampersands, a leading digit, and
+# an empty string)
+_XML_NAME = re.compile(r'^[A-Za-z_:][\w.:-]*$', re.UNICODE)
+# Error message only used here, so no need to implement in `errors.Error_MSG`
+_XML_INVALID_NAME_MSG = (
+    'template leaf {} uses the name {!r}, which is not a legal XML '
+    'element or attribute name; use a name starting with a letter, '
+    "underscore, or colon, followed only by letters, digits, '.', "
+    "':', or '-'."
+)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 @register_writer(TabNames.WRITE_XML)
@@ -110,6 +132,10 @@ class XMLWriter(BaseWriter):
     Unlike `WFDBWriter` and `FigureWriter`, this writer places no
     single-source restriction on a record: waveforms, median beats, and
     metadata may all appear in one document.
+
+    `xsd_path` schemas and built documents are parsed with an explicit,
+    module-level `etree.XMLParser` (`resolve_entities=False`,
+    `no_network=True`).
     """
     # /////////////////////////////////////////////////////////////////////////
     FILE_EXT = '.xml'
@@ -312,13 +338,46 @@ class XMLWriter(BaseWriter):
             return _CONTROL_CHARS.sub('', value)
         return value
     # /////////////////////////////////////////////////////////////////////////
+    @staticmethod
+    def _validate_name(key: str, path: str) -> None:
+        """
+        Check one template dict key is a legal XML element/attribute name.
+
+        `xmltodict.unparse` raises `ValueError` for some illegal names
+        (embedded whitespace, angle brackets) but silently produces
+        malformed XML for others (a leading digit, an ampersand), so
+        this runs ahead of it rather than relying on it to catch every
+        case.
+
+        Parameters
+        ----------
+        key : `str`
+            The dict key as written in the template: an attribute name
+            prefixed with `'@'`, the reserved `'#text'` marker, or a
+            plain element name.
+        path : `str`
+            The key's position in the template, for the error message.
+
+        Raises
+        ------
+        InputValidationError
+            If the name (the key with a leading `'@'` stripped) is not a
+            legal XML `Name`.
+        """
+        if key == _XML_TEXT_KEY:
+            return
+        name = key[1:] if key.startswith('@') else key
+        if not _XML_NAME.match(name):
+            raise InputValidationError(
+                _XML_INVALID_NAME_MSG.format(path, key))
+    # /////////////////////////////////////////////////////////////////////////
     @classmethod
     def _resolve(cls, node: Any, record: dict[str, dict[str, Any]],
                  path: str = '',
                  ) -> Any:
         """
         Build one record's document by resolving every template leaf.
-        
+
         Parameters
         ----------
         node : `any`
@@ -327,24 +386,26 @@ class XMLWriter(BaseWriter):
             The record's data, keyed by `CoreData.DataTypes` value.
         path : `str`, default `''`
             The trail to `node`, reported when a field is absent.
-        
+
         Returns
         -------
         resolved : `any`
             The template with every reference replaced by its normalised
             value, ready for `xmltodict.unparse`.
-        
+
         Raises
         ------
         InputValidationError
-            If a referenced field is absent from the record.
+            If a referenced field is absent from the record, or if a
+            dict key is not a legal XML element or attribute name.
         """
         if isinstance(node, dict):
-            return {
-                key: cls._resolve(
-                    value, record, f'{path}.{key}' if path else str(key))
-                for key, value in node.items()
-            }
+            resolved = {}
+            for key, value in node.items():
+                child = f'{path}.{key}' if path else str(key)
+                cls._validate_name(key, child)
+                resolved[key] = cls._resolve(value, record, child)
+            return resolved
         if isinstance(node, (list, tuple)):
             return [cls._resolve(value, record, f'{path}[{index}]')
                     for index, value in enumerate(node)]
@@ -375,13 +436,14 @@ class XMLWriter(BaseWriter):
             If the document does not satisfy the schema. When `strict` is
             False, errors reporting elements absent from the schema are
             ignored and only the remaining ones raise.
+
+        Notes
+        -----
+        `self._schema` must already be compiled (see `write`); this
+        method only parses and validates one document against it.
         """
-        # the schema is parsed from its path so that relative xs:include
-        # and xs:import references resolve against its own directory
-        if self._schema is None:
-            self._schema = etree.XMLSchema(etree.parse(self.xsd_path))
-        if self._schema.validate(
-                etree.fromstring(document.encode(self.encoding))):
+        if self._schema.validate(etree.fromstring(
+                document.encode(self.encoding), parser=_XML_PARSER)):
             return
         errors = list(self._schema.error_log)
         if not self.strict:
@@ -444,10 +506,16 @@ class XMLWriter(BaseWriter):
         InputValidationError
             If no template is configured, if the template reads a source
             that was not extracted, or, when `ctx.skip_data` is unset, if
-            a record lacks a referenced field.
+            a record lacks a referenced field or a template key is not a
+            legal XML element or attribute name.
         XMLValidationError
             If a built document fails XSD validation while `ctx.skip_data`
             is unset.
+        lxml.etree.XMLSchemaParseError or lxml.etree.XMLSyntaxError
+            If `xsd_path` does not name a loadable, valid XSD schema.
+            This is a configuration error, checked once before any
+            record is processed, so it always raises regardless of
+            `ctx.skip_data`.
         """
         # #### configuration errors raise once, before anything is
         # written; only per-record data failures reach the loop below
@@ -463,6 +531,11 @@ class XMLWriter(BaseWriter):
         if missing:
             raise InputValidationError(
                 Error_MSG.XML_SOURCE_NOT_EXTRACTED.format(missing))
+        # compiled here, ahead of the loop, so a bad schema file raises
+        # immediately, outside the per-record try/except below
+        if self.xsd_path is not None and self._schema is None:
+            self._schema = etree.XMLSchema(
+                etree.parse(self.xsd_path, parser=_XML_PARSER))
         # #### align the optional sources with the records
         empty: list[dict[str, Any]] = [{}] * len(ctx.key_list)
         meta_iter = meta_list if ctx.e_meta else empty
@@ -489,7 +562,8 @@ class XMLWriter(BaseWriter):
                 if self.xsd_path is not None:
                     self._validate_document(document)
                 self._write_document(document, uid, ctx.target)
-            except (InputValidationError, XMLValidationError) as err:
+            except (InputValidationError, XMLValidationError,
+                    etree.XMLSyntaxError) as err:
                 if not ctx.skip_data:
                     raise
                 ctx.failed_records.append(

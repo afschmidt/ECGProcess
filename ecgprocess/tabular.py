@@ -124,7 +124,7 @@ def metadata_identity(metadata:dict[str, Any], verbose:bool=False,
     """
     is_type(verbose, bool)
     if verbose:
-        print(**kwargs)
+        _log.debug(kwargs)
     return metadata
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -136,12 +136,12 @@ def signal_identity(signals:dict[str, np.ndarray], verbose:bool=False,
     """
     is_type(verbose, bool)
     if verbose:
-        print(**kwargs)
+        _log.debug(kwargs)
     if not TabNames.META_DICT in kwargs:
         raise KeyError(f"`{TabNames.META_DICT}` should be included as kwargs")
     return signals
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ECGTable(object):
     '''
     Takes an `BaseReader` instance and loops over a supplied list of files
@@ -210,7 +210,7 @@ class ECGTable(object):
     include the metadata. This ensures, for example, that the
     engineer_wave function will have access to the metadata.
     '''
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, ecgreader:BaseReader, path_list:list[str],
                  extract_meta:bool=True, extract_wave:bool=True,
                  extract_median:bool=True,
@@ -256,7 +256,7 @@ class ECGTable(object):
         setattr(self, TabNames.SIG_LEN_W, signal_length_w)
         setattr(self, TabNames.SIG_LEN_M, signal_length_m)
         setattr(self, TabNames.PAD_VALUE, pad_value)
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):
         """Return a human-readable summary."""
         CLASS_NAME = type(self).__name__
@@ -264,14 +264,14 @@ class ECGTable(object):
                 f"ecgreader={self.ecgreader}, "
                 f"path_list={getattr(self, TabNames.RPATH_L)}."
                 )
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self):
         """Return an unambiguous string."""
         CLASS_NAME = type(self).__name__
         return (f"{CLASS_NAME}(ecgreader={self.ecgreader}, "
                 f"path_list={getattr(self, TabNames.RPATH_L)})"
                 )
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def _pad_or_truncate(self,
                          signals:dict[str, np.ndarray] | None,
                          target_length:int,
@@ -336,7 +336,7 @@ class ECGTable(object):
             padded[:current] = arr
             signals[lead] = padded
         return signals
-    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(self, ignore_permission:bool = True, ignore_data:bool = False,
                  ignore_invalid:bool = False, ignore_missing_leads:bool = False,
                  confirm_meta:bool=False,
@@ -503,7 +503,7 @@ class ECGTable(object):
             (path, TabNames.MISSING_LEAD_CAUSE.format(missing_str))
         )
         return True
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def _loop_table(self, path_list:list[str],
                     parsed_config:ConfigParser,
                     unique:bool=True,
@@ -681,7 +681,11 @@ class ECGTable(object):
                 getattr(self, TabNames.KEY_L).append(key)
             # empty objects
             meta_temp = []
-            wave_temp, median_temp = ({} for _ in range(2))
+            # `meta_new` (appended to `meta_list` below) is only reassigned
+            # once the metadata engineer function (ENG_META) runs on a
+            # successful extraction, so it needs the same fresh default as
+            # `wave_temp`/`median_temp`.
+            wave_temp, median_temp, meta_new = ({} for _ in range(3))
             # pad/truncate config (None when the user did not opt in).
             sig_len_w = getattr(self, TabNames.SIG_LEN_W)
             sig_len_m = getattr(self, TabNames.SIG_LEN_M)
@@ -715,7 +719,7 @@ class ECGTable(object):
                         # skip the entire run there if there is metadata
                         getattr(self,TabNames.NO_DATA_L).append(p)
                         if getattr(self, TabNames.CONFIRM_META):
-                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            getattr(self, TabNames.KEY_L).pop()
                             continue
                     else:
                         raise AE
@@ -731,6 +735,7 @@ class ECGTable(object):
                             # skip if everything is None
                             if all(v is None for v in meta_new.values()):
                                 getattr(self,TabNames.NO_DATA_L).append(p)
+                                getattr(self, TabNames.KEY_L).pop()
                                 continue
                         # `meta_temp` is supplied to the wave/median functions
                         meta_temp = update_dict_with_warning(
@@ -738,6 +743,7 @@ class ECGTable(object):
                     except FileValidationError as FILE_VAL:
                         getattr(self, TabNames.INVALID_L).append(p)
                         if getattr(self, TabNames.SKIP_INVALID):
+                            getattr(self, TabNames.KEY_L).pop()
                             continue
                         else:
                             raise FILE_VAL
@@ -761,6 +767,7 @@ class ECGTable(object):
                         # skip if everything is None
                         if all(v is None for v in wave_temp.values()):
                             getattr(self,TabNames.NO_DATA_L).append(p)
+                            getattr(self, TabNames.KEY_L).pop()
                             continue
                     # Partial missing-lead check, independent of
                     # confirm_wave; raises or skips per ignore_missing_leads.
@@ -773,7 +780,7 @@ class ECGTable(object):
                         getattr(self,TabNames.NO_DATA_L).append(p)
                         # do we want to skip the entire file?
                         if getattr(self, TabNames.CONFIRM_WAVE):
-                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            getattr(self, TabNames.KEY_L).pop()
                             continue
                     else:
                         raise AE
@@ -795,6 +802,7 @@ class ECGTable(object):
                         # skip if everything is None
                         if all(v is None for v in median_temp.values()):
                             getattr(self,TabNames.NO_DATA_L).append(p)
+                            getattr(self, TabNames.KEY_L).pop()
                             continue
                     # Partial missing-lead check, independent of
                     # confirm_median; raises or skips per ignore_missing_leads.
@@ -807,7 +815,7 @@ class ECGTable(object):
                         getattr(self,TabNames.NO_DATA_L).append(p)
                         # do we want to skip the entire file?
                         if getattr(self, TabNames.CONFIRM_MEDIAN):
-                            getattr(self,TabNames.NO_DATA_L).append(p)
+                            getattr(self, TabNames.KEY_L).pop()
                             continue
                     else:
                         raise AE
@@ -838,7 +846,7 @@ class ECGTable(object):
             )
         # check data and return
         return meta_list, wave_list, median_list
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def get_table(self,
                   parsed_config:ConfigParser,
                   unique:bool=True,
@@ -920,8 +928,8 @@ class ECGTable(object):
         # #### Return
         setattr(self, TabNames.TABLE_CALLED, 'True')
         return self
-    # /////////////////////////////////////////////////////////////////////////
-    def write_ecg(self, parsed_config=ConfigParser,
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def write_ecg(self, parsed_config: ConfigParser,
                   chunk:int | None = None, target_tar: None | str = None,
                   target_path:str='.', tar_mode:str='w:gz',
                   writer: str | BaseWriter | Callable | None = None,
@@ -980,7 +988,7 @@ class ECGTable(object):
             successfully-extracted files toward its `chunk` size
             (`True`),or every attempted file regardless of processing outcome.
             (`False`). "Successful" means surviving `_loop_table`'s extraction
-            checks; Any writer-stage does not affect chunck creation and is
+            checks; Any writer-stage does not affect chunk creation and is
             therefore out of bounds.  Has no effect when `chunk` is `NoneType`.
         tar_mode : `str`, default `w:gz`
             The tarfile.open mode.
@@ -1040,6 +1048,8 @@ class ECGTable(object):
         # #### check input
         is_type(parsed_config, ConfigParser)
         is_type(chunk, (type(None), int))
+        if chunk is not None and chunk <= 0:
+            raise ValueError(Error_MSG.CHUNK_NOT_POSITIVE.format(chunk))
         is_type(target_tar, (type(None), str))
         is_type(target_path, (pathlib.PosixPath, pathlib.WindowsPath, str))
         is_type(tar_mode, str)
@@ -1082,6 +1092,8 @@ class ECGTable(object):
             resolved_writer.tab_sep = tab_sep
             resolved_writer.tab_compression = tab_compression
             resolved_writer.kwargs_tab = self.kwargs_tab
+        # reset per-run writer state once per write_ecg call, not per chunk
+        resolved_writer.reset()
         # check readability
         _check_presence(target_path)
         _check_readable(target_path)
@@ -1204,7 +1216,7 @@ class ECGTable(object):
                 delattr(self, TabNames.FAILED_REC_L)
         # #### return
         return self
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def _build_write_context(self, target:str, chunk_num:int | None,
                              ) -> WriteContext:
         """

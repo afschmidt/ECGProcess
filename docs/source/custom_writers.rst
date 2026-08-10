@@ -14,7 +14,10 @@ Requirements checklist
 ----------------------
 
 To create a working writer, your ``BaseWriter`` subclass must implement the
-``write`` method and may override three filename-related attributes/methods.
+``write`` method. The class may optionally override three filename-related
+attributes/methods, and may optionally override ``reset`` to clear state
+your writer keeps between the chunks of one run (see
+`Resetting per-run state`_ below); neither override is required.
 The ``WriteContext`` (i.e. ``ctx``, see `The WriteContext`_ below for
 the full field list) provides runtime information and is internally
 passed to ``write`` by ``ECGTable``. 
@@ -174,6 +177,17 @@ A writer that names its own files (such as the per-record image
 writer) may bypass ``file_names`` entirely, or override it to return
 a custom set of filenames. ``WriterValidator`` checks that the method
 returns a tuple of at least one filename string.
+
+Resetting per-run state
+------------------------
+
+The ``reset`` method is implemented to allow a writer instance to be 
+passed to more than one ``ECGTable.write_ecg`` call. 
+The default ``reset()`` in ``BaseWriter`` does nothing. 
+A writer with a per-run state, for example where a file header
+is included with the first chunk, can re-define the method
+in the writer code to make sure the state results each time a new
+write_ecg call is made.
 
 Failure policy
 --------------

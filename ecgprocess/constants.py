@@ -2,7 +2,7 @@
 Constants used by ECGProcess
 '''
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class CoreData:
     '''
     Core variable names which are used internally by various modules in
@@ -84,7 +84,7 @@ class CoreData:
         RESAMPLE  = 'resample_500'
         AUG_LEADS = 'augment_leads'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class PrivilegedNames(object):
     '''
     Registry of names that users cannot freely override in config files
@@ -99,14 +99,14 @@ class PrivilegedNames(object):
     True
     >>> PrivilegedNames.is_reserved('V7')
     False
-    >>> len(PrivilegedNames.LEADS)
-    12
-    >>> len(PrivilegedNames.METADATA)
-    10
+    >>> len(PrivilegedNames.LEADS) == len(CoreData.Leads.values())
+    True
+    >>> len(PrivilegedNames.METADATA) == len(CoreData.MetaData.values())
+    True
     '''
-    # #### Standard 12 ECG lead names
+    # #### Standard ECG lead names, count derived from CoreData.Leads
     LEADS = CoreData.Leads.values()
-    # #### Privileged metadata field names (10)
+    # #### Privileged metadata field names, count derived from MetaData
     METADATA = CoreData.MetaData.values()
     # #### All reserved names (union for quick lookup)
     ALL = frozenset(LEADS + METADATA)
@@ -131,10 +131,10 @@ class PrivilegedNames(object):
     def __str__(self) -> str:
         '''User-friendly string representation of reserved names.'''
         lines = ['Privileged & Reserved Names', '=' * 27, '']
-        lines.append('Standard ECG Leads (12):')
+        lines.append(f'Standard ECG Leads ({len(self.LEADS)}):')
         lines.append('  ' + ', '.join(self.LEADS))
         lines.append('')
-        lines.append('Privileged Metadata Fields (10):')
+        lines.append(f'Privileged Metadata Fields ({len(self.METADATA)}):')
         for i, field in enumerate(self.METADATA, 1):
             lines.append(f'  {i:2d}. {field}')
         return '\n'.join(lines)
@@ -145,21 +145,21 @@ class PrivilegedNames(object):
                 f"metadata={len(self.METADATA)}, "
                 f"total={len(self.ALL)})")
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class UtilsReaderNames(object):
     '''
     Names used in the Utils Reader Tools module.
     '''
     DICOM_WAVE_ARRAY     = 'waveform_array'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class UtilsGeneralNames(object):
     '''
     Names used in the Utils General module.
     '''
     LXML_ERROR         = 'expected'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class UtilsConfigData(object):
     '''
     Names used in the Utils Config Data module
@@ -172,7 +172,7 @@ class UtilsConfigData(object):
     data        = '_data'
     MAPPER      = 'mapper'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ProcessXMLNames(object):
     '''
     Names used in the process_xml module.
@@ -180,13 +180,13 @@ class ProcessXMLNames(object):
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ProcessDicomNames(object):
     """Names used in the process_dicom module."""
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
     
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class TabularNames(object):
     """Configuration key names used in the tabular module."""
     E_META         = 'extract_'+CoreData.DataTypes.MetaData
@@ -239,12 +239,12 @@ class TabularNames(object):
     # Controlled by: ignore_missing_leads
     MISSING_LEAD_CAUSE = 'Missing lead(s): {} [ignore_missing_leads]'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class FileNames(object):
     """
     Filenames written by `ECGTable.write_ecg` and the writer module.
     """
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # /////////////////////////////////////////////////////////////////////////
     # #### per-chunk data-file base names
     # the `_N` chunk suffix and the writer-owned extension are appended
     # by `BaseWriter.file_names`
@@ -253,37 +253,37 @@ class FileNames(object):
     MEDIANBEATS  = 'medianbeats'
     ECG_DATA     = 'ecg_data'
     FIGURES      = 'figures'
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # /////////////////////////////////////////////////////////////////////////
     # #### bookkeeping files (fixed names, no chunk suffix)
     META_HEADER  = 'header_metadata.txt'
     CHUNK_RECORD = 'chunkrecord.txt'
     FAILED_FILES = 'FailedFiles.txt'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class WriteNames(object):
     """Names and messages used by the writer module."""
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # /////////////////////////////////////////////////////////////////////////
     # NOTE REMOVE after file_type is removed in ECGTable
     REMOVAL_VERSION = '2.0.0'
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # /////////////////////////////////////////////////////////////////////////
     # deprecation message template: {name}, {version}, {replacement}
     DEPRECATED = ('`{}` is deprecated and will be removed in v{}; '
                   'use `{}` instead.')
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # /////////////////////////////////////////////////////////////////////////
     # the FailedFiles.txt cause for a write-stage annotation failure:
     # Controlled by: ignore_data
     ANNOT_CAUSE = 'Annotation failed (ignore_data): {}'
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # /////////////////////////////////////////////////////////////////////////
     # the FailedFiles.txt cause for a write-stage XML export failure:
     # Controlled by: ignore_data
     XML_CAUSE = 'XML export failed (ignore_data): {}'
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # /////////////////////////////////////////////////////////////////////////
     # the pixel writer channel formats
     RGBA = 'rgba'
     RGB  = 'rgb'
     GRAY = 'gray'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class PlotNames:
     '''
     Constants used by the ECGDrawing plotting module.

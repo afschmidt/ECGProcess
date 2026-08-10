@@ -28,9 +28,11 @@
   writers
 * Optional dependency pattern for TensorFlow and wfdb: lazy imports,
   pip/conda/CI wiring, pytest markers for test skipping
-* `WriterValidator` class (replacing `validate_writer` function) with
-  `describe()` classmethod for reference checklist of BaseWriter contract
-* Documentation: custom-writer contract guide and validation example
+* `WriterValidator` class with `describe()` classmethod for reference
+  checklist of `BaseWriter` requirements, and a clear validation-failure
+  message that reports the writer's actual `write` signature instead of
+  Python's raw `bind()` error text
+* Documentation: custom-writer requirements guide and validation example
   notebook
 * `WFDBWriter` for PhysioNet WFDB records, with configurable source and
   metadata output
@@ -45,16 +47,28 @@
 * `XMLWriter` for template-driven XML export (`writer='xml'`), with
   multi-source templates (metadata, waveforms, and median beats in one
   document) and optional per-document XSD validation, schema compiled
-  once per writer instance
+  once per writer instance; XSD schemas and built documents are parsed
+  with an explicit, module-level `etree.XMLParser`
+  (`resolve_entities=False`, `no_network=True`) instead of lxml's
+  mutable global default parser. A malformed XSD schema *file* always
+  raises before any record is processed, regardless of
+  `ctx.skip_data`; a document that is not well-formed XML is skipped
+  and recorded like any other per-record failure instead of aborting
+  the whole write. Template dict keys are validated as legal XML
+  element/attribute names before reaching `xmltodict.unparse`
 * Example XML writer template and schema
   (`ecgprocess.example_data.examples.list_xml_writer_paths`) and
   documentation: writers catalogue page and dedicated XML writer
   reference page
+* `BaseWriter.reset()` optional lifecycle hook (no-op default);
+  `ECGTable.write_ecg` calls it once per top-level call, before the
+  first chunk, so a reused writer instance can clear per-run state.
+  `TableWriter` uses it to reset its header-written state, so a writer
+  instance reused across two independent `write_ecg` calls writes the
+  header again on the second run instead of silently dropping it
 
 #### Changed
 
-* `validate_writer` function renamed to `WriterValidator` class (constructor
-  validates, no longer returns None on success)
 * `WriteContext` docstring now explicitly states required vs optional fields
   using numpydoc markers, and documents the shared-mutable-state behavior of
   `failed_records` (append, never reassign)
@@ -67,8 +81,11 @@
   write_ecg` dispatches through writer registry instead of hard-coded
   logic
 * TensorFlow moved to optional dependency (lazy import in `TFRecordWriter`)
-* `ecgprocess.writer` reorganised from a single module into a package,
-  one file per writer family; the public import surface is unchanged
+* `TFRecordWriter` stores `WaveForms`/`MedianBeats` as
+  `tf.io.serialize_tensor` binary strings in a `bytes_list` feature
+  instead of a flattened `float_list`, so the original array shape and
+  dtype travel with the record and a reader recovers them with
+  `tf.io.parse_tensor` instead of a hardcoded reshape
 * `xmltodict` dependency floor raised to `>=1.0.3` (was `>=0.14`);
   0.14.2-0.15.1 are affected by CVE-2025-9375
 * `resources/config` split into `resources/config/reader` (the
@@ -87,13 +104,22 @@
 #### Deprecated
 
 * The `file_type` argument of `ECGTable.write_ecg` (use `writer`
-  instead; removed in v2.0.0, legacy `'numpy'` → `'npz'`)
+  instead; removed in v2.0.0, legacy `'numpy'` renamed to `'npz'`)
 
 #### Fixed
 
-* `WriterValidator`'s signature-violation message no longer surfaces
-  Python's raw (and misleading) `bind()` error text; it now reports the
-  writer's actual `write` signature instead
+* `tests/utils/test_general.py` no longer defines `TestTarFunctions`
+  twice; the duplicate (holding `parse_number` tests) is renamed to
+  `TestParseNumber`, so the six tar-related tests it was silently
+  shadowing are collected and run again
+* `replace_with_tar` no longer archives itself when `new_tar` resolves
+  inside `old_dir`; the archive is now built at a temporary path
+  outside `old_dir` and moved into place once writing finishes, and a
+  `new_tar` nested inside `old_dir` now raises `ValueError` instead of
+  producing a corrupted archive. It also raises `FileExistsError` when
+  the directory meant to hold `new_tar` does not exist, instead of
+  silently writing into whatever the current working directory
+  happens to be
 * Sphinx docs build warnings: napoleon Attributes/Methods sections no
   longer duplicate autodoc's own member entries, malformed docstrings
   in `tabular`, `config_tools`, `ecg_tools`, and `engineering_tools`
@@ -101,6 +127,50 @@
   option was removed, and the orphaned legacy `examples.rst`/
   `examples/ecgprocess.rst` toctree files were deleted; the CI docs
   build now completes with zero warnings (previously 80)
+* `ECGTable._loop_table` no longer reuses a stale (or unbound)
+  `meta_new` value when metadata extraction fails under
+  `ignore_data=True, confirm_meta=False`; the failing record now gets
+  fresh, empty metadata instead of a previous record's real metadata
+  or a `NameError`/`UnboundLocalError`
+* `ECGTable._loop_table` no longer leaves a skipped record's key
+  behind in its internal key list when a confirm_meta/confirm_wave/
+  confirm_median rejection (or a metadata read failure) skips that
+  record; the key list now stays aligned, one entry per row, with the
+  extracted metadata/waveform/median-beat results. A related bug was
+  also fixed where the metadata read failure path could record the
+  same skipped file twice in the "no data" list
+* `ECGTable.write_ecg`'s `chunk` parameter now raises `ValueError` for
+  a non-positive value instead of silently accepting it, which
+  previously made the write loop spin forever; `parsed_config` no
+  longer has a default value that could never satisfy its own type
+  check, and is now a plain required parameter matching `__call__`'s
+  signature; the default `metadata_identity`/`signal_identity`
+  engineer callables no longer raise `TypeError` under `verbose=True`
+  (`print(**kwargs)` rejected the metadata payload as invalid keyword
+  arguments), logging it through the module's logger instead
+* `example_data.examples.dataset` decorator now raises `KeyError` when
+  a second dataset function is registered under a name already in use,
+  instead of silently overwriting the first; `config_file`'s docstring
+  now documents its actual `text` parameter (not the nonexistent
+  `user_text`) and its worked example calls the real `config_file`
+  function instead of a nonexistent `data_configuration`
+* `ConfigParser.__eq__` now returns `NotImplemented` for incompatible
+  types instead of raising `AttributeError`; `ConfigParser` is now
+  explicitly unhashable (`__hash__ = None`), since the class is
+  mutable; `map`'s error message for an attribute outside the allowed
+  key set no longer runs the period and "Please" together with no
+  space
+* `signal_calibration` and `signal_resolution` no longer reject `int`
+  values for their numeric parameters; their real callers
+  (`signal_correction`, `signal_standardise_res`) feed them values
+  straight from metadata dicts, where a whole-number calibration or
+  resolution factor is legitimately an `int`. `signal_resolution`'s
+  docstring Example no longer calls the nonexistent `adjust_resolution`
+  function
+* `get_param_name` no longer raises `AttributeError` when
+  `inspect.currentframe()` (or a `.f_back` hop) returns `None`, which
+  happens on Python implementations without stack-frame support (e.g.
+  PyPy); it now returns `None` in that case instead
 
 #### Removed
 

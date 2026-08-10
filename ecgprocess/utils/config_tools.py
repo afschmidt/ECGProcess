@@ -322,7 +322,13 @@ class ConfigParser(object):
     def __eq__(self, other):
         """
         Determine how instances are compared.
+
+        Returns `NotImplemented` when `other` is not a `ConfigParser`
+        instance, following the rich-comparison protocol; Python then
+        falls back to identity-based inequality instead of raising.
         """
+        if not isinstance(other, ConfigParser):
+            return NotImplemented
         if len(getattr(self, ConfigNames.data)) == 0:
             if self.path == other.path and self._data == other._data:
                 return True
@@ -334,6 +340,11 @@ class ConfigParser(object):
         elif  self._data == other._data:
             return True
         return False
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # `ConfigParser` is mutable (`_data`/`MAPPER` change after `__call__`
+    # parses a file), so instances must not be used as dictionary keys or
+    # set members; declared explicitly here, rather than left implicit.
+    __hash__ = None
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(self) -> Self:
         """
@@ -417,7 +428,7 @@ class ConfigParser(object):
         The method does not return anything and simply creates the `mapper`
         attribute.
         """
-        WRONG = ('Attribute `{}` is outside the allowed key set for `{}`.'
+        WRONG = ('Attribute `{}` is outside the allowed key set for `{}`. '
                  'Please update your configuration file to only list allowed '
                  'attribute names, or set mapper.extra_leads=True to '
                  'accept lead names beyond the standard 12.')

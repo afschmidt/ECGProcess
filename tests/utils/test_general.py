@@ -73,6 +73,20 @@ class TestTarFunctions(object):
             gen_utils.replace_with_tar(old_dir=str(test_directory),
                                        new_tar=str('error'))
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_replace_with_tar_self_inclusion(self, test_directory):
+        """
+        `new_tar` resolving to a path inside `old_dir` must be rejected
+        up front, instead of letting `os.walk` pick up the still-growing
+        archive and add it to itself.
+        """
+        nested_tar = test_directory / "archive.tar.gz"
+        with pytest.raises(ValueError):
+            gen_utils.replace_with_tar(old_dir=str(test_directory),
+                                       new_tar=str(nested_tar))
+        # `old_dir` and its original contents must be untouched
+        assert test_directory.exists(), "old_dir should not be removed."
+        assert not nested_tar.exists(), "No archive should be produced."
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_list_tar_valid(self, tar_file_with_contents):
         result = gen_utils.list_tar(str(tar_file_with_contents))
         assert isinstance(result, list), "The output should be a list."
@@ -144,7 +158,7 @@ def test_managed_property():
     
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # parse function functions
-class TestTarFunctions(object):
+class TestParseNumber(object):
     """
     Testing parse_number
     """

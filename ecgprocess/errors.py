@@ -18,21 +18,35 @@ class InputValidationError(Exception):  # pragma: no cover
     """
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def get_param_name(param:Any) -> str | None:  # pragma: no cover
+def get_param_name(param:Any) -> str | None:
     '''
     Gets the name of `param` from the caller's local scope.
-    
+
     Parameters
     ----------
     param : `Any`
         The object whose variable name is to be resolved.
-    
+
     Returns
     -------
     name : `str` or `None`
         The variable name as a string, or `None` if it cannot be resolved.
+
+    Notes
+    -----
+    `inspect.currentframe()` returns `None` on Python implementations
+    without stack-frame support (e.g. PyPy), and `frame.f_back` returns
+    `None` once the top of the call stack is reached. Each hop is
+    guarded so a missing frame yields `None` rather than an
+    `AttributeError`.
     '''
-    frame = inspect.currentframe().f_back.f_back
+    frame = inspect.currentframe()
+    if frame is not None:
+        frame = frame.f_back
+    if frame is not None:
+        frame = frame.f_back
+    if frame is None:
+        return None
     param_names =\
         [name for name, value in frame.f_locals.items() if value is param]
     return param_names[0] if param_names else None
@@ -322,6 +336,9 @@ class Error_MSG(object):  # pragma: no cover
     )
     MISSING_ATTR='attribute `{}` not found in object `{}`.'
     CHOICE_PARM='`{}` is constrained to `{}`.'
+    CHUNK_NOT_POSITIVE=(
+        '`chunk` must be a positive `int` or `NoneType`, got `{}`.'
+    )
     MISSING_PATH_INSTANCE="Please supply either `path` or `{}`, but not both."
     MISSING_TENSORFLOW=(
         "TensorFlow is required for the `tensorflow` writer. Install it "
@@ -405,6 +422,10 @@ class Error_MSG(object):  # pragma: no cover
     WRITER_SIGNATURE=(
         '`write` should accept four arguments (meta_list, '
         'wave_list, median_list, ctx); found signature `{}` instead.'
+    )
+    WRITER_SIGNATURE_UNAVAILABLE=(
+        "`write`'s signature could not be inspected ({}); it should "
+        'accept four arguments (meta_list, wave_list, median_list, ctx).'
     )
     WRITER_INIT='the class cannot be instantiated without arguments: {}.'
     WRITER_FILE_EXT_TYPE='`FILE_EXT` must be a `str`, not `{}`.'

@@ -4,6 +4,7 @@ import os
 import numpy as np
 import pytest
 import xmltodict
+from lxml import etree
 from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
@@ -170,6 +171,27 @@ class TestXMLWriter(object):
     def test_record_file_name_sanitises_uid(self):
         writer = XMLWriter(template=_make_xml_template())
         assert writer._record_file_name('weird id/1!') == 'weird_id_1_.xml'
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize('key', [
+        '1Bad', 'Bad Name', 'Bad<Name', 'Bad&Name', '',
+    ])
+    def test_validate_name_rejects_illegal_names(self, key):
+        """
+        A leading digit, embedded whitespace, angle brackets, an
+        ampersand, and an empty string are all illegal XML names.
+        """
+        with pytest.raises(InputValidationError):
+            XMLWriter._validate_name(key, f'ECG.{key}')
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize('key', [
+        'Tag', '_tag', 'ns:tag', 'tag-1', 'tag.1', '@attr', '#text',
+    ])
+    def test_validate_name_accepts_legal_names(self, key):
+        """
+        '@attr' and '#text' are xmltodict's attribute/text markers;
+        the rest are plain element names.
+        """
+        XMLWriter._validate_name(key, f'ECG.{key}')
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestXMLWriterWrite(object):
@@ -277,3 +299,71 @@ class TestXMLWriterWrite(object):
         XMLWriter(template=template, xsd_path=xsd_path, strict=False).write(
             meta, wave, median, _make_xml_context(broken, ['a']))
         assert os.listdir(broken) == ['a.xml']
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_invalid_element_name_respects_skip_data(self, tmp_path):
+        """
+        A template key that is not a legal XML element or attribute
+        name is skipped and recorded like any other per-record
+        failure, instead of writing malformed XML or raising an error
+        the skip handler does not catch.
+        """
+        meta, wave, median = _make_xml_records()
+        template = {'ECG': {'1Bad': f'{CTypes.MetaData}.rate'}}
+        ctx = _make_xml_context(tmp_path, ['a', 'b'], skip_data=True)
+        XMLWriter(template=template).write(meta, wave, median, ctx)
+        assert os.listdir(tmp_path) == []
+        assert [uid for uid, _ in ctx.failed_records] == ['a', 'b']
+        # without skip_data the same template raises
+        strict_ctx = _make_xml_context(tmp_path, ['a', 'b'])
+        with pytest.raises(InputValidationError):
+            XMLWriter(template=template).write(
+                meta, wave, median, strict_ctx)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_document_syntax_error_respects_skip_data(
+            self, tmp_path, monkeypatch):
+        """
+        A document that is not well-formed XML is skipped and recorded
+        like any other per-record failure when a schema is set,
+        instead of aborting the whole write. `xmltodict.unparse` is
+        monkeypatched to force this case directly, since
+        `XMLWriter._validate_name` already blocks the one concrete
+        cause (an illegal element/attribute name) before this point.
+        """
+        meta, wave, median = _make_xml_records()
+        xsd_path = _write_xsd(tmp_path)
+        target = tmp_path / 'out'
+        target.mkdir()
+        monkeypatch.setattr(
+            'ecgprocess.writer.writer_xml.xmltodict.unparse',
+            lambda *args, **kwargs: 'this is not well-formed xml',
+        )
+        ctx = _make_xml_context(target, ['a', 'b'], skip_data=True)
+        XMLWriter(
+            template=_make_simple_template(), xsd_path=xsd_path,
+        ).write(meta, wave, median, ctx)
+        assert os.listdir(target) == []
+        assert [uid for uid, _ in ctx.failed_records] == ['a', 'b']
+        # without skip_data the same malformed document raises
+        strict_ctx = _make_xml_context(target, ['a', 'b'])
+        with pytest.raises(etree.XMLSyntaxError):
+            XMLWriter(
+                template=_make_simple_template(), xsd_path=xsd_path,
+            ).write(meta, wave, median, strict_ctx)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_bad_schema_file_raises_regardless_of_skip_data(self, tmp_path):
+        """
+        An invalid XSD schema file is a configuration error, not a
+        per-record data error: it always raises, before any record is
+        processed, regardless of `ctx.skip_data`.
+        """
+        bad_xsd = tmp_path / 'bad.xsd'
+        bad_xsd.write_text('<not-a-schema/>')
+        meta, wave, median = _make_xml_records(n=1)
+        target = tmp_path / 'out'
+        target.mkdir()
+        ctx = _make_xml_context(target, ['a'], skip_data=True)
+        with pytest.raises(etree.XMLSchemaParseError):
+            XMLWriter(
+                template=_make_simple_template(), xsd_path=str(bad_xsd),
+            ).write(meta, wave, median, ctx)
+        assert os.listdir(target) == []

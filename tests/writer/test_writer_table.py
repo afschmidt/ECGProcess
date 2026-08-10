@@ -74,6 +74,36 @@ class TestTableWriter(object):
         assert set(os.listdir(tmp_path)) == {
             'metadata_2.tsv.gz', 'waveforms_2.tsv.gz',
             'medianbeats_2.tsv.gz'}
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_reset_rewrites_header_on_reused_instance(
+            self, tmp_path, make_context):
+        """
+        A reused instance rewrites the header on each new run.
+
+        Each run calls reset() first, mirroring how ECGTable.write_ecg
+        resets the writer once per top-level call, then write().
+        Without the reset() fix, the second run's header would be
+        silently dropped because `_first` stayed False from run one.
+        """
+        writer = TableWriter(tab_compression=None)
+        meta_list = [{'age': 50}, {'age': 60}]
+        run_1 = tmp_path / 'run_1'
+        run_2 = tmp_path / 'run_2'
+        run_1.mkdir()
+        run_2.mkdir()
+        writer.reset()
+        writer.write(
+            meta_list, [], [],
+            make_context(run_1, e_wave=False, e_median=False))
+        writer.reset()
+        writer.write(
+            meta_list, [], [],
+            make_context(run_2, e_wave=False, e_median=False))
+        for run_dir in (run_1, run_2):
+            meta = pd.read_csv(
+                run_dir / 'metadata.tsv', sep='\t', index_col=0)
+            assert list(meta.index) == ['a', 'b']
+            assert meta['age'].tolist() == [50, 60]
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestSignalDictsToLongTable(object):
@@ -145,3 +175,16 @@ class TestSignalDictsToLongTable(object):
             signal_dicts_to_long_table(
                 [{'I': np.arange(3.0)}], key_list=['a'],
                 signal_type=CTypes.WaveForms, prev_keys=['II'])
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_does_not_mutate_caller_dict(self):
+        """
+        NaN-replacement must not mutate the caller's record dict.
+
+        A None lead is synthesised into a NaN array for the returned
+        table, but the original dict passed in stays untouched.
+        """
+        original = {'I': np.arange(3.0), 'II': None}
+        signal_dicts_to_long_table(
+            [original], key_list=['a'], signal_type=CTypes.WaveForms)
+        assert original['II'] is None
+        assert list(original['I']) == [0.0, 1.0, 2.0]

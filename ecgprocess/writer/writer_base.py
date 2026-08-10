@@ -40,7 +40,7 @@ WRITERS: dict[str, type["BaseWriter"]] = {}
 # the decorated writer's constructor signature for static analysis)
 _W = TypeVar('_W', bound='BaseWriter')
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @dataclass
 class WriteContext(object):
     """
@@ -107,7 +107,7 @@ class WriteContext(object):
     skip_data: bool = False
     failed_records: list[tuple[str, str]] = field(default_factory=list)
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class BaseWriter(abc.ABC):
     """
     Abstract base class for all ECG output writers.
@@ -125,7 +125,7 @@ class BaseWriter(abc.ABC):
     """
     # /////////////////////////////////////////////////////////////////////////
     FILE_EXT: str = ''
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def file_ext(self) -> str:
         """
         Return the extension for this writer's standard data files.
@@ -140,7 +140,7 @@ class BaseWriter(abc.ABC):
             The file extension, including the leading dot.
         """
         return self.FILE_EXT
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def file_names(self, chunk_num: int | None = None,
                    ) -> tuple[str, str, str, str, str]:
         """
@@ -175,7 +175,27 @@ class BaseWriter(abc.ABC):
             FileNames.ECG_DATA + sep + chunk + ext,
             FileNames.FIGURES + sep + chunk + ext,
         )
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def reset(self) -> None:
+        """
+        Reset per-run state before a new top-level `write_ecg` call.
+
+        `ECGTable.write_ecg` calls this once at the start of each
+        top-level invocation, before the first chunk of that run is
+        written; it is not called again between chunks of the same run.
+        The default implementation is a no-op. Override it when a writer
+        carries state across chunks of one run (e.g. a header-written
+        flag) so that state does not leak into a later, independent
+        `write_ecg` call on a reused writer instance.
+
+        Returns
+        -------
+        `NoneType`
+            This method mutates instance state in place and returns
+            nothing.
+        """
+        return None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @abc.abstractmethod
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
@@ -197,7 +217,7 @@ class BaseWriter(abc.ABC):
             The context carrying export flags, target path, and helpers.
         """
         raise NotImplementedError
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self) -> str:
         """
         Return a constructor-like representation of the writer.
@@ -212,7 +232,7 @@ class BaseWriter(abc.ABC):
             if not name.startswith('_'))
         return f'{type(self).__name__}({options})'
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def register_writer(name: str,
                     ) -> Callable[[type[_W]], type[_W]]:
     """
@@ -303,7 +323,7 @@ def resolve_writer(writer: Any) -> BaseWriter:
         '`writer` must be a `BaseWriter` subclass, instance, or callable, '
         f'not `{type(writer).__name__}`.')
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class WriterValidator:
     """
     Check a user-supplied writer against the `BaseWriter` requirements.
@@ -339,8 +359,12 @@ class WriterValidator:
     5. `FILE_EXT` is a `str` and, when non-empty, starts with a dot;
     6. `file_ext()` returns a `str` and `file_names()` returns the
        5-tuple of `str` filenames.
+
+    `reset()` (the per-run lifecycle hook) is not checked here: it has a
+    concrete no-op default on `BaseWriter`, so it is optional for every
+    writer and never causes a validation failure.
     """
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, writer: "type[BaseWriter] | BaseWriter") -> None:
         """
         Construct and validate the supplied writer.
@@ -356,7 +380,7 @@ class WriterValidator:
             If the writer violates the contract.
         """
         self._validate(writer)
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @staticmethod
     def describe() -> None:
         """
@@ -394,6 +418,12 @@ class WriterValidator:
             "      derive names from FileNames constants + file_ext()\n"
             "      + optional chunk suffix. Use only the slots relevant to your\n"
             "      format and ignore the rest.\n"
+            "  reset() \n"
+            "      reset any per-run state. Called once per write_ecg\n"
+            "      invocation, before its first chunk (not once per chunk).\n"
+            "      Default no-op; override when state (e.g. a\n"
+            "      header-written flag) must not leak across independent\n"
+            "      write_ecg calls on a reused writer instance.\n"
             "\n"
             "WriteContext fields (passed to write()):\n"
             "  All fields are populated internally by ECGTable and provided \n"
@@ -424,7 +454,7 @@ class WriterValidator:
             "\n"
         )
         print(checklist)
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def _validate(self, writer: "type[BaseWriter] | BaseWriter") -> None:
         """
         Validate the supplied writer and raise if any violations found.
@@ -463,20 +493,32 @@ class WriterValidator:
         # the placeholders stand in for (meta_list, wave_list, median_list,
         # ctx); `bind` accepts variadic and extra defaulted parameters
         placeholders = ([], [], [], None)
+        # #### step A: read the callable's parameter list
         try:
             if instance is not None:
                 sig = inspect.signature(instance.write)
-                sig.bind(*placeholders)
             else:
                 # the unbound function keeps `self`; NoneType stands in
                 sig = inspect.signature(cls.write)
-                sig.bind(None, *placeholders)
-        except (TypeError, ValueError):
-            # bind()'s TypeError reads backwards; report the signature
-            if instance is None:
-                sig = sig.replace(
-                    parameters=list(sig.parameters.values())[1:])
-            violations.append(Error_MSG.WRITER_SIGNATURE.format(sig))
+        except ValueError as err:
+            # the callable cannot be inspected at all (e.g. certain C
+            # builtins); `sig` was never assigned, so report the
+            # failure directly instead of reading it
+            violations.append(
+                Error_MSG.WRITER_SIGNATURE_UNAVAILABLE.format(err))
+        else:
+            # #### step B: check the four placeholder args actually bind
+            try:
+                if instance is not None:
+                    sig.bind(*placeholders)
+                else:
+                    sig.bind(None, *placeholders)
+            except TypeError:
+                # bind()'s TypeError reads backwards; report the signature
+                if instance is None:
+                    sig = sig.replace(
+                        parameters=list(sig.parameters.values())[1:])
+                violations.append(Error_MSG.WRITER_SIGNATURE.format(sig))
         # #### CRITERION 4
         # #### the class route requires bare instantiation (resolve_writer
         # calls `cls()`); skipped for abstract classes and instance input
@@ -534,16 +576,15 @@ class WriterValidator:
             raise InputValidationError(Error_MSG.WRITER_INVALID.format(
                 len(violations),
                 '\n'.join('- ' + violation for violation in violations)))
-    # /////////////////////////////////////////////////////////////////////////
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class _CallableWriter(BaseWriter):
     """
     Adapter wrapping a bare callable as a :class:`BaseWriter`.
     
     The callable must accept `(meta_list, wave_list, median_list, ctx)`.
     """
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, func: Callable[..., Any]) -> None:
         """
         Initialise the adapter.
@@ -554,7 +595,7 @@ class _CallableWriter(BaseWriter):
             The callable to delegate `write` calls to.
         """
         self._func = func
-    # /////////////////////////////////////////////////////////////////////////
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def write(self, meta_list: list[dict[str, Any]],
               wave_list: list[dict[str, "np.ndarray"]],
               median_list: list[dict[str, "np.ndarray"]],
@@ -576,7 +617,7 @@ class _CallableWriter(BaseWriter):
         """
         return self._func(meta_list, wave_list, median_list, ctx)
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # helpers
 def _meta_to_array(meta_list: list[dict[str, Any]], numeric_meta: bool,
                    ) -> tuple["np.ndarray", list[str]]:
