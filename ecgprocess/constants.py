@@ -225,6 +225,8 @@ class TabularNames(object):
     WRITE_WFDB     = 'wfdb'
     WRITE_XML      = 'xml'
     WRITE_ECG_PATH = 'target_path'
+    ROW_ORDER_SAMPLE = 'sample'
+    ROW_ORDER_LEAD = 'lead'
     ID_START       = '_id_start_number'
     KEY            = 'key'
     FILENAM        = 'filename'

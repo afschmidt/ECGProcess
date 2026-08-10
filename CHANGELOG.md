@@ -108,6 +108,13 @@
 
 #### Fixed
 
+* `signal_dicts_to_long_table` no longer groups the long-format
+  `WaveForms`/`MedianBeats` tables by lead across all records; rows are
+  now grouped by record (in original processing order). A new
+  `row_order` parameter (`'sample'`, the default, or `'lead'`) controls
+  whether each record's rows are further ordered sample-then-lead or
+  lead-then-sample; it is also available on `TableWriter`, and via
+  `ECGTable.get_table`'s new `kwargs_long_table` passthrough
 * `tests/utils/test_general.py` no longer defines `TestTarFunctions`
   twice; the duplicate (holding `parse_number` tests) is renamed to
   `TestParseNumber`, so the six tar-related tests it was silently

@@ -14,7 +14,7 @@ from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
 )
-from ecgprocess.errors import is_type
+from ecgprocess.errors import Error_MSG, is_type
 from ecgprocess.writer.writer_base import (
     BaseWriter,
     WriteContext,
@@ -45,6 +45,9 @@ class TableWriter(BaseWriter):
         Base keyword arguments forwarded to `pandas.DataFrame.to_csv`;
         the per-call header/mode/separator/compression options override
         matching keys.
+    row_order : {'sample', 'lead'}, default `'sample'`
+        The row order within one record's block in the `WaveForms`/
+        `MedianBeats` output, passed to `signal_dicts_to_long_table`.
     """
     # /////////////////////////////////////////////////////////////////////////
     FILE_EXT = '.tsv'
@@ -61,29 +64,36 @@ class TableWriter(BaseWriter):
     def __init__(self, tab_append: bool = True, tab_sep: str = '\t',
                  tab_compression: str | None = 'gzip',
                  kwargs_tab: dict[str, Any] | None = None,
+                 row_order: str = TabNames.ROW_ORDER_SAMPLE,
                  ) -> None:
         """Initialise the tabular writer and its append state."""
         is_type(tab_append, bool)
         is_type(tab_sep, str)
         is_type(tab_compression, (type(None), str))
         is_type(kwargs_tab, (dict, type(None)))
+        is_type(row_order, str)
+        EXP_ROW_ORDER = [TabNames.ROW_ORDER_SAMPLE, TabNames.ROW_ORDER_LEAD]
+        if row_order not in EXP_ROW_ORDER:
+            raise ValueError(
+                Error_MSG.CHOICE_PARM.format('row_order', EXP_ROW_ORDER))
         self.tab_append = tab_append
         self.tab_sep = tab_sep
         self.tab_compression = tab_compression
         self.kwargs_tab = kwargs_tab or {}
+        self.row_order = row_order
         # NOTE tracks whether the next write is the first for append mode
         self._first = True
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def reset(self) -> None:
         """
         Reset the append-mode header state for a new `write_ecg` run.
-
+        
         Overrides the `BaseWriter` no-op default: `_first` tracks
         whether the header still needs writing, and without this
         override, a `TableWriter` instance reused across two
         independent `write_ecg` calls would silently drop the header
         on the second run.
-
+        
         Returns
         -------
         `NoneType`
@@ -163,6 +173,7 @@ class TableWriter(BaseWriter):
             signal_dicts_to_long_table(
                 wave_list, key_list=ctx.key_list,
                 signal_type=CTypes.WaveForms,
+                row_order=self.row_order,
             ).to_csv(
                 os.path.join(ctx.target, WAVE_FILE),
                 **kwargs_tab_combi,
@@ -171,6 +182,7 @@ class TableWriter(BaseWriter):
             signal_dicts_to_long_table(
                 median_list, key_list=ctx.key_list,
                 signal_type=CTypes.MedianBeats,
+                row_order=self.row_order,
             ).to_csv(
                 os.path.join(ctx.target, MEDIAN_FILE),
                 **kwargs_tab_combi,
@@ -181,6 +193,7 @@ class TableWriter(BaseWriter):
 def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
                                key_list: list[Any], signal_type: str,
                                prev_keys: list[str] | None = None,
+                               row_order: str = TabNames.ROW_ORDER_SAMPLE,
                                **kwargs_pd: Any,
                                ) -> pd.DataFrame:
     """
@@ -200,6 +213,11 @@ def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
         The lead names from a previous call, seeding the key-consistency
         check so file headers can persist between calls; `NoneType`
         starts fresh.
+    row_order : {'sample', 'lead'}, default `'sample'`
+        The row order within one record's block: `'sample'` groups by
+        sampling sequence then lead, `'lead'` groups by lead then
+        sampling sequence. Records themselves are always grouped in
+        `key_list` order.
     kwargs_pd
         keyword arguments passed to `pd.DataFrame`.
     
@@ -213,7 +231,8 @@ def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
     Raises
     ------
     ValueError
-        If the number of signals differs between the leads of a record.
+        If the number of signals differs between the leads of a record,
+        or if `row_order` is not `'sample'` or `'lead'`.
     KeyError
         If the lead names differ between records, or from `prev_keys`.
     """
@@ -222,6 +241,11 @@ def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
     is_type(key_list, list, 'key_list')
     is_type(signal_type, str, 'signal_type')
     is_type(prev_keys, (list, type(None)), 'prev_keys')
+    is_type(row_order, str, 'row_order')
+    EXP_ROW_ORDER = [TabNames.ROW_ORDER_SAMPLE, TabNames.ROW_ORDER_LEAD]
+    if row_order not in EXP_ROW_ORDER:
+        raise ValueError(
+            Error_MSG.CHOICE_PARM.format('row_order', EXP_ROW_ORDER))
     SAMPLING_SEQ = 'Sampling sequence'
     # the last set of valid lead names; seeded by prev_keys so cross-call
     # key persistence is an explicit parameter, not instance state
@@ -283,12 +307,26 @@ def signal_dicts_to_long_table(lead_list: list[dict[str, "np.ndarray"]],
     if table.empty == False:
         table[SAMPLING_SEQ] = table.groupby(
             TabNames.KEY).cumcount()
+        # NOTE pd.melt stacks rows by lead across records; restore
+        # record order via a stable sort keyed on each key's
+        # first-appearance position.
+        PARTICIPANT_ORDER = 'Participant order'
+        table[PARTICIPANT_ORDER] = pd.factorize(table[TabNames.KEY])[0]
         long_table = pd.melt(table, id_vars=\
-                             [TabNames.KEY, SAMPLING_SEQ],
+                             [TabNames.KEY, SAMPLING_SEQ,
+                              PARTICIPANT_ORDER],
                              value_vars=prev,
                              var_name='Lead',
                              value_name='Voltage',
                              )
+        # 'sample' also sorts by sampling sequence, so a record's rows
+        # go sample-then-lead; 'lead' leaves them lead-then-sample.
+        sort_by = [PARTICIPANT_ORDER, SAMPLING_SEQ] \
+            if row_order == TabNames.ROW_ORDER_SAMPLE \
+            else [PARTICIPANT_ORDER]
+        long_table = long_table.sort_values(
+            by=sort_by, kind='stable',
+        ).drop(columns=PARTICIPANT_ORDER).reset_index(drop=True)
         long_table['Signal type'] = signal_type
     else:
         long_table = table

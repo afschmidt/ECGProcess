@@ -852,6 +852,7 @@ class ECGTable(object):
                   unique:bool=True,
                   kwargs_reader_call:dict[Any, Any] | None = None,
                   kwargs_reader_extract:dict[Any, Any] | None = None,
+                  kwargs_long_table:dict[str, Any] | None = None,
                   ) -> Self:
         """
         Returns ECG data as pandas.DataFrames.
@@ -870,6 +871,8 @@ class ECGTable(object):
             passed to the kwargs of the `BaseReader` call method.
         kwargs_reader_extract: `dict` [`any`, `any`]  or None, default `NoneType`
             passed to the `BaseReader` extract method.
+        kwargs_long_table : `dict` [`str`, `any`] or None, default `NoneType`
+            passed to `signal_dicts_to_long_table`, e.g. `row_order`.
         
         Attributes
         ----------
@@ -893,6 +896,9 @@ class ECGTable(object):
         1 as a unique key.
         """
         # #### run loop
+        kwargs_long_table = kwargs_long_table or {}
+        kwargs_reader_call = kwargs_long_table or {}
+        kwargs_reader_extract = kwargs_long_table or {}
         try:
             meta_list, wave_list, median_list = self._loop_table(
                 getattr(self, TabNames.CPATH_L),
@@ -908,12 +914,12 @@ class ECGTable(object):
             if getattr(self, TabNames.E_WAVE):
                 setattr(self, CTypes.WaveForms, signal_dicts_to_long_table(
                     wave_list, key_list=getattr(self, TabNames.KEY_L),
-                    signal_type=CTypes.WaveForms,
+                    signal_type=CTypes.WaveForms, **kwargs_long_table,
                 ))
             if getattr(self, TabNames.E_MEDIAN):
                 setattr(self, CTypes.MedianBeats, signal_dicts_to_long_table(
                     median_list, key_list=getattr(self, TabNames.KEY_L),
-                    signal_type=CTypes.MedianBeats,
+                    signal_type=CTypes.MedianBeats, **kwargs_long_table,
                 ))
         finally:
             # cleaning-up.

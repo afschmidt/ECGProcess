@@ -188,3 +188,49 @@ class TestSignalDictsToLongTable(object):
             [original], key_list=['a'], signal_type=CTypes.WaveForms)
         assert original['II'] is None
         assert list(original['I']) == [0.0, 1.0, 2.0]
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_row_order(self):
+        """
+        Rows must be grouped by participant, not interleaved across
+        participants by lead as a side effect of `pd.melt`.
+
+        `row_order` controls the sub-order within one participant's
+        block: 'sample' (the default) groups by sample number then
+        lead, 'lead' groups by lead then sample number.
+        """
+        lead_list = [
+            {'lead_I': np.array([0.10, 0.20]),
+             'lead_II': np.array([0.05, 0.06])},
+            {'lead_I': np.array([0.30, 0.40]),
+             'lead_II': np.array([0.07, 0.08])},
+        ]
+        key_list = ['p1', 'p2']
+
+        def row_tuples(table):
+            return list(table[
+                [TabNames.KEY, 'Sampling sequence', 'Lead']
+            ].itertuples(index=False, name=None))
+        # default: sample-then-lead
+        table = signal_dicts_to_long_table(
+            lead_list, key_list=key_list, signal_type=CTypes.WaveForms)
+        assert row_tuples(table) == [
+            ('p1', 0, 'lead_I'), ('p1', 0, 'lead_II'),
+            ('p1', 1, 'lead_I'), ('p1', 1, 'lead_II'),
+            ('p2', 0, 'lead_I'), ('p2', 0, 'lead_II'),
+            ('p2', 1, 'lead_I'), ('p2', 1, 'lead_II'),
+        ]
+        # explicit row_order='lead': lead-then-sample
+        table = signal_dicts_to_long_table(
+            lead_list, key_list=key_list, signal_type=CTypes.WaveForms,
+            row_order=TabNames.ROW_ORDER_LEAD)
+        assert row_tuples(table) == [
+            ('p1', 0, 'lead_I'), ('p1', 1, 'lead_I'),
+            ('p1', 0, 'lead_II'), ('p1', 1, 'lead_II'),
+            ('p2', 0, 'lead_I'), ('p2', 1, 'lead_I'),
+            ('p2', 0, 'lead_II'), ('p2', 1, 'lead_II'),
+        ]
+        # invalid choice
+        with pytest.raises(ValueError):
+            signal_dicts_to_long_table(
+                lead_list, key_list=key_list, signal_type=CTypes.WaveForms,
+                row_order='bogus')
