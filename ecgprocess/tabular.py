@@ -1,57 +1,51 @@
 """
-A module to process ECG signal data and metadata to tabular form. This
-also includes 2D figures, which are strictly speaking tables of pixels.
-
-The module leverages the existing process class instances and, based
-on their class attributes, extracts the requested data.
+A module to process ECG signal data and metadata to tabular form, using a
+reader and a writer class to determine data input and data output.
 
 Notes
 -----
-Records that fail at any stage are logged to ``FailedFiles.txt`` with
-the cause that triggered failure. The cause string indicates which
-:class:`ECGTable` parameter controls whether the record is skipped or
-raises an error.
+By default, if anything goes wrong while reading a file, the whole
+batch of files stops immediately. The ignore and confirm parameters
+can be turned on to change this behaviour, potentially skipping violating files.
+Whenever a file is set aside this way, its path and the violation reason are
+written to ``FailedFiles.txt``. Each entry below is one of the reasons recorded
+there and the skip-setting that controls it.
 
 ``File permission``
-    Controlled by *ignore_permission* (default `True`). Triggered by a
-    read or write permission error on the input file. When `False`,
-    raises; when `True`, skips the record and logs the cause.
+    The file could not be opened, for example because it does not exist or
+    the user running the program is not allowed to read
+    it. Controlled by *ignore_permission* (skips by default). Left at
+    its non-skipping setting, this is seen as a ``PermissionError``.
 
 ``No data``
-    Controlled by *confirm_wave*, *confirm_median*, *ignore_data*. When
-    *confirm_wave*/*confirm_median* is `True`, triggered by all
-    requested signal values being `None`; otherwise triggered when the
-    extracted data is missing attributes (*ignore_data* catches
-    `AttributeError`). This cause covers multiple failure modes; run
-    with *verbose* `True` to distinguish missing signal data from
-    missing attributes. When `False`, raises; when `True`, skips the
-    record and logs the cause.
+    After the file was opened, the metadata, waveform, or median beat
+    attributes could not be found. Controlled by *ignore_data*: this only
+    decides whether to allow for the missing attribute problem, when set to
+    ``True`` it does not do anything with the missing data.  Left at its
+    non-skipping setting, this is seen as an ``AttributeError``.
+    Run with verbose ``True`` for more detail.
+    
+    The ``confirm_meta``, ``confirm_wave``, ``confirm_median`` parameters
+    decide whether a record where all data are ``NoneType`` should be dropped
+    ``True`` or not ``False``. This does not remove dictionaries where only some
+    of the values are ``NoneType``. Will raise an ``AttributeError`` if all
+    empty and set to ``False``
+
+``Missing lead(s):
+    Contrary to ``confirm_wave`` and ``confirm_median`` the
+    ``ignore_missing_leads`` parameter also drops records where only a subset
+    of the signal dictionary values are ``NoneType``. Left at its non-skipping
+    setting, this is seen as a ``MissingTagError``.
 
 ``Invalid data``
-    Controlled by *ignore_invalid* (default `False`). Triggered when
-    the input file fails validation (XML schema error, file structure
-    error). When `False`, raises; when `True`, skips the record and
-    logs the cause.
+    The XML file did not match the supplied schema, for example
+    because the file's internal structure did not follow the expected
+    layout. Controlled by *ignore_invalid* (stops the batch by
+    default). Left at its non-skipping setting, this is seen as an
+    ``XMLValidationError``, or more generally a ``FileValidationError``
+    when the problem is found while assembling metadata rather than
+    while reading the raw file.
 
-``Missing lead(s): [...] [ignore_missing_leads]``
-    Controlled by *ignore_missing_leads* (default `False`). Triggered
-    when one or more configured leads are missing after extraction,
-    including the all-missing case whenever
-    *confirm_wave*/*confirm_median* is `False` (the default), since
-    that case is then not caught by ``No data`` first. The parameter
-    name is logged in the cause string. When `False`, raises; when
-    `True`, skips the record and logs the cause.
-
-``Annotation failed (ignore_data): {...}``
-    Controlled by *ignore_data* (default `False`). Triggered when an
-    annotation template references a missing or `None` metadata key
-    (a write-stage failure in `FigureWriter`/`PixelWriter`); the
-    parameter name is included in the cause string. When `False`,
-    raises; when `True`, skips the record and logs the cause.
-
-All control parameters default to `False` (strict mode: raise on any
-error). Set any to `True` to skip failing records and continue batch
-processing.
 """
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -353,23 +347,25 @@ class ECGTable(object):
             Skips file permission errors. The failed file names will be
             recorded for review.
         ignore_data : `bool`, default False
-            Whether files with missing MetaData, WaveForm, or MedianBeat
-            attributes should be skipped. The file names for these failures
-            will be recorded.  Note, to limit I/O calls this step will not
-            be conducted during __call__ and instead will be applied when
-            processing data using any method with utilises `_loop_table`.
+            Checks whether the metadata, waveform and medianbeats attributes
+            have been set or not. Does not check the content of the attributes.
+            Will raise an Attribute error if `False` and the attribute is
+            unavailable. If `True` will add failed filenames to the failed list
+            and remove file identifiers `keys` from the record list.
         ignore_invalid : `bool`, default False
             Whether XML files who failed to an XSD validation schema should
-            be skipped. Note, to limit I/O calls schema validation will not be
-            conducted during __call__ and instead will be applied when
-            processing data using any method with utilises `_loop_table`.
+            be skipped.
         ignore_missing_leads : `bool`, default False
-            Will raise an error when any configured lead is missing
-            (incomplete or entirely absent). Set to True to skip these files
-            with an entry in FailedFiles.txt.
+            Identifies records where the signal data are either all the leads
+            are set to NoneType or a subset of leads are set to None. Will
+            raise an `MissingDICOMTagError` if set to False, and otherwise
+            add the filename to the failed list, removing its record from the
+            key record.
         confirm_meta, confirm_wave, confirm_median : `bool`, default False
-            Whether to skip extraction the entire file when the indicated
-            attribute is empty.
+            If True will skip data dictionary objects where all the values
+            are set to None. Failing files will be added to the failed list
+            removing the file keys from the records table. If `False` an
+            Attribute error will be raised when all the values are `None`
         verbose : `bool`, default `False`
             Whether to print warnings.
         
@@ -448,12 +444,10 @@ class ECGTable(object):
                              uid:str,
                              ) -> bool:
         """
-        Detect missing (incomplete or absent) configured leads for one record.
+        Checks if any entries in the signal dictionary has `NoneType` values.
         
-        Raises `MissingTagError` if `ignore_missing_leads=False`, or
-        records the record in the skip list if `ignore_missing_leads=True`.
-        `confirm_wave`/`confirm_median` remain independent validators for
-        extraction completeness.
+        Raises `MissingTagError` if `ignore_missing_leads=False`. Otherwise
+        appends records with missing leads to the lists of skipped files.
         
         Parameters
         ----------
@@ -669,6 +663,8 @@ class ECGTable(object):
             else:
                 key = str(i)
             # confirm the key is unique
+            # IF unique append to KEY_L
+            # NOTE failures before will not impact to key list KEY_L
             if key in getattr(self, TabNames.KEY_L):
                 raise IndexError(
                     'The current file seems to have been extracted already. '
@@ -690,7 +686,7 @@ class ECGTable(object):
             sig_len_w = getattr(self, TabNames.SIG_LEN_W)
             sig_len_m = getattr(self, TabNames.SIG_LEN_M)
             pad_value = getattr(self, TabNames.PAD_VALUE)
-            # append metadata.
+            # ####  append metadata.
             meta_available = False
             if getattr(self, TabNames.E_META):
                 try:
@@ -747,7 +743,7 @@ class ECGTable(object):
                             continue
                         else:
                             raise FILE_VAL
-            # Append waveform signals.
+            # #### Append waveform signals.
             if getattr(self, TabNames.E_WAVE):
                 try:
                     # piping the waveform signals through the engineer function
@@ -784,7 +780,7 @@ class ECGTable(object):
                             continue
                     else:
                         raise AE
-            # Append median beat signals.
+            # ##### Append median beat signals.
             if getattr(self, TabNames.E_MEDIAN):
                 try:
                     # piping the medianbeats signals through the engineer
