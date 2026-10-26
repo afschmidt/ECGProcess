@@ -18,10 +18,10 @@
 #                falling back to floriaan1/ecgprocess.
 #   TEST_TAGS    Space-separated Python version tags to use in the test
 #                stage. Default: parsed from the PYTHON_TAG matrix in
-#                .gitlab-ci.yml, falling back to "py311 py312 py313".
+#                .gitlab-ci.yml.
 #   PAGES_TAG    Tag used for the deploy (pages) job image. Default:
 #                parsed from .gitlab-ci.yml top-level image tag,
-#                falling back to py313.
+#                falling back to py314.
 #   BUILD_DIR    Directory to receive rendered docs. Default:
 #                ${HOME}/google_drive/Research/ci_docs_builds/
 #                <repo_basename>/ when that parent exists, otherwise
@@ -50,8 +50,8 @@ fi
 set -euo pipefail
 
 readonly DEFAULT_IMAGE_BASE="floriaan1/ecgprocess"
-readonly DEFAULT_TEST_TAGS="py311 py312 py313"
-readonly DEFAULT_PAGES_TAG="py313"
+readonly DEFAULT_TEST_TAGS="py311 py312 py313 py314"
+readonly DEFAULT_PAGES_TAG="py314"
 readonly PREFERRED_BUILD_PARENT="${HOME}/google_drive/Research/ci_docs_builds"
 readonly DOCKER_INSTALL_URL="https://docs.docker.com/engine/install/"
 readonly DOCKER_GET_URL="https://docs.docker.com/get-docker/"
@@ -213,7 +213,7 @@ resolve_test_tags() {
 #
 # Outputs
 # -------
-#   Prints the tag string (e.g. py313) to stdout. Honours PAGES_TAG
+#   Prints the tag string to stdout. Honours PAGES_TAG
 #   env var first, then parses the tag from .gitlab-ci.yml's top-level
 #   image name, then falls back to DEFAULT_PAGES_TAG.
 # -----------------------------------------------------------------------

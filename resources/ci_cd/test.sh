@@ -12,9 +12,9 @@ echo "[ci_cd] running resources/ci_cd/test.sh"
 pytest tests
 
 # Phase 2: install every optional extra and re-run the full suite,
-# but only on the newest supported version (PYTHON_TAG=py313) so CI
+# but only on the newest supported version (PYTHON_TAG) so CI
 # doesn't pay the tensorflow/wfdb install cost on every matrix leg.
-if [ "${PYTHON_TAG:-}" = "py313" ]; then
+if [ "${PYTHON_TAG:-}" = "py314" ]; then
     pip install .[all]
     pytest tests
 fi

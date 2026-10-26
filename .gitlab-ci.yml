@@ -6,7 +6,7 @@
 # Default image used by the pages deploy job.
 # Test jobs override this per Python version via parallel: matrix.
 image:
-    name: floriaan1/ecgprocess:py313
+    name: floriaan1/ecgprocess:py314
     entrypoint: [ '/bin/bash', '-c', 'ln -snf /bin/bash /bin/sh && /bin/bash -c $0' ]
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
@@ -43,7 +43,7 @@ test:
     - resources/ci_cd/test.sh
   parallel:
     matrix:
-      - PYTHON_TAG: [py311, py312, py313]
+      - PYTHON_TAG: [py311, py312, py313, py314]
 
 # Pages deploy: only on the default branch; tests already passed above.
 pages:

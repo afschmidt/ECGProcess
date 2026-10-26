@@ -49,14 +49,14 @@ The GitLab pipeline has two active stages:
 
 ```
 test stage   → calls before_script.sh (before_script) + test.sh (script)
-               runs in parallel across py311 / py312 / py313 images
+               runs in parallel across py311 / py312 / py313 / py314 images
 
 deploy stage → calls before_script.sh (before_script) + pages.sh (script)
                runs only on the default branch
 ```
 
 `debug_run_docker.sh` reproduces this exactly: it runs the test stage
-sequentially across all three Python images, then runs the deploy stage.
+sequentially across all Python images, then runs the deploy stage.
 
 ## Usage
 
@@ -84,6 +84,7 @@ under `floriaan1/ecgprocess`. One image per supported Python version:
 | `py311` | 3.11 | `resources/docker/ECGProcess/py311/` |
 | `py312` | 3.12 | `resources/docker/ECGProcess/py312/` |
 | `py313` | 3.13 | `resources/docker/ECGProcess/py313/` |
+| `py314` | 3.14 | `resources/docker/ECGProcess/py314/` |
 
 Build and push an image:
 
