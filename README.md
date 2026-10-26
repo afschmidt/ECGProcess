@@ -4,7 +4,7 @@
 <img src="https://gitlab.com/SchmidtAF/ECGProcess/-/raw/d853ccf/docs/source/_static/ecgp_logo.png" alt="ECGProcess icon" width="250"/>
 
 # An ECG processing module
-__version__: `1.1.0`
+__version__: `1.2.0`
 
 Supports Python 3.11-3.13; the test suite runs against all three versions
 in CI.
