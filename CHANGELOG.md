@@ -4,192 +4,129 @@
 
 #### Added
 
-* `extra_leads` parameter on `DataMap`; when True, WaveForms and MedianBeats
-  config sections accept custom lead names beyond the standard 12
-  automatically instead of raising KeyError
-* `PrivilegedNames` registry in `ecgprocess.constants` (public API via
-  `from ecgprocess import PrivilegedNames`), documenting all reserved lead and
-  metadata field names
-* Metadata columns: duration and processed sampling frequency for each
-  signal source (waveforms, median beats), replacing the single fixed
-  values
-* Helper functions `_signal_duration` and `_resample_source` in
-  `process_xml`
-* Writer module (`ecgprocess.writer`): `WRITERS` registry, dispatch
-  mechanism, abstract base class, and context container for pluggable
-  output formats
-* `writer` parameter on `ECGTable.write_ecg` accepting registry keys,
-  writer instances, or bare callables
-* Writer implementations: `NpyWriter` (one file per source), `FigureWriter`
-  (ECG images), `PixelWriter` (stacked rasters)
-* `ECGDrawing.annotate` for metadata-driven templated annotations
-* Public helper `signal_dicts_to_long_table` for tabular conversion
-* Filename constants (`FileNames`) standardising output names across
-  writers
-* Optional dependency pattern for TensorFlow and wfdb: lazy imports,
-  pip/conda/CI wiring, pytest markers for test skipping
-* `WriterValidator` class with `describe()` classmethod for reference
-  checklist of `BaseWriter` requirements, and a clear validation-failure
-  message that reports the writer's actual `write` signature instead of
-  Python's raw `bind()` error text
-* Documentation: custom-writer requirements guide and validation example
-  notebook
-* `WFDBWriter` for PhysioNet WFDB records, with configurable source and
-  metadata output
-* `meta_fields='all'` option to copy all metadata keys to WFDB comments
-* `ignore_missing_leads` parameter on `ECGTable` to skip partially-
-  extracted records instead of raising
-* Error messages for missing optional dependencies and validation
-  failures
-* `chunk_strict` parameter on `ECGTable.write_ecg`: when True, a chunk
-  counts only successfully-extracted files toward its `chunk` size,
-  pulling in further files to make up for any that failed
-* `XMLWriter` for template-driven XML export (`writer='xml'`), with
-  multi-source templates (metadata, waveforms, and median beats in one
-  document) and optional per-document XSD validation, schema compiled
-  once per writer instance; XSD schemas and built documents are parsed
-  with an explicit, module-level `etree.XMLParser`
-  (`resolve_entities=False`, `no_network=True`) instead of lxml's
-  mutable global default parser. A malformed XSD schema *file* always
-  raises before any record is processed, regardless of
-  `ctx.skip_data`; a document that is not well-formed XML is skipped
-  and recorded like any other per-record failure instead of aborting
-  the whole write. Template dict keys are validated as legal XML
-  element/attribute names before reaching `xmltodict.unparse`
-* Example XML writer template and schema
-  (`ecgprocess.example_data.examples.list_xml_writer_paths`) and
-  documentation: writers catalogue page and dedicated XML writer
-  reference page
-* `BaseWriter.reset()` optional lifecycle hook (no-op default);
-  `ECGTable.write_ecg` calls it once per top-level call, before the
-  first chunk, so a reused writer instance can clear per-run state.
-  `TableWriter` uses it to reset its header-written state, so a writer
-  instance reused across two independent `write_ecg` calls writes the
-  header again on the second run instead of silently dropping it
+* Lead names other than the standard 12 are accepted in the WaveForms
+  and MedianBeats sections when `extra_leads` is true on `DataMap`.
+* Reserved lead and metadata field names are listed by
+  `PrivilegedNames` (`from ecgprocess import PrivilegedNames`).
+* Duration and the sampling frequency after processing are recorded
+  separately for waveforms and for median beats.
+* One signal source is measured and resampled by `_signal_duration`
+  and `_resample_source` in `process_xml`.
+* New output formats plug in through `ecgprocess.writer`, which holds
+  the `WRITERS` registry, the dispatch path, a base class, and the
+  context object handed to each write.
+* A registry name, a writer object, or a plain function can be passed
+  as `writer` to `ECGTable.write_ecg`.
+* One array file per signal source is saved by `NpyWriter`.
+* One ECG image per record is saved by `FigureWriter`, with the axis
+  spines hidden.
+* Stacked signal rasters are saved by `PixelWriter`, one array per
+  chunk.
+* Metadata is drawn onto a figure from a template string by
+  `ECGDrawing.annotate`.
+* Signal dictionaries are turned into a long table by
+  `signal_dicts_to_long_table`.
+* Output filenames shared across writers are fixed in `FileNames`.
+* TensorFlow and wfdb are optional extras: they import when a writer
+  needs them, and tests skip when the packages are not installed.
+* The checklist for a `BaseWriter` is printed by
+  `WriterValidator.describe`, and a failed check quotes that writer's
+  `write` signature.
+* The documentation adds a custom-writer guide and a notebook that
+  walks through a validation failure.
+* A PhysioNet WFDB record is written by `WFDBWriter`, with a choice of
+  signal source and which metadata to store.
+* Every metadata key is copied into the WFDB comments when
+  `meta_fields='all'`.
+* A record is skipped when some of its leads were not extracted, if
+  `ignore_missing_leads` is true on `ECGTable`.
+* A missing optional dependency, or a writer that fails validation,
+  raises an error that names what went wrong.
+* Only successful extracts count toward `chunk` when `chunk_strict` is
+  true on `ECGTable.write_ecg`, and further files are read to fill the
+  batch.
+* ECG can be written to XML (one file per input ECG) using templates
+  for metadata, waveforms, and median beats. 
+  See `XMLWriter` (`writer='xml'`), with an optional
+  schema check compiled once for that writer.
+* Schema files and written documents are parsed with entity resolution
+  and network access turned off.
+* An invalid schema file stops the write before any record is
+  processed, a document that is not well-formed XML is skipped, and
+  template keys must be legal XML names.
+* Example XML writer paths come from `list_xml_writer_paths`, and the
+  docs add a writer catalogue plus an XML writer page.
+* Before the first batch, `ECGTable.write_ecg` calls `BaseWriter.reset`,
+  which `TableWriter` uses to write its header again on a reused writer.
 
 #### Changed
 
-* `WriteContext` docstring now explicitly states required vs optional fields
-  using numpydoc markers, and documents the shared-mutable-state behavior of
-  `failed_records` (append, never reassign)
-* Median beat resampling is now duration-derived (not a fixed 600
-  samples); resampling is independently gated for waveforms and median
-  beats
-* Padded-duration metadata is derived from processed (not original)
-  sampling frequency
-* Output-writing logic moved to `ecgprocess.writer` module; `ECGTable.
-  write_ecg` dispatches through writer registry instead of hard-coded
-  logic
-* TensorFlow moved to optional dependency (lazy import in `TFRecordWriter`)
-* `TFRecordWriter` stores `WaveForms`/`MedianBeats` as
-  `tf.io.serialize_tensor` binary strings in a `bytes_list` feature
-  instead of a flattened `float_list`, so the original array shape and
-  dtype travel with the record and a reader recovers them with
-  `tf.io.parse_tensor` instead of a hardcoded reshape
-* `xmltodict` dependency floor raised to `>=1.0.3` (was `>=0.14`);
-  0.14.2-0.15.1 are affected by CVE-2025-9375
-* `resources/config` split into `resources/config/reader` (the
-  existing input-side `.cnf` docs and examples) and
-  `resources/config/writer` (the new `XMLWriter` template docs)
-* GitLab CI test stage now runs across a Python 3.11/3.12/3.13 matrix
-  on every branch (previously only ran on the default branch, inside
-  the deploy job, on a single Python version); Docker images split
-  from a single `:master` tag into `py311`/`py312`/`py313` tags under
-  `resources/docker/ECGProcess`
-* CI/CD debug scripts (`resources/ci_cd/debug_run_docker.sh`,
-  `run_docker.sh`) rewritten to support the Python-version matrix,
-  with a docker pre-flight check and settings read from
-  `.gitlab-ci.yml` instead of being hardcoded
+* Each field a writer receives is documented on `WriteContext`,
+  including that failures are recorded by appending to `failed_records`.
+* Median-beat resampling takes its length from that beat's duration,
+  and waveform resampling is switched separately from median beats.
+* Padded-duration metadata uses the sampling frequency taken after
+  processing.
+* File output runs through `ecgprocess.writer`, and `ECGTable.write_ecg`
+  picks the writer from the registry.
+* TensorFlow is an optional dependency, imported inside
+  `TFRecordWriter` only when that writer runs.
+* Each waveform and median beat is stored as a serialised tensor by
+  `TFRecordWriter`, so `tf.io.parse_tensor` can restore the original
+  shape and dtype.
+* `xmltodict` must be version 1.0.3 or newer .
+* Reader configuration examples moved to `resources/config/reader`, and
+  the XML writer template lives in `resources/config/writer`.
+* GitLab CI runs the tests on Python 3.11, 3.12, and 3.13 for every
+  branch, with Docker tags `py311`, `py312`, and `py313`.
+* The CI debug scripts take their settings from `.gitlab-ci.yml` and
+  check that Docker is available before starting a matrix run.
 
 #### Deprecated
 
-* The `file_type` argument of `ECGTable.write_ecg` (use `writer`
-  instead; removed in v2.0.0, legacy `'numpy'` renamed to `'npz'`)
+* The `file_type` argument of `ECGTable.write_ecg` is deprecated in
+  favour of `writer` and the legacy `'numpy'`
+  value is renamed `'npz'`.
 
 #### Fixed
 
-* `signal_dicts_to_long_table` no longer groups the long-format
-  `WaveForms`/`MedianBeats` tables by lead across all records; rows are
-  now grouped by record (in original processing order). A new
-  `row_order` parameter (`'sample'`, the default, or `'lead'`) controls
-  whether each record's rows are further ordered sample-then-lead or
-  lead-then-sample; it is also available on `TableWriter`, and via
-  `ECGTable.get_table`'s new `kwargs_long_table` passthrough
-* `tests/utils/test_general.py` no longer defines `TestTarFunctions`
-  twice; the duplicate (holding `parse_number` tests) is renamed to
-  `TestParseNumber`, so the six tar-related tests it was silently
-  shadowing are collected and run again
-* `replace_with_tar` no longer archives itself when `new_tar` resolves
-  inside `old_dir`; the archive is now built at a temporary path
-  outside `old_dir` and moved into place once writing finishes, and a
-  `new_tar` nested inside `old_dir` now raises `ValueError` instead of
-  producing a corrupted archive. It also raises `FileExistsError` when
-  the directory meant to hold `new_tar` does not exist, instead of
-  silently writing into whatever the current working directory
-  happens to be
-* Sphinx docs build warnings: napoleon Attributes/Methods sections no
-  longer duplicate autodoc's own member entries, malformed docstrings
-  in `tabular`, `config_tools`, `ecg_tools`, and `engineering_tools`
-  now parse as valid RST, the unsupported `display_version` theme
-  option was removed, and the orphaned legacy `examples.rst`/
-  `examples/ecgprocess.rst` toctree files were deleted; the CI docs
-  build now completes with zero warnings (previously 80)
-* `ECGTable._loop_table` no longer reuses a stale (or unbound)
-  `meta_new` value when metadata extraction fails under
-  `ignore_data=True, confirm_meta=False`; the failing record now gets
-  fresh, empty metadata instead of a previous record's real metadata
-  or a `NameError`/`UnboundLocalError`
-* `ECGTable._loop_table` no longer leaves a skipped record's key
-  behind in its internal key list when a confirm_meta/confirm_wave/
-  confirm_median rejection (or a metadata read failure) skips that
-  record; the key list now stays aligned, one entry per row, with the
-  extracted metadata/waveform/median-beat results. A related bug was
-  also fixed where the metadata read failure path could record the
-  same skipped file twice in the "no data" list
-* `ECGTable.write_ecg`'s `chunk` parameter now raises `ValueError` for
-  a non-positive value instead of silently accepting it, which
-  previously made the write loop spin forever; `parsed_config` no
-  longer has a default value that could never satisfy its own type
-  check, and is now a plain required parameter matching `__call__`'s
-  signature; the default `metadata_identity`/`signal_identity`
-  engineer callables no longer raise `TypeError` under `verbose=True`
-  (`print(**kwargs)` rejected the metadata payload as invalid keyword
-  arguments), logging it through the module's logger instead
-* `example_data.examples.dataset` decorator now raises `KeyError` when
-  a second dataset function is registered under a name already in use,
-  instead of silently overwriting the first; `config_file`'s docstring
-  now documents its actual `text` parameter (not the nonexistent
-  `user_text`) and its worked example calls the real `config_file`
-  function instead of a nonexistent `data_configuration`
-* `ConfigParser.__eq__` now returns `NotImplemented` for incompatible
-  types instead of raising `AttributeError`; `ConfigParser` is now
-  explicitly unhashable (`__hash__ = None`), since the class is
-  mutable; `map`'s error message for an attribute outside the allowed
-  key set no longer runs the period and "Please" together with no
-  space
-* `signal_calibration` and `signal_resolution` no longer reject `int`
-  values for their numeric parameters; their real callers
-  (`signal_correction`, `signal_standardise_res`) feed them values
-  straight from metadata dicts, where a whole-number calibration or
-  resolution factor is legitimately an `int`. `signal_resolution`'s
-  docstring Example no longer calls the nonexistent `adjust_resolution`
-  function
-* `get_param_name` no longer raises `AttributeError` when
-  `inspect.currentframe()` (or a `.f_back` hop) returns `None`, which
-  happens on Python implementations without stack-frame support (e.g.
-  PyPy); it now returns `None` in that case instead
+* Waveform and median-beat rows stay in record order in
+  `signal_dicts_to_long_table`, with `row_order` of `'sample'` or
+  `'lead'` on `TableWriter` and through `kwargs_long_table` on
+  `ECGTable.get_table`.
+* An archive is built outside `old_dir` and then moved into place by
+  `replace_with_tar`, which raises `ValueError` when `new_tar` lies
+  inside `old_dir` and `FileExistsError` when the destination directory
+  is missing.
+* A failed metadata read with `ignore_data=True` and
+  `confirm_meta=False` stores empty metadata for that record in
+  `ECGTable._loop_table`.
+* Skipping a record in `ECGTable._loop_table` drops that record's key,
+  and a failed metadata read is entered once in the "no data" list.
+* A `chunk` that is not a positive number is rejected by
+  `ECGTable.write_ecg`, which also requires `parsed_config` and logs
+  the payload from the default identity callables when `verbose=True`.
+* An integer number is accepted as well as a float by `signal_calibration`
+  and `signal_resolution`, and the `signal_resolution` example calls
+  `signal_resolution`.
+* When the interpreter provides no stack frame, as on PyPy,
+  `get_param_name` returns `None`.
+* The calibration pulse overwrites the opening samples of each selected
+  lead, so the trace keeps its original length.
+* `make install-dev` installs the editable package with the `[dev]`
+  extras.
 
 #### Removed
 
-* The `median` parameter of `resampling_500hz`; the duration is now
-  supplied for every source, making the branch redundant
-* The `duration (sec)` and `sampling frequency (processed)` metadata
-  columns, replaced by the per-source columns above
-* The `ECGTable._write_numpy`, `_write_tfr`, `_write_header`,
-  `_write_file_names`, and `_get_long_table` private methods, migrated
-  into `ecgprocess.writer`
-* `TabNames.WRITE_TYPE`, superseded by the writer registry and the
-  `FileNames` constants
+* The `median` argument of `resampling_500hz` is removed, because each
+  source already supplies its own duration.
+* The shared `duration (sec)` and `sampling frequency (processed)`
+  columns are removed and replaced by the per-source columns.
+* Private write helpers on `ECGTable` (`_write_numpy`, `_write_tfr`,
+  `_write_header`, `_write_file_names`, and `_get_long_table`) moved
+  into `ecgprocess.writer`.
+* The write-type constant `TabNames.WRITE_TYPE` is removed and replaced
+  by the writer registry and `FileNames`.
 
 ### 1.1.0 - 2026-05-02
 
