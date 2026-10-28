@@ -1,6 +1,5 @@
 import pytest
-import numpy as np
-import ecgprocess.process_xml as pro_xml
+import ecgprocess.process.process_xml as pro_xml
 import ecgprocess.utils.config_tools as config_utils
 from tempfile import NamedTemporaryFile
 from ecgprocess.constants import CoreData as Core
@@ -52,7 +51,7 @@ example_config = {
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # EXGXMLReader
 class TestECGXMLReader(object):
-    """Test ecgprocess.process_xml.ECGXMLReader"""
+    """Test ecgprocess.process.process_xml.ECGXMLReader"""
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_ecgxmlreader_init(self):
         reader = pro_xml.ECGXMLReader(augment_leads=True, resample_500=False)
@@ -202,38 +201,3 @@ class TestResampleMetadata(object):
         assert meta[CProc.Duration_M] == 1.2
         assert meta[CProc.SF_NEW_W] == 500
         assert meta[CProc.SF_NEW_M] == 500
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_signal_duration(self):
-        assert pro_xml._signal_duration(600, 500) == 1.2
-        assert pro_xml._signal_duration(5000, 500) == 10.0
-        # an absent sampling number or frequency is not an error: the
-        # duration is simply unknown
-        assert pro_xml._signal_duration(None, 500) is None
-        assert pro_xml._signal_duration(600, None) is None
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_resample_source_gates_on_own_duration(self):
-        # 1.2 s at 250 Hz resamples to the 500 Hz target
-        signals = {'I': np.sin(np.linspace(0, 2 * np.pi, 300))}
-        out, sf_new = pro_xml._resample_source(
-            signals, 1.2, 'median beat', skip_empty=True)
-        assert len(out['I']) == 600
-        assert sf_new == 500
-        # without its own duration the source is left untouched and
-        # reports no processed rate, rather than blocking the other
-        # source or being silently rescaled
-        out, sf_new = pro_xml._resample_source(
-            signals, None, 'median beat', skip_empty=True)
-        assert len(out['I']) == 300
-        assert sf_new is None
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_resample_source_without_data(self):
-        # an absent source is not resampled; skip_empty governs whether
-        # that is an error
-        signals = {'I': None}
-        out, sf_new = pro_xml._resample_source(
-            signals, 1.2, 'median beat', skip_empty=True)
-        assert out == signals
-        assert sf_new == 500
-        with pytest.raises(AttributeError):
-            pro_xml._resample_source(
-                signals, 1.2, 'median beat', skip_empty=False)

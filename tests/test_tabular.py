@@ -13,10 +13,10 @@ from ecgprocess.constants import (
     CoreData as Core,
     TabularNames as TabNames,
 )
-from ecgprocess.process_dicom import(
+from ecgprocess.process.process_dicom import(
     ECGDICOMReader,
 )
-from ecgprocess.process_xml import(
+from ecgprocess.process.process_xml import(
     ECGXMLReader,
 )
 from ecgprocess.tabular import (
@@ -41,7 +41,7 @@ from ecgprocess.example_data.examples import (
 from ecgprocess.utils.general import (
     list_tar,
 )
-from ecgprocess.utils.reader_tools import (
+from ecgprocess.process.process_base import (
     BaseReader,
 )
 

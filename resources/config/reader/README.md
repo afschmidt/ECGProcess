@@ -145,11 +145,11 @@ placeholder for future fields that might not fit `MetaData`.
 ### File variable names
 
 ECG data is typically provided in (semi) nested form through XMLs or DICOMs. 
-To process these files the `process_xml` and `process_dicom` modules map the
+To process these files the `process.process_xml` and `process.process_dicom` modules map the
 file content to flat dictionaries object without any nesting. 
 As such the variable names represent a concatenation of the source file 
 variable names. 
-Each process class instance (e.g. from `process_xml.py` or `process_dicom.py`)
+Each process class instance (e.g. from `process/process_xml.py` or `process/process_dicom.py`)
 has a `tags` attribute which lists the dictionary keys which can be used to
 populate the RHS of the config files. 
 

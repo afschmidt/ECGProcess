@@ -31,7 +31,8 @@ def resampling_500hz(signals:dict[str, np.array],
     ----------
     signals : `dict` [`str`, np.array]
         A dictionary with the lead names as string keys and the signals
-        as a 1D np.array.
+        as a 1D np.array. Leads with a `NoneType` value are returned
+        unchanged.
     duration : `int` or `float`
         The duration of the signal in seconds, calculated as the fraction
         of the number of samples by the sampling frequency. The number of
@@ -53,6 +54,10 @@ def resampling_500hz(signals:dict[str, np.array],
     # #### resample
     new_dict = {}
     for l, sig in signals.items():
+        # leads without data are kept as None, not resampled
+        if sig is None:
+            new_dict[l] = None
+            continue
         new_dict[l] = signal.resample(sig, num_samples)
     # return
     return new_dict

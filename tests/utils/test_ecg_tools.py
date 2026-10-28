@@ -33,6 +33,16 @@ class TestResampling(object):
         res = ecg_utils.resampling_500hz(signals, duration=2.0)
         assert len(res["lead1"]) == 1000
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_resampling_keeps_none_leads(self):
+        # leads without data (undeclared, or an extra lead declared in
+        # one section only) are kept as None, any number of leads
+        signals = {"II": np.sin(np.linspace(0, 2 * np.pi, 250)),
+                   "I": None, "V7": None}
+        res = ecg_utils.resampling_500hz(signals, duration=1.0)
+        assert len(res["II"]) == 500
+        assert res["I"] is None
+        assert res["V7"] is None
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_missing_duration_error(self):
         signals = {"lead1": np.sin(np.linspace(0, 2 * np.pi, 1000))}
         with pytest.raises(ValueError):

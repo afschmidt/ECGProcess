@@ -4,7 +4,7 @@ import ecgprocess.utils.config_tools as config_utils
 from unittest import mock
 from tempfile import NamedTemporaryFile
 from ecgprocess.errors import MissingTagError
-from ecgprocess.process_dicom import (
+from ecgprocess.process.process_dicom import (
     ECGDICOMReader,
 )
 from ecgprocess.example_data.examples import (

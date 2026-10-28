@@ -1,9 +1,17 @@
 Readers
 -------
 
+process_base
+~~~~~~~~~~~~
+.. automodule:: ecgprocess.process.process_base
+   :members:
+   :special-members: __call__,__init__
+   :show-inheritance:
+   :undoc-members: False
+
 process_xml
 ~~~~~~~~~~~
-.. automodule:: ecgprocess.process_xml
+.. automodule:: ecgprocess.process.process_xml
    :members:
    :special-members: __call__,__init__
    :show-inheritance:
@@ -11,7 +19,7 @@ process_xml
 
 process_dicom
 ~~~~~~~~~~~~~
-.. automodule:: ecgprocess.process_dicom
+.. automodule:: ecgprocess.process.process_dicom
    :members:
    :special-members: __call__,__init__
    :show-inheritance:

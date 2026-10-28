@@ -91,7 +91,7 @@ from ecgprocess.utils.general import (
     _update_kwargs,
     update_dict_with_warning,
 )
-from ecgprocess.utils.reader_tools import(
+from ecgprocess.process.process_base import(
     BaseReader,
 )
 from ecgprocess.utils.config_tools import(

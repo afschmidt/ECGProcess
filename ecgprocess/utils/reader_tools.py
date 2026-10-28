@@ -34,30 +34,30 @@ from ecgprocess.errors import XMLValidationError
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # constants
 WARN1 = "XML file is valid (ignoring XML elements not in the supplied XSD)."
-CTypes = Core.DataTypes
-CProc = Core.ProcessingData
+# CTypes = Core.DataTypes
+# CProc = Core.ProcessingData
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Base class with slots
-class BaseReader:
-    '''
-    An ECGDICOMReader base class implementing the more efficient __slots__ for
-    the waveform arrays, while still retaining __dict__ dynamic attribute
-    creation.
-    '''
-    __slots__ = (CTypes.WaveForms, CTypes.MedianBeats,
-                 CTypes.MetaData, CTypes.OtherData, CProc.RAW)
-    # /////////////////////////////////////////////////////////////////////////
-    def __init__(self, waveforms=None, medianbeats=None, metadata=None,
-                 otherdata=None, raw=None):
-        '''
-        Initialises slots entries to `None`.
-        '''
-        setattr(self, CTypes.WaveForms, waveforms)
-        setattr(self, CTypes.MedianBeats,medianbeats)
-        setattr(self, CTypes.MetaData,metadata)
-        setattr(self, CTypes.OtherData, otherdata)
-        setattr(self, CProc.RAW,raw)
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # Base class with slots
+# class BaseReader:
+#     '''
+#     An ECGDICOMReader base class implementing the more efficient __slots__ for
+#     the waveform arrays, while still retaining __dict__ dynamic attribute
+#     creation.
+#     '''
+#     __slots__ = (CTypes.WaveForms, CTypes.MedianBeats,
+#                  CTypes.MetaData, CTypes.OtherData, CProc.RAW)
+#     # /////////////////////////////////////////////////////////////////////////
+#     def __init__(self, waveforms=None, medianbeats=None, metadata=None,
+#                  otherdata=None, raw=None):
+#         '''
+#         Initialises slots entries to `None`.
+#         '''
+#         setattr(self, CTypes.WaveForms, waveforms)
+#         setattr(self, CTypes.MedianBeats,medianbeats)
+#         setattr(self, CTypes.MetaData,metadata)
+#         setattr(self, CTypes.OtherData, otherdata)
+#         setattr(self, CProc.RAW,raw)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def validate_xml(xml_path:str|Path, xsd_path:str|Path, strict:bool=True,

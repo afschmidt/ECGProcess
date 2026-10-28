@@ -175,14 +175,14 @@ class UtilsConfigData(object):
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ProcessXMLNames(object):
     '''
-    Names used in the process_xml module.
+    Names used in the process.process_xml module.
     '''
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class ProcessDicomNames(object):
-    """Names used in the process_dicom module."""
+    """Names used in the process.process_dicom module."""
     RESAMPLE  = CoreData.ProcessingData.RESAMPLE
     AUG_LEADS = CoreData.ProcessingData.AUG_LEADS
     
