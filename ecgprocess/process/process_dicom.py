@@ -14,7 +14,10 @@ import pathlib
 import pydicom
 import numpy as np
 import ecgprocess.utils.reader_tools as reader_utils
-from ecgprocess.process.process_xml import ECGXMLReader
+from ecgprocess.process.process_base import(
+    BaseReader,
+    extract_pattern,
+)
 from dataclasses import dataclass, field
 from typing import (
     Self, Any, Optional
@@ -22,9 +25,6 @@ from typing import (
 from ecgprocess.errors import (
     is_type,
     _check_readable,
-)
-from ecgprocess.utils.general import(
-    parse_number,
 )
 from ecgprocess.constants import (
     ProcessDicomNames as PDNames,
@@ -42,12 +42,10 @@ from ecgprocess.utils.config_tools import(
 # constants
 CTypes = Core.DataTypes
 CProc = Core.ProcessingData
-CMeta = Core.MetaData
-CLeads = Core.Leads
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @dataclass
-class ECGDICOMReader(ECGXMLReader):
+class ECGDICOMReader(BaseReader):
     """
     Processes an DICOM file containing ECG data and extracts the metadata,
     median beats, and raw waveforms.
@@ -198,28 +196,16 @@ class ECGDICOMReader(ECGXMLReader):
             Returns the class instance with updated attributes including the
             extracted DICOM data.
         """
-        # #### run ECGXMLReader.extract
-        super().extract(config=config, skip_empty=skip_empty,
+        # #### run BaseReader.extract
+        super().extract(config=config, bits=bits, skip_empty=skip_empty,
                         parse_numeric=parse_numeric, **kwargs)
         # #### extract based on a string pattern
         if not pattern is None:
-            new_meta = reader_utils.subset_dict(
+            new_meta = extract_pattern(
                 data=getattr(self, CProc.RAW), pattern=pattern,
-                substitute=substitute, verbose=self.verbose,
-                skip_empty=skip_empty,
-                character_trim=character_trim)
-            # make sure everything is af loat add perform optional mapping
-            # to numeric
-            new_meta = {k:str(v) for k, v in new_meta.items()}
-            if parse_numeric:
-                for k, v in new_meta.items():
-                    try:
-                        new_meta[k] = parse_number(v)
-                        if isinstance(new_meta[k], list):
-                            if len(new_meta[k]) == 1:
-                                new_meta[k] = new_meta[k][0]
-                    except ValueError:
-                        new_meta[k] = v
+                substitute=substitute, character_trim=character_trim,
+                skip_empty=skip_empty, parse_numeric=parse_numeric,
+                verbose=self.verbose)
             # assign to meta
             getattr(self, CTypes.MetaData).update(new_meta)
         # #### return

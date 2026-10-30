@@ -298,7 +298,8 @@ def get_ecg_data(data_dict:dict[str, Any],
         Whether data should be mapped to `np.array` using a direct map:
         `np.array(., dtype=bits)`.
     bits : `np.dtype`, default `None`
-        np.array bits passed to numpy.array dtype.
+        The numpy storage type used when `as_array` is True. Decimals are
+        rounded to the nearest whole number for integer types.
     skip_empty : `bool`, default `True`
         Whether to skip config values not matching data_dict keys.
     **kwargs
@@ -366,7 +367,15 @@ def get_ecg_data(data_dict:dict[str, Any],
                 # Do we want to extract signals and store these in a numpy array..
                 if as_array == True:
                     try:
-                        results_dict[t] = np.array(results_dict[t], dtype=bits)
+                        arr = np.array(results_dict[t])
+                        # round decimals before storing them as whole numbers,
+                        # a direct cast would truncate 0.9 to 0
+                        if bits is not None and \
+                                np.issubdtype(bits, np.integer) and \
+                                np.issubdtype(arr.dtype, np.floating):
+                            arr = np.rint(arr)
+                        results_dict[t] = arr if bits is None \
+                            else arr.astype(bits)
                     except ValueError:
                         pass
             elif skip_empty == False and not s is None:

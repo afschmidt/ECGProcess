@@ -3,7 +3,7 @@ import numpy as np
 import ecgprocess.process.process_base as pro_base
 import ecgprocess.utils.config_tools as config_utils
 from ecgprocess.constants import CoreData as Core
-from ecgprocess.errors import MissingTagError
+from ecgprocess.errors import MissingTagError, InputValidationError
 from ecgprocess.example_data.examples import (
     config_file,
 )
@@ -111,6 +111,20 @@ class TestBaseReader(object):
         np.testing.assert_allclose(
             wave[CLeads.III], wave[CLeads.II] - wave[CLeads.I])
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize('bits', [np.int16, np.float32])
+    def test_extract_bits(self, parse_config, bits):
+        # resampling and lead augmentation both run, and every signal must
+        # still come back in the requested storage type
+        config = parse_config(config_two_leads)
+        reader = _StubReader(dict(example_raw), augment_leads=True)
+        reader.extract(config=config, bits=bits)
+        wave = getattr(reader, CTypes.WaveForms)
+        median = getattr(reader, CTypes.MedianBeats)
+        for signals in (wave, median):
+            for lead in (CLeads.I, CLeads.II, CLeads.III, CLeads.aVR,
+                         CLeads.aVL, CLeads.aVF):
+                assert signals[lead].dtype == bits
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_extract_errors(self, parse_config):
         config = parse_config(config_all_leads)
         # resampling needs the original sampling frequency
@@ -165,3 +179,74 @@ class TestResampleHelpers(object):
         with pytest.raises(AttributeError):
             pro_base._resample_source(
                 signals, 1.2, 'median beat', skip_empty=False)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_cast_signals(self):
+        signals = {'I': np.array([12.7, -0.6, 2.4]), 'II': None}
+        # integer types round to the nearest whole number; None is kept
+        res = pro_base._cast_signals(signals, np.int16)
+        assert res['I'].dtype == np.int16
+        assert res['I'].tolist() == [13, -1, 2]
+        assert res['II'] is None
+        # float types keep the decimals
+        res = pro_base._cast_signals(signals, np.float32)
+        assert res['I'].dtype == np.float32
+        assert [round(float(v), 1) for v in res['I']] == [12.7, -0.6, 2.4]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class TestExtractPattern(object):
+    """Test ecgprocess.process.process_base.extract_pattern"""
+    # three measurement groups, each named by its Code Meaning tag, plus a
+    # tag outside every group
+    data = {
+        'Measurement_1.Code Meaning': 'QRS Duration',
+        'Measurement_1.Numeric Value': '96',
+        'Measurement_1.Units': 'ms',
+        'Measurement_2.Code Meaning': 'QT Interval',
+        'Measurement_2.Numeric Value': 402.5,
+        'Measurement_3.Code Meaning': 'Axis',
+        'Measurement_3.Values': '10,20',
+        'Unrelated': 'ignored',
+    }
+    pattern = {
+        'Measurement_1.': 'Code Meaning',
+        'Measurement_2.': 'Code Meaning',
+        'Measurement_3.': 'Code Meaning',
+    }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_extract_pattern(self):
+        res = pro_base.extract_pattern(self.data, self.pattern)
+        # keys are renamed, numbers parsed, text kept, and a multi-value
+        # string stays a list
+        assert res == {
+            'QRS Duration (Numeric Value)': 96,
+            'QRS Duration (Units)': 'ms',
+            'QT Interval (Numeric Value)': 402.5,
+            'Axis (Values)': [10, 20],
+        }
+        assert isinstance(res['QRS Duration (Numeric Value)'], int)
+        assert isinstance(res['QT Interval (Numeric Value)'], float)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_extract_pattern_no_parse(self):
+        res = pro_base.extract_pattern(
+            self.data, self.pattern, parse_numeric=False)
+        # every value is cast to a string, including the raw float
+        assert res == {
+            'QRS Duration (Numeric Value)': '96',
+            'QRS Duration (Units)': 'ms',
+            'QT Interval (Numeric Value)': '402.5',
+            'Axis (Values)': '10,20',
+        }
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @pytest.mark.parametrize('kwargs', [
+        {'data': ['not', 'a', 'dict']},
+        {'pattern': 'Measurement_1.'},
+        {'substitute': [r'_[0-9]', ' ']},
+        {'character_trim': '0'},
+        {'skip_empty': 1},
+        {'parse_numeric': 'yes'},
+        {'verbose': None},
+    ])
+    def test_extract_pattern_errors(self, kwargs):
+        args = {'data': self.data, 'pattern': self.pattern, **kwargs}
+        with pytest.raises(InputValidationError):
+            pro_base.extract_pattern(**args)

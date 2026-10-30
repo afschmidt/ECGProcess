@@ -12,6 +12,9 @@ from typing import (
 from ecgprocess.utils.config_tools import(
     ConfigParser,
 )
+from ecgprocess.utils.general import(
+    parse_number,
+)
 from ecgprocess.errors import (
     is_type,
     Warn_MSG,
@@ -74,7 +77,10 @@ class BaseReader:
             `MedianBeats` simply include the lead mappings. Please refer to
             the `constants.CoreData` class for the specifics
         bits : `np.dtype`, default `None`
-            np.array bits passed to numpy.array dtype.
+            The numpy storage type of the waveform and median beat arrays,
+            for example `np.int16`. The signals are converted back to this
+            type after resampling and lead augmentation; integer types are
+            rounded to the nearest whole number. `None` lets numpy choose.
         skip_empty : `bool`, default `True`
             Whether empty tags should be skipped or throw an error.
         parse_numeric : bool, default `True`
@@ -191,6 +197,11 @@ class BaseReader:
                 wave_data = ecg_utils.get_limb_leads(wave_data)
             if any(median_data.get(l) is None for l in _aug):
                 median_data = ecg_utils.get_limb_leads(median_data)
+        # #### restore the requested storage type
+        # resampling and lead augmentation can return floats
+        if bits is not None:
+            wave_data = _cast_signals(wave_data, bits)
+            median_data = _cast_signals(median_data, bits)
         # ### do we print missing tags
         if self.verbose:
             missing_tags = [tag for tag in (
@@ -274,4 +285,130 @@ def _resample_source(signals: dict[str, np.array],
             raise AttributeError(Error_MSG.MISSING_SIGNAL.format(signal_name))
         return signals, 500
     return ecg_utils.resampling_500hz(signals, duration=duration), 500
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def _cast_signals(signals: dict[str, np.array],
+                  bits: np.dtype,
+                  ) -> dict[str, np.array]:
+    """
+    Cast the signals to the requested bits numpy type.
+    
+    Parameters
+    ----------
+    signals : `dict` [`str`, `np.array`]
+        The full waveforms or mediation beats.  A value that is not a numpy
+        array is copied unchanged.
+    bits : `np.dtype`
+        How each sample is stored, for example `np.int16`. Integer
+        types are rounded to the nearest whole number first.
+    
+    Returns
+    -------
+    signals : `dict` [`str`, `np.array`]
+        Lead name mapped to the stored samples. Missing leads and
+        non-array values are the same objects that were passed in.
+    """
+    # Whole-number storage, such as int16, is what forces the rounding.
+    integer_storage = np.issubdtype(bits, np.integer)
+    converted = {}
+    # One lead at a time. Missing leads and other non-arrays stay as is.
+    for lead, samples in signals.items():
+        if not isinstance(samples, np.ndarray):
+            converted[lead] = samples
+            continue
+        # Round, then store, when the type holds whole numbers only.
+        # Floating storage skips the round and only changes the type.
+        converted[lead] = (
+            np.rint(samples) if integer_storage else samples
+        ).astype(bits)
+    return converted
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def extract_pattern(data:dict[str, Any], pattern:dict[str, str],
+                    substitute:tuple[str,str]|None=(r'_[0-9]{1,2}\.*', ' '),
+                    character_trim:int=0, skip_empty:bool=True,
+                    parse_numeric:bool=True, verbose:bool=False,
+                    ) -> dict[str, Any]:
+    """
+    Label each group of raw tags with the name stored in that group.
+    
+    Tags that start with the same text are one group. One of them holds
+    the label. The others come back with that label in front of the
+    name. The label tag itself is not returned, and tags that fit no
+    group are dropped.
+    
+    Measurement_1.Code Meaning = QRS Duration, together with
+    Measurement_1.Numeric Value = 96, comes back as
+    QRS Duration (Numeric Value) = 96.
+    
+    Parameters
+    ----------
+    data : `dict` [`str`, `any`]
+        Tag name mapped to its value. A reader's raw_data is the usual
+        input.
+    pattern : `dict` [`str`, `str`]
+        The start of a group mapped to the ending of its label tag.
+        Measurement_1. mapped to Code Meaning reads the label from the
+        Code Meaning tag.
+    substitute : `tuple` [`str`, `str`] or `NoneType`
+        Text to find, and the text to put in its place, applied after
+        the group start is removed from the tag name. The default turns
+        a short index such as _1 or _12. into a space. None leaves the
+        name unchanged. Default `(r"_[0-9]{1,2}\\.*", " ")`.
+    character_trim : `int`, default `0`
+        Characters skipped immediately after the group start. Zero keeps
+        the rest of the name.
+    skip_empty : `bool`, default `True`
+        Drop a group that has other tags but no label. False raises
+        ValueError.
+    parse_numeric : `bool`, default `True`
+        Read numeric text as an int or a float. Comma-separated numbers
+        stay a list. Other text is kept. False leaves every value as
+        text.
+    verbose : `bool`, default `False`
+        Warn when a group start matches no tag.
+    
+    Returns
+    -------
+    new_meta : `dict` [`str`, `any`]
+        Kept tags. Each key starts with the group label. Values are
+        text, or numbers when parse_numeric is True.
+    
+    Raises
+    ------
+    InputValidationError
+        An argument is not the kind of object named above.
+    ValueError
+        skip_empty is False and a matched group has no label tag.
+    """
+    # Each argument must be the kind of object named above.
+    is_type(data, dict)
+    is_type(pattern, dict)
+    is_type(substitute, (type(None), tuple))
+    is_type(character_trim, int)
+    is_type(skip_empty, bool)
+    is_type(parse_numeric, bool)
+    is_type(verbose, bool)
+    # Keep the named groups and write each label in front of its tags.
+    new_meta = reader_utils.subset_dict(
+        data=data, pattern=pattern,
+        substitute=substitute, verbose=verbose,
+        skip_empty=skip_empty,
+        character_trim=character_trim)
+    # One text form for every value, including numbers parsed upstream,
+    # so the optional number read below sees only strings.
+    new_meta = {key: str(value) for key, value in new_meta.items()}
+    if parse_numeric:
+        for key, text in new_meta.items():
+            try:
+                new_meta[key] = parse_number(text)
+                # One parsed number comes back inside a one-item list.
+                # Lift it out. Two or more numbers stay a list.
+                if isinstance(new_meta[key], list):
+                    if len(new_meta[key]) == 1:
+                        new_meta[key] = new_meta[key][0]
+            except ValueError:
+                # Number parsing refused this text. Keep the text.
+                new_meta[key] = text
+    return new_meta
 

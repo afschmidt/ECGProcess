@@ -312,6 +312,16 @@ class TestGetECGData(object):
         assert np.array_equal(
             res["output1"], np.array([1, 2, 3], dtype=np.float32))
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_as_array_int_rounds(self):
+        data_dict = {"signal1": [0.9, -0.6, 2.4]}
+        config = {"output1": "signal1"}
+        res, _ = reader_utils.get_ecg_data(data_dict, config,
+                                           as_array=True,
+                                           bits=np.int16)
+        # decimals are rounded, not truncated, when storing whole numbers
+        assert res["output1"].dtype == np.int16
+        assert np.array_equal(res["output1"], np.array([1, -1, 2]))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_missing_data_error(self):
         data_dict = {"signal1": [1, 2, 3]}
         config = {"output1": "signal2"}
