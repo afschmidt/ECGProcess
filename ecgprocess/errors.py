@@ -438,15 +438,16 @@ class Error_MSG(object):  # pragma: no cover
     WRITER_NAMES_LEN='`file_names()` must return at least 1 filename, got {}.'
     WRITER_NAMES_STR='`file_names()` element {} must be a `str`, not `{}`.'
     READER_UNSET=(
-        '`{}` did not set `{}` after `extract`. Either populate it in the '
+        '`{}` did not set `{}` after `extract`. Either define the object in the '
         'reader, or set the matching extract_meta/extract_wave/'
         'extract_median flag to `False` on ECGTable if the reader does '
         'not provide this data.'
     )
     READER_NOT_DICT=(
-        '`{}` set `{}` to a `{}` after `extract`; expected a `dict`. Set '
-        'the matching extract_meta/extract_wave/extract_median flag to '
-        '`False` on ECGTable if the reader does not provide this data.'
+        '`{}` did not define `{}` as a `dict` after `extract` (found '
+        '`{}`).  Either assign a `dict` to it in the reader, or set the matching '
+        'extract_meta/extract_wave/extract_median flag to `False` on '
+        'ECGTable if the reader does not provide this data.'
     )
     READER_SIGNAL_TYPE=(
         '`{}` set `{}` lead(s) {} to values that are neither a numpy '
