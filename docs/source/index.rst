@@ -89,6 +89,7 @@ avoid, and finally how to build a custom writer.
    
    examples/recipe/process_xml.nblink
    examples/recipe/process_dicom.nblink
+   examples/recipe/custom_reader.nblink
    examples/recipe/tabular.nblink
    examples/recipe/plot_ecgs.nblink
    examples/recipe/utils/engineering_tools.nblink

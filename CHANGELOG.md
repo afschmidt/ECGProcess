@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### Added
+
+* Upgraded module to run on Python 3.11, 3.12, 3.13, and 3.14.
+* `ECGTable` raises `ReaderOutputError` when a reader never set a
+  requested data category, or set it to something other than a
+  dictionary, and `ignore_data=True` does not suppress this. A
+  category that is set but empty is still accepted.
+* `BaseReader.check_extracted` lets a reader run the same data type
+  check on its own output.
+* An example notebook explaining how additional readers can be added
+  through subclassing.
+
+### Changed
+
+* `BaseReader` inherits from abc.ABC and includes an abstractmethod
+   `__call__`.
+* `verbose=False` suppresses the resampling warning.
+* The DICOM reader now starts from the same base as the XML reader,
+  and both take extra measurements matched by name through the
+  shared `extract_pattern` step.
+
+### Deprecated
+
+* Imports from `ecgprocess.process_xml` and
+  `ecgprocess.process_dicom` still succeed, emit a warning, and will
+  be removed in version 2.0.0.
+
+### Fixed
+
+* The `bits` option now keeps DICOM samples as whole numbers, a
+  request the DICOM reader used to ignore.
+* Samples stay in the number format requested with `bits` after
+  resampling to 500 Hz and after extra limb leads are filled in,
+  and a fractional value is rounded to the nearest whole number.
+
 ### 1.2.0
 
 #### Added
@@ -48,7 +83,7 @@
   true on `ECGTable.write_ecg`, and further files are read to fill the
   batch.
 * ECG can be written to XML (one file per input ECG) using templates
-  for metadata, waveforms, and median beats. 
+  for metadata, waveforms, and median beats.
   See `XMLWriter` (`writer='xml'`), with an optional
   schema check compiled once for that writer.
 * Schema files and written documents are parsed with entity resolution
@@ -218,27 +253,27 @@
 
 * Tests for `signal_calibration` and `signal_resolution` in `test_ecg_tools.py`
 * Tests for `metadata_checkversion` in `test_engineering_tools.py`
-* Tests for augment-leads behaviour (`KeyError` on missing source leads; 
+* Tests for augment-leads behaviour (`KeyError` on missing source leads;
  correct derivation of III, aVR, aVL, aVF) in `test_process_xml.py`
-* Tests for `get_limb_leads` None-value source lead and 
+* Tests for `get_limb_leads` None-value source lead and
  `signal_dicts_to_numpy_array` in `test_ecg_tools.py`
 * Test for `get_ecg_data` STARTSWITH miss key presence in `test_reader_tools.py`
 
 #### Fixed
 
-* `get_ecg_data`: STARTSWITH miss now always writes `None` to `results_dict` 
+* `get_ecg_data`: STARTSWITH miss now always writes `None` to `results_dict`
 before the `skip_empty` guard
-* `get_limb_leads`: keys present with `None` values are now treated as absent; 
+* `get_limb_leads`: keys present with `None` values are now treated as absent;
  error message names the specific missing source leads
-* `signal_correction` and `signal_standardise_res`: operate on a local dict 
+* `signal_correction` and `signal_standardise_res`: operate on a local dict
  copy to prevent caller mutation
-* `process_xml`: empty-waveform detection replaced `len(wave_missing)==12` with 
-`all(v is None)`; augment-leads guard now checks per derived lead rather than 
+* `process_xml`: empty-waveform detection replaced `len(wave_missing)==12` with
+`all(v is None)`; augment-leads guard now checks per derived lead rather than
 any missing lead
 
 #### Changed
 
-* `signal_dicts_to_numpy_array`: `_STANDARD_LEADS` extracted as an immutable 
+* `signal_dicts_to_numpy_array`: `_STANDARD_LEADS` extracted as an immutable
 module-level constant; `leads` parameter now accepts `list` or `tuple`
 
 ### 1.0.0 - 2026-04-15
@@ -246,20 +281,20 @@ module-level constant; `leads` parameter now accepts `list` or `tuple`
 #### Added
 
 * `Makefile` with common dev targets
-* Git hooks (`commit-msg`, `pre-commit`) with setup script and codespell 
+* Git hooks (`commit-msg`, `pre-commit`) with setup script and codespell
  ignore-words list
-* `resources/build/inc_version.sh` version bump helper script and accompanying 
+* `resources/build/inc_version.sh` version bump helper script and accompanying
  README
 * Python 3.13 classifier and support in `pyproject.toml`
 
 #### Changed
 
-* `bump2version` config migrated from `.bumpversion.cfg` to `pyproject.toml`; 
+* `bump2version` config migrated from `.bumpversion.cfg` to `pyproject.toml`;
 now also updates `CHANGELOG.md`
-* `pyproject.toml` aligned with scaffold template: dynamic deps via 
+* `pyproject.toml` aligned with scaffold template: dynamic deps via
  `requirements.txt`/`requirements-dev.txt`, SPDX license string, `[tool.ruff]`
  config, Documentation URL
-* Split `requirements.txt` into core runtime deps and new 
+* Split `requirements.txt` into core runtime deps and new
  `requirements-dev.txt` for dev/test tooling
 
 #### Removed
@@ -271,46 +306,46 @@ now also updates `CHANGELOG.md`
 
 ### Fixed
 
-- Bug fixes to FixedDICOMReader - the older ECGDICOMReader. 
-- Document improvements/errors. 
+- Bug fixes to FixedDICOMReader - the older ECGDICOMReader.
+- Document improvements/errors.
 
 ### Added
 
-- A tabular module containing the ECGTable class. This class is a file type 
-  agnostic class mapping ECG data to table or files. 
-- A reader classes for XML and DICOM files, see the various process_\*.py files. 
-- Extensive utils modules. 
+- A tabular module containing the ECGTable class. This class is a file type
+  agnostic class mapping ECG data to table or files.
+- A reader classes for XML and DICOM files, see the various process_\*.py files.
+- Extensive utils modules.
 - Example configuration files for XML and DICOMs.
 - Example XML schema, for XML validation.
 - Added TensorFlow as dependency.
 
 ### Changed
 
-- process_dicom has been refactored. The previous ECGDICOMReader class has been 
-  renamed to FixedDICOMReader which was slightly optimised. 
-  The new ECGDICOMReader is now in-line with the process_xml ECGXMLReader class. 
-- Changed the base docker environment to allow for tensorflow. 
+- process_dicom has been refactored. The previous ECGDICOMReader class has been
+  renamed to FixedDICOMReader which was slightly optimised.
+  The new ECGDICOMReader is now in-line with the process_xml ECGXMLReader class.
+- Changed the base docker environment to allow for tensorflow.
 
 ### Deprecated
 
-- FixedDICOMReader, will be deprecated in future. 
+- FixedDICOMReader, will be deprecated in future.
 
 ### Removed
 
-- ECGDICOMTable has been removed, please use `ECGTable` instead. 
+- ECGDICOMTable has been removed, please use `ECGTable` instead.
 
 ## v0.2.2 - 20-12-2024
 
 ### Fixed
 
-- Fixed ECGDICOMTable bug when the metadata is empty. 
+- Fixed ECGDICOMTable bug when the metadata is empty.
 - Bug fix for ECGDICOMReader to handle NoneType ECG measurements.
 
 ### Added
 
-- Added kwargs to ECGDICOMTable for the reader and writing functions. 
-- ECGDICOMReader extract free text and pacemaker spike information. 
-- Improved pytest coverage. 
+- Added kwargs to ECGDICOMTable for the reader and writing functions.
+- ECGDICOMReader extract free text and pacemaker spike information.
+- Improved pytest coverage.
 
 ### Changed
 
@@ -328,18 +363,18 @@ _Nothing_
 
 ### Fixed
 
-- Multiple documentation improvements. 
-- Compression now accepts a NoneType argument. 
+- Multiple documentation improvements.
+- Compression now accepts a NoneType argument.
 
 ### Added
 
-- Added a get_metadata method. 
+- Added a get_metadata method.
 - Siloed off code to create the private methods \_get_waveform_annotation and \_write_internal.
 - Added a write_pdf method.
 
 ### Changed
 
-- The leads in the ECG plotting functions can now all start from the same time moment, instead of consecutive leads starting when from the time the previous lead stopped. 
+- The leads in the ECG plotting functions can now all start from the same time moment, instead of consecutive leads starting when from the time the previous lead stopped.
 
 ### Deprecated
 
@@ -357,7 +392,7 @@ _Nothing_
 
 ### Added
 
-- The module plot_ecgs.py facilitating mapping tabular ECG signals to images, and images back to numerical arrays. 
+- The module plot_ecgs.py facilitating mapping tabular ECG signals to images, and images back to numerical arrays.
 - Added docs, pytest, and examples for plot_ecgs.py
 
 ### Changed

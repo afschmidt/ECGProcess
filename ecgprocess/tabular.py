@@ -558,6 +558,12 @@ class ECGTable(object):
         tuple of list
             the metadata, waveform signals, and medianbeats signals.
         
+        Raises
+        ------
+        ReaderOutputError
+            Raised if the reader instance did not implement the requested data
+            object.
+        
         Notes
         -----
         To keep track of multiple ECG files the function will try to use the
@@ -587,6 +593,16 @@ class ECGTable(object):
         median_leads = list(
             parsed_config.get_section(
                 CTypes.MedianBeats, declared_only=True).keys())
+        # Populates a list of required data objects the reader should
+        # define .
+        required = []
+        if getattr(self, TabNames.E_META) or unique:
+            required.append(CTypes.MetaData)
+        # Waveforms and median beats follow their own switches.
+        if getattr(self, TabNames.E_WAVE):
+            required.append(CTypes.WaveForms)
+        if getattr(self, TabNames.E_MEDIAN):
+            required.append(CTypes.MedianBeats)
         # #### extract data
         meta_list, wave_list, median_list = [[] for _ in range(3)]
         # the lists will be appended after each iteration
@@ -647,6 +663,9 @@ class ECGTable(object):
                         continue
                     else:
                         raise AE
+            # Confirms the reader appropriatly defines the required data
+            # objects.
+            ecg_inst.check_extracted(required)
             # extract unique identifier.
             if unique == True:
                 if hasattr(ecg_inst, CTypes.MetaData) == False:
@@ -883,7 +902,13 @@ class ECGTable(object):
         -------
         `ECGTable` instance
             Returns the class instance with updated attributes.
-        
+
+        Raises
+        ------
+        ReaderOutputError
+            A requested data category was still empty after `extract`.
+            Setting `ignore_data` does not hide this failure.
+
         Notes
         -----
         To keep track of multiple ECG files the function will try to use the
@@ -1033,7 +1058,10 @@ class ECGTable(object):
         ------
         NotADirectoryError or PermissionError
             If the target directory does not exist or is not writable.
-        
+        ReaderOutputError
+            A requested data category was still empty after `extract`.
+            Setting `ignore_data` does not hide this failure.
+
         Notes
         -----
         While the `table` writer can store any kind of information, the

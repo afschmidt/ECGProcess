@@ -19,6 +19,14 @@ To process ECG data ECGprocess leverages three key components
   the ECG signal and calculating the limb leads if
   these were omitted for the source file.
 
+  An ECG recording kept in some other file type can be read by creating
+  a new reader through subclassing of 
+  :class:`~ecgprocess.process.BaseReader`. 
+  The new reader should implement its own 
+  ``__call__`` method.
+  A worked example is in
+  :doc:`examples/recipe/custom_reader`.
+
 * ``ECGTable`` processes any type of ECG data (with a corresponding
   reader class) and can chunk multiple files into a pandas table or write
   them to disk through a pluggable writer registry. The output format is

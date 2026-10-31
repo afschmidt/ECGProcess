@@ -1,9 +1,12 @@
+import warnings
 import pytest
 import numpy as np
 import ecgprocess.process.process_base as pro_base
 import ecgprocess.utils.config_tools as config_utils
 from ecgprocess.constants import CoreData as Core
-from ecgprocess.errors import MissingTagError, InputValidationError
+from ecgprocess.errors import (
+    MissingTagError, InputValidationError, ReaderOutputError,
+)
 from ecgprocess.example_data.examples import (
     config_file,
 )
@@ -56,6 +59,9 @@ class _StubReader(pro_base.BaseReader):
         super().__init__(raw=raw)
         for k, v in kwargs.items():
             setattr(self, k, v)
+    def __call__(self, path, verbose=False, **kwargs):
+        """The raw tags are supplied at creation, so nothing to read."""
+        return self
 
 @pytest.fixture
 def parse_config(tmp_path):
@@ -136,6 +142,34 @@ class TestBaseReader(object):
         with pytest.raises(MissingTagError):
             _StubReader(dict(example_raw)).extract(
                 config=config, skip_empty=False)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_call_is_required(self):
+        # a reader without __call__ cannot be created
+        class _NoCall(pro_base.BaseReader):
+            pass
+        with pytest.raises(TypeError):
+            _NoCall()
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def test_check_extracted(self, parse_config):
+        reader = _StubReader(dict(example_raw))
+        reader.extract(config=parse_config(config_all_leads))
+        all_cats = [CTypes.MetaData, CTypes.WaveForms, CTypes.MedianBeats]
+        # #### complete output passes
+        assert reader.check_extracted(all_cats) is None
+        # #### an unrequested category may stay unset
+        delattr(reader, CTypes.MedianBeats)
+        reader.check_extracted([CTypes.MetaData, CTypes.WaveForms])
+        # #### a requested category which is unset raises
+        with pytest.raises(ReaderOutputError, match=CTypes.MedianBeats):
+            reader.check_extracted(all_cats)
+        # #### a requested category which is not a dict raises
+        setattr(reader, CTypes.MedianBeats, None)
+        with pytest.raises(ReaderOutputError, match=CTypes.MedianBeats):
+            reader.check_extracted(all_cats)
+        # #### a signal which is neither an array nor None raises
+        setattr(reader, CTypes.MedianBeats, {CLeads.I: [1, 2, 3]})
+        with pytest.raises(ReaderOutputError, match=CLeads.I):
+            reader.check_extracted(all_cats)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestResampleHelpers(object):
@@ -162,10 +196,18 @@ class TestResampleHelpers(object):
         assert sf_new == 500
         # without its own duration the source is left untouched and
         # reports no processed rate, rather than blocking the other
-        # source or being silently rescaled
-        out, sf_new = pro_base._resample_source(
-            signals, None, 'median beat', skip_empty=True)
+        # source or being silently rescaled; it warns by default
+        with pytest.warns(UserWarning, match='median beat'):
+            out, sf_new = pro_base._resample_source(
+                signals, None, 'median beat', skip_empty=True)
         assert len(out['I']) == 300
+        assert sf_new is None
+        # verbose=False skips the warning but not the outcome
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            out, sf_new = pro_base._resample_source(
+                signals, None, 'median beat', skip_empty=True,
+                verbose=False)
         assert sf_new is None
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def test_resample_source_without_data(self):

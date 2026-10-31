@@ -21,17 +21,17 @@ class InputValidationError(Exception):  # pragma: no cover
 def get_param_name(param:Any) -> str | None:
     '''
     Gets the name of `param` from the caller's local scope.
-
+    
     Parameters
     ----------
     param : `Any`
         The object whose variable name is to be resolved.
-
+    
     Returns
     -------
     name : `str` or `None`
         The variable name as a string, or `None` if it cannot be resolved.
-
+    
     Notes
     -----
     `inspect.currentframe()` returns `None` on Python implementations
@@ -437,6 +437,21 @@ class Error_MSG(object):  # pragma: no cover
     WRITER_NAMES_RETURN='`file_names()` must return a `tuple`, not `{}`.'
     WRITER_NAMES_LEN='`file_names()` must return at least 1 filename, got {}.'
     WRITER_NAMES_STR='`file_names()` element {} must be a `str`, not `{}`.'
+    READER_UNSET=(
+        '`{}` did not set `{}` after `extract`. Either populate it in the '
+        'reader, or set the matching extract_meta/extract_wave/'
+        'extract_median flag to `False` on ECGTable if the reader does '
+        'not provide this data.'
+    )
+    READER_NOT_DICT=(
+        '`{}` set `{}` to a `{}` after `extract`; expected a `dict`. Set '
+        'the matching extract_meta/extract_wave/extract_median flag to '
+        '`False` on ECGTable if the reader does not provide this data.'
+    )
+    READER_SIGNAL_TYPE=(
+        '`{}` set `{}` lead(s) {} to values that are neither a numpy '
+        'array nor `None`.'
+    )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class Warn_MSG(object):  # pragma: no cover
@@ -508,6 +523,24 @@ class NotCalledError(Exception):  # pragma: no cover
         message : `str`, optional
             Human-readable description of the error.  Defaults to a
             message indicating that the ``__call__`` method was not invoked.
+        """
+        self.message = message
+        super().__init__(self.message)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class ReaderOutputError(Exception):  # pragma: no cover
+    """
+    Exception raised when a reader did not implement the data attributes
+    that `ECGTable` needs after runnig `extract`.
+    """
+    def __init__(self, message="The reader output is incomplete."):
+        """
+        Keep the message and pass it up to `Exception`.
+        
+        Parameters
+        ----------
+        message : `str`, optional
+            The error message to raise.
         """
         self.message = message
         super().__init__(self.message)

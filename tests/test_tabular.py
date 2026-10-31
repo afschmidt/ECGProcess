@@ -7,7 +7,7 @@ import pandas as pd
 import pydicom
 from ecgprocess.errors import (
     MissingTagError, XMLValidationError,
-    InputValidationError,
+    InputValidationError, ReaderOutputError,
 )
 from ecgprocess.constants import (
     CoreData as Core,
@@ -907,47 +907,49 @@ class TestWriteEcgAnnotateFailures(object):
         assert all('absent key' in r for r in rows)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class TestMetaNewFallback(object):
+class TestReaderOutputCheck(object):
     """
-    Testing `ECGTable._loop_table`'s `meta_new` fallback when metadata
-    extraction raises `AttributeError` under `ignore_data=True,
-    confirm_meta=False`: the failing record must be kept with fresh,
-    empty metadata, matching how `wave_temp`/`median_temp` already
-    behave, rather than reusing the previous record's real metadata
-    or raising an unbound-variable error.
+    Testing that `ECGTable._loop_table` raises `ReaderOutputError` when a
+    reader leaves a requested data category unset, instead of treating
+    the file as having no data, while still allowing a reader to skip a
+    category which `ECGTable` was told not to extract.
     """
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_second_record_gets_empty_meta_not_stale(self):
-        # first record succeeds with real metadata, second record's
-        # metadata extraction raises AttributeError.
+    def test_unset_metadata_raises_with_ignore_data(self):
+        # the second record's reader leaves MetaData unset; ignore_data
+        # must not hide this as a file without data
         reader = _FlakyMetaReader(fail_at=2)
         ecgtable = ECGTable(reader, path_list=dicom_path_list,
                             extract_wave=False, extract_median=False)
         res = ecgtable(ignore_data=True, confirm_meta=False)
-        meta, wave, median = res._loop_table(
-            getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom,
-            unique=False,
-        )
-        # both records are kept (fresh-empty-metadata fallback, not skip)
-        assert len(meta) == 2
-        # the first record's metadata is real and non-empty
-        assert meta[0] != {}
-        # the second record must not reuse the first record's metadata
-        assert meta[1] == {}
-        assert meta[1] != meta[0]
+        with pytest.raises(ReaderOutputError, match=CTypes.MetaData):
+            res._loop_table(
+                getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom,
+                unique=False,
+            )
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def test_first_record_failure_does_not_raise_unbound(self):
-        # a single record whose (only, first) metadata extraction fails
-        # must not raise NameError/UnboundLocalError on `meta_new`.
-        reader = _FlakyMetaReader(fail_at=1)
-        ecgtable = ECGTable(reader, path_list=[dicom_path_list[0]],
+    def test_unextracted_category_may_stay_unset(self):
+        # _FlakyMetaReader never fills WaveForms or MedianBeats, these keep
+        # the None from BaseReader.__init__
+        reader = _FlakyMetaReader(fail_at=None)
+        # #### fine when ECGTable does not read them
+        ecgtable = ECGTable(reader, path_list=dicom_path_list,
                             extract_wave=False, extract_median=False)
         res = ecgtable(ignore_data=True, confirm_meta=False)
-        meta, wave, median = res._loop_table(
+        meta, _, _ = res._loop_table(
             getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom,
             unique=False,
         )
-        assert meta == [{}]
+        assert len(meta) == 2
+        # #### raises when ECGTable is asked for median beats
+        ecgtable = ECGTable(reader, path_list=dicom_path_list,
+                            extract_wave=False)
+        res = ecgtable(ignore_data=True, confirm_meta=False)
+        with pytest.raises(ReaderOutputError, match=CTypes.MedianBeats):
+            res._loop_table(
+                getattr(res, TabNames.CPATH_L), parsed_config=parser_dicom,
+                unique=False,
+            )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class TestKeyListAlignment(object):

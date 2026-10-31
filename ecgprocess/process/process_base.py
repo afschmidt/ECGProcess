@@ -1,7 +1,8 @@
 """
-The processing framework: `BaseReader`.
+The base reader class and helper functions.
 """
 
+import abc
 import warnings
 import numpy as np
 import ecgprocess.utils.reader_tools as reader_utils
@@ -19,6 +20,7 @@ from ecgprocess.errors import (
     is_type,
     Warn_MSG,
     Error_MSG,
+    ReaderOutputError,
 )
 from ecgprocess.constants import (
     CoreData as Core,
@@ -29,14 +31,19 @@ CTypes = Core.DataTypes
 CProc = Core.ProcessingData
 CLeads = Core.Leads
 CMeta = Core.MetaData
+# Sentinel: never assigned. A stored None is a real value.
+_UNSET = object()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Base class
-class BaseReader:
+class BaseReader(abc.ABC):
     '''
     A base class for ECG readers, holding the four data categories and a
     generic `extract` method which maps the raw parsed tags to these
     categories based on a configuration file.
+    
+    A subclass must implement `__call__`, reading a single ECG files and
+    storing its content to flat dictionaries.
     '''
     # #### defaults, subclasses may override these
     _as_array:bool = True
@@ -54,6 +61,71 @@ class BaseReader:
         setattr(self, CTypes.MetaData,metadata)
         setattr(self, CTypes.OtherData, otherdata)
         setattr(self, CProc.RAW,raw)
+    # /////////////////////////////////////////////////////////////////////////
+    @abc.abstractmethod
+    def __call__(self, path:str, verbose:bool=False,
+                 **kwargs:Optional[Any]) -> Self:
+        '''
+        Reads one ECG file and store a flat tag-to-value map in
+        `raw_data`. `extract` later maps this dictionary to separate data
+        categories.
+        
+        Parameters
+        ----------
+        path : `str`
+            Location of the ECG file on disk.
+        verbose : `bool`, default `False`
+            Whether to print warnings.
+        **kwargs
+            Reader specific keyword arguments.
+        
+        Returns
+        -------
+        self : `BaseReader` instance
+            The class instance with the raw data.
+        '''
+    # /////////////////////////////////////////////////////////////////////////
+    def check_extracted(self, categories:list[str]) -> None:
+        '''
+        Confirms the requested data objects are present.
+        
+        This simply test the presence of the data objects, not its
+        content - which can be empy.
+        
+        Parameters
+        ----------
+        categories : `list` [`str`]
+            The attribute name to check, for example `['MetaData', 'WaveForms']`.
+        
+        Raises
+        ------
+        ReaderOutputError
+            When the data object is unset or not a dictionary/array.
+        '''
+        # check input
+        is_type(categories, list)
+        # The message names the reader class, which is enough to
+        # see which implementation failed.
+        name = type(self).__name__
+        for cat in categories:
+            # `_UNSET` means the attribute was never assigned. A stored
+            # `None` is a real value and is handled below.
+            value = getattr(self, cat, _UNSET)
+            if value is _UNSET:
+                raise ReaderOutputError(
+                    Error_MSG.READER_UNSET.format(name, cat))
+            # Each category is a mapping of field name to value.
+            if not isinstance(value, dict):
+                raise ReaderOutputError(Error_MSG.READER_NOT_DICT.format(
+                    name, cat, type(value).__name__))
+            # For the two signal categories, a lead is an array, or
+            # `None` when that lead was absent.
+            if cat in (CTypes.WaveForms, CTypes.MedianBeats):
+                bad = [k for k, v in value.items()
+                       if not (v is None or isinstance(v, np.ndarray))]
+                if len(bad) > 0:
+                    raise ReaderOutputError(
+                        Error_MSG.READER_SIGNAL_TYPE.format(name, cat, bad))
     # /////////////////////////////////////////////////////////////////////////
     def extract(self, config:ConfigParser, bits:np.dtype | None=None,
                 skip_empty:bool=True, parse_numeric:bool=True,
@@ -183,10 +255,10 @@ class BaseReader:
                 # sampling number for one does not block the other
                 wave_data, meta_data[CProc.SF_NEW_W] = _resample_source(
                     wave_data, meta_data[CProc.Duration_W], 'waveform',
-                    skip_empty)
+                    skip_empty, verbose=self.verbose)
                 median_data, meta_data[CProc.SF_NEW_M] = _resample_source(
                     median_data, meta_data[CProc.Duration_M], 'median beat',
-                    skip_empty)
+                    skip_empty, verbose=self.verbose)
         # ### See if we need to get the augmented leads
         # leads that can be derived from I and II
         _aug = {CLeads.III, CLeads.aVR, CLeads.aVL, CLeads.aVF}
@@ -249,6 +321,7 @@ def _resample_source(signals: dict[str, np.array],
                      duration: int | float | None,
                      signal_name: str,
                      skip_empty: bool,
+                     verbose: bool = True,
                      ) -> tuple[dict[str, np.array], int | None]:
     """
     Resample a single signal source to 500 hz.
@@ -264,7 +337,10 @@ def _resample_source(signals: dict[str, np.array],
         The source name used in the warning and error messages.
     skip_empty : `bool`
         Whether a source without any data is skipped or raises.
-    
+    verbose : `bool`, default `True`
+        Whether to warn when the source is left untouched because its
+        duration is unknown.
+
     Returns
     -------
     signals : `dict` [`str`, `np.array`]
@@ -278,7 +354,8 @@ def _resample_source(signals: dict[str, np.array],
         If the source holds no data while `skip_empty` is False.
     """
     if duration is None:
-        warnings.warn(Warn_MSG.RESAMPLE_NO_DURATION.format(signal_name))
+        if verbose:
+            warnings.warn(Warn_MSG.RESAMPLE_NO_DURATION.format(signal_name))
         return signals, None
     if all(v is None for v in signals.values()):
         if not skip_empty:
