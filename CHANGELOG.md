@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-11-02
+
 ### Added
 
 * Upgraded module to run on Python 3.11, 3.12, 3.13, and 3.14.

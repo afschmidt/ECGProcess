@@ -4,7 +4,7 @@
 <img src="https://gitlab.com/SchmidtAF/ECGProcess/-/raw/d853ccf/docs/source/_static/ecgp_logo.png" alt="ECGProcess icon" width="250"/>
 
 # An ECG processing module
-__version__: `1.2.0`
+__version__: `1.3.0`
 
 This repository hosts a collection of functions for processing
 electrocardiogram (ECG) data and preparing it for analysis.
