@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+* Releases are now built and uploaded through the gitlab ci runner, 
+* so PyPI shows provenance for each file. The package itself is unchanged.
+
+
 ## 1.3.0 - 2026-11-02
 
 ### Added
