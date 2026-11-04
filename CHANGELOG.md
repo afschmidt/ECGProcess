@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-11-04
+
 ### Changed
 
 * Releases are now built and uploaded through the gitlab ci runner, 
