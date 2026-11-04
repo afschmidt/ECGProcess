@@ -56,3 +56,26 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# PyPI publish: only on a vX.Y.Z tag, after the test matrix passes.
+# Uses PyPI Trusted Publishing, so PyPI records provenance for the files.
+publish_pypi:
+  stage: deploy
+  image: python:3.12-bookworm
+  environment:
+    name: pypi
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  script:
+    # Stop if the tag and the VERSION file disagree
+    - test "${CI_COMMIT_TAG#v}" = "$(cat VERSION)"
+    - python -m pip install "build" "twine>=6.1" "pypi-attestations"
+    - rm -rf dist/
+    - python -m build
+    - pypi-attestations sign dist/*
+    - twine upload --attestations dist/*

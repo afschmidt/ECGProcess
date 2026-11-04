@@ -34,6 +34,8 @@ The `inc_version.sh` script in this directory wraps `bump2version` with:
 4. A fresh `### Unreleased` section added to the top of the changelog
 5. Amended commit and re-tagged to include the changelog changes
 6. Push to remote with tags
+7. The pushed `vX.Y.Z` tag starts the `publish_pypi` GitLab job, which
+   uploads the release to PyPI (see `resources/pypi/build/README.md`)
 
 ### Usage
 
