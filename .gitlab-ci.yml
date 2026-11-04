@@ -57,8 +57,7 @@ pages:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# PyPI publish: only on a vX.Y.Z tag, after the test matrix passes.
-# Uses PyPI Trusted Publishing, so PyPI records provenance for the files.
+# PyPI publish: only on a tag, ensures PyPI records provenance.
 publish_pypi:
   stage: deploy
   image: python:3.12-bookworm

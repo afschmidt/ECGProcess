@@ -5,7 +5,7 @@ echo "[ci_cd] running resources/ci_cd/before_script.sh"
 # This is assumed to be running from the root of the repo
 echo "[before] running in: $PWD"
 # For debugging
-echo $CI_COMMIT_BRANCH
+echo ${CI_COMMIT_BRANCH:-} # - allow for empty
 echo $CI_DEFAULT_BRANCH
 python --version
 git branch
